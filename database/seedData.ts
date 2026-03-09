@@ -3,34 +3,39 @@ import { db } from "./db";
 
 export async function seedData(){
 
-  if (Platform.OS === "web" || !db) {
-    return;
-  }
+  if (Platform.OS === "web" || !db) return;
 
   await db.execAsync(`
 
-  INSERT OR IGNORE INTO users(id,name) VALUES
-  ('bhavi','Bhavi'),
-  ('madhu','Madhu'),
-  ('test','Test User');
+DELETE FROM subjects
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM subjects
+  GROUP BY name
+);
 
-  INSERT OR IGNORE INTO subjects(name) VALUES
-  ('Mathematics'),
-  ('Science'),
-  ('English'),
-  ('Hindi'),
-  ('Social Science'),
-  ('Computer');
+INSERT OR IGNORE INTO users(id,name) VALUES
+('bhavi','Bhavi'),
+('madhu','Madhu'),
+('test','Test User');
 
-  INSERT OR IGNORE INTO topics(subject_id,name) VALUES
-  (1,'Algebra'),
-  (1,'Linear Equations'),
-  (1,'Mensuration'),
-  (2,'Crop Production'),
-  (2,'Microorganisms'),
-  (3,'Grammar'),
-  (3,'Comprehension');
+INSERT OR IGNORE INTO subjects(name) VALUES
+('Mathematics'),
+('Science'),
+('English'),
+('Hindi'),
+('Social Science'),
+('Computer');
 
-  `);
+INSERT OR IGNORE INTO topics(subject_id,name) VALUES
+(1,'Tables'),
+(1,'Algebra'),
+(1,'Mensuration'),
+(2,'Physics'),
+(2,'Chemistry'),
+(3,'Grammar'),
+(3,'Comprehension');
+
+`);
 
 }
