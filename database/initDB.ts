@@ -128,6 +128,8 @@ async function createReviewsTable(db: SQLiteDatabase) {
       next_review INTEGER,
       last_result TEXT,
 
+      created_at INTEGER DEFAULT (strftime('%s','now')*1000),
+
       UNIQUE(user_id, question_id)
 
     )
