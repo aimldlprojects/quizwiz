@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { db } from "./db";
+import { db } from "../database/db";
 
 export async function seedData(){
 
@@ -11,6 +11,13 @@ DELETE FROM subjects
 WHERE id NOT IN (
   SELECT MIN(id)
   FROM subjects
+  GROUP BY name
+);
+
+DELETE FROM topics
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM topics
   GROUP BY name
 );
 

@@ -1,61 +1,219 @@
-import { useEffect, useState } from "react";
-import { FlatList, Text, View } from "react-native";
+// app/progress.tsx
 
-export default function Progress(){
+import { useEffect, useState } from "react"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
+import { StatsRepository } from "../database/statsRepository"
+import { useDatabase } from "../hooks/useDatabase"
 
-const [topics,setTopics] = useState([]);
+export default function ProgressScreen() {
 
-useEffect(()=>{
-loadProgress();
-},[]);
+    const { db, ready } = useDatabase()
 
-async function loadProgress(){
+    const [accuracy, setAccuracy] = useState(0)
+    const [topics, setTopics] = useState<any[]>([])
+    const [subjects, setSubjects] = useState<any[]>([])
 
-// later fetch from DB
-setTopics([
-{name:"Tables",progress:70},
-{name:"Algebra",progress:40}
-]);
+    const statsRepo = db ? new StatsRepository(db) : null
+    const userId = 1
+
+    // ---------- load stats ----------
+
+    async function loadProgress() {
+
+        if (!statsRepo) return
+
+        await statsRepo.debugTopics()
+
+        const acc =
+            await statsRepo.getAccuracy(userId)
+
+        const topicData =
+            await statsRepo.getTopicProgress(userId)
+
+        const subjectData =
+            await statsRepo.getSubjectProgress(userId)
+
+        setAccuracy(acc)
+        setTopics(topicData)
+        setSubjects(subjectData)
+
+    }
+
+    useEffect(() => {
+
+        if (!statsRepo) return
+
+        loadProgress()
+
+    }, [statsRepo])
+
+    if (!ready || !db) {
+        return <Text>Loading database...</Text>
+    }
+
+    // ---------- header ----------
+
+    function renderHeader() {
+
+        return (
+            <Text style={styles.title}>
+                Progress
+            </Text>
+        )
+
+    }
+
+    // ---------- accuracy ----------
+
+    function renderAccuracy() {
+
+        return (
+
+            <View style={styles.card}>
+
+                <Text style={styles.cardTitle}>
+                    Overall Accuracy
+                </Text>
+
+                <Text style={styles.bigValue}>
+                    {accuracy}%
+                </Text>
+
+            </View>
+
+        )
+
+    }
+
+    // ---------- topic progress ----------
+
+    function renderTopicProgress() {
+
+        return (
+
+            <View style={styles.card}>
+
+                <Text style={styles.cardTitle}>
+                    Topics
+                </Text>
+
+                {topics.map(t => (
+
+                    <View
+                        key={t.topicId}
+                        style={styles.row}
+                    >
+
+                        <Text>
+                            {t.topicName}
+                        </Text>
+
+                        <Text>
+                            {t.progress}%
+                        </Text>
+
+                    </View>
+
+                ))}
+
+            </View>
+
+        )
+
+    }
+
+    // ---------- subject progress ----------
+
+    function renderSubjectProgress() {
+        console.log("Subject progress:", subjects)
+        return (
+
+            <View style={styles.card}>
+
+                <Text style={styles.cardTitle}>
+                    Subjects
+                </Text>
+
+                {subjects.map(s => (
+
+                    <View
+                        key={s.subjectId}
+                        style={styles.row}
+                    >
+
+                        <Text>
+                            {s.subjectName}
+                        </Text>
+
+                        <Text>
+                            {s.progress}%
+                        </Text>
+
+                    </View>
+
+                ))}
+
+            </View>
+
+        )
+
+    }
+
+    return (
+
+        <ScrollView style={styles.container}>
+
+            {renderHeader()}
+
+            {renderAccuracy()}
+
+            {renderTopicProgress()}
+
+            {renderSubjectProgress()}
+
+        </ScrollView>
+
+    )
 
 }
 
-return(
+const styles = StyleSheet.create({
 
-<View style={{flex:1,padding:20}}>
+    container: {
+        flex: 1,
+        padding: 20
+    },
 
-<Text style={{fontSize:24,fontWeight:"bold"}}>
-Topic Progress
-</Text>
+    title: {
+        fontSize: 28,
+        fontWeight: "700",
+        marginBottom: 20,
+        textAlign: "center"
+    },
 
-<FlatList
-data={topics}
-keyExtractor={(item)=>item.name}
-renderItem={({item})=>(
-<View style={{marginTop:20}}>
+    card: {
+        backgroundColor: "#fff",
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 16
+    },
 
-<Text>{item.name}</Text>
+    cardTitle: {
+        fontSize: 18,
+        fontWeight: "600",
+        marginBottom: 10
+    },
 
-<View style={{
-height:10,
-backgroundColor:"#ddd",
-borderRadius:5
-}}>
+    bigValue: {
+        fontSize: 36,
+        textAlign: "center",
+        fontWeight: "700"
+    },
 
-<View style={{
-width:`${item.progress}%`,
-height:10,
-backgroundColor:"#4CAF50",
-borderRadius:5
-}}/>
+    row: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginVertical: 4
+    }
 
-</View>
-
-</View>
-)}
-/>
-
-</View>
-
-);
-
-}
+})

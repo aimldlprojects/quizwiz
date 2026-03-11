@@ -1,130 +1,121 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
-import { Stack, router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+// app/index.tsx
 
-import { getSubjectsWithQuestions, getTopics, getUsers } from "../database/queries";
+import { useRouter } from "expo-router"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 
-export default function Home() {
+import { SafeAreaView } from "react-native-safe-area-context"
+import HomeStats from "../components/HomeStats"
+import { StatsRepository } from "../database/statsRepository"
+import { useBackupManager } from "../hooks/useBackupManager"
+import { useDatabase } from "../hooks/useDatabase"
 
-  const [users, setUsers] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [topics, setTopics] = useState([]);
+export default function HomeScreen() {
 
-  const [user, setUser] = useState("");
-  const [subject, setSubject] = useState("");
-  const [topic, setTopic] = useState("");
-  const [selectedTopicName, setSelectedTopicName] = useState("");
+  const { db, ready } = useDatabase()
 
-  useEffect(() => {
-    load();
-  }, []);
+  const backupManager = useBackupManager(db ?? null)
 
-  async function load() {
+  const router = useRouter()
 
-  const u = await getUsers();
-  const s = await getSubjectsWithQuestions();
+  if (!ready || !db) {
+    return <Text>Loading database...</Text>
+  }
 
-  setUsers(u);
-  setSubjects(s);
+  const statsRepo = new StatsRepository(db)
 
-  if (u.length > 0) setUser(u[0].id);
+  const userId = 1
 
-}
+  // ---------- navigation helpers ----------
 
-  async function loadTopics(id) {
+  function goPractice() {
+    router.push("/practice")
+  }
 
-    const t = await getTopics(id);
-    setTopics(t);
+  function goLearn() {
+    router.push("/learn")
+  }
 
-}
+  function goProgress() {
+    router.push("/progress")
+  }
+
+  // ---------- render title ----------
+
+  function renderTitle() {
+
+    return (
+      <Text style={styles.title}>
+        QuizWiz
+      </Text>
+    )
+
+  }
+
+  // ---------- render stats ----------
+
+  function renderStats() {
+
+    return (
+      <HomeStats
+        statsRepo={statsRepo}
+        userId={userId}
+      />
+    )
+
+  }
+
+  // ---------- render main actions ----------
+
+  function renderMainActions() {
+
+    return (
+
+      <View style={styles.actions}>
+
+        <Pressable
+          style={styles.button}
+          onPress={goPractice}
+        >
+          <Text style={styles.buttonText}>
+            Start Practice
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.button}
+          onPress={goLearn}
+        >
+          <Text style={styles.buttonText}>
+            Learn
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.button}
+          onPress={goProgress}
+        >
+          <Text style={styles.buttonText}>
+            Progress
+          </Text>
+        </Pressable>
+
+      </View>
+
+    )
+
+  }
 
   return (
 
-  <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
 
-    <Stack.Screen options={{ headerShown: false }} />
+      {renderTitle()}
+      {renderStats()}
+      {renderMainActions()}
 
-    <Text style={styles.title}>QuizWiz</Text>
+    </SafeAreaView>
 
-    <Text style={styles.label}>User</Text>
-
-    <Picker
-      mode="dropdown"
-      selectedValue={user}
-      onValueChange={(v) => setUser(v)}
-      style={styles.picker}
-    >
-      {users.map(u => (
-        <Picker.Item label={u.name} value={u.id} key={u.id} />
-      ))}
-    </Picker>
-
-    <Text style={styles.label}>Subject</Text>
-
-    <Picker
-      mode="dropdown"
-      selectedValue={subject}
-      onValueChange={(v) => {
-        setSubject(v);
-        loadTopics(v);
-      }}
-      style={styles.picker}
-    >
-      {subjects.map(s => (
-        <Picker.Item label={s.name} value={s.id} key={s.id} />
-      ))}
-    </Picker>
-
-    <Text style={styles.label}>Topic</Text>
-
-    <Picker
-      mode="dropdown"
-      selectedValue={topic}
-      onValueChange={(v) => {
-        setTopic(v);
-        const t = topics.find(x => x.id === v);
-        if (t) setSelectedTopicName(t.name);
-      }}
-      style={styles.picker}
-    >
-      {topics.map(t => (
-        <Picker.Item label={t.name} value={t.id} key={t.id} />
-      ))}
-    </Picker>
-
-    <Pressable
-      style={[styles.button, { backgroundColor: "#4CAF50" }]}
-      disabled={!topic}
-      onPress={() => router.push({
-        pathname: "/learn",
-  params: { user, subject, topic, topicName: selectedTopicName }
-})}
-    >
-
-      <MaterialCommunityIcons name="book-open-page-variant" size={22} color="white" />
-      <Text style={styles.buttonText}> Learn Cards</Text>
-
-    </Pressable>
-
-    <Pressable
-      style={[styles.button, { backgroundColor: "#2196F3" }]}
-      disabled={!topic}
-      onPress={() => router.push({
-        pathname: "/practice",
-  params: { user, subject, topic, topicName: selectedTopicName }
-})}
-    >
-
-      <MaterialCommunityIcons name="brain" size={22} color="white" />
-      <Text style={styles.buttonText}> Start Practice</Text>
-
-    </Pressable>
-
-  </View>
-
-);
+  )
 
 }
 
@@ -133,39 +124,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: "#f5f5f5"
+    justifyContent: "center"
   },
 
   title: {
-  fontSize: 26,
-  fontWeight: "bold",
+    fontSize: 32,
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 20
   },
 
-  label: {
-    marginTop: 10,
-    fontSize: 16
-  },
-
-  picker: {
-    backgroundColor: "white"
+  actions: {
+    marginTop: 20
   },
 
   button: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  padding: 12,
-  borderRadius: 10,
-    marginTop: 12
+    backgroundColor: "#4caf50",
+    padding: 14,
+    borderRadius: 10,
+    marginVertical: 6
   },
 
   buttonText: {
-    color: "white",
+    textAlign: "center",
     fontSize: 18,
-    marginLeft: 10,
-    fontWeight: "bold"
+    color: "#fff",
+    fontWeight: "600"
   }
 
-});
+})

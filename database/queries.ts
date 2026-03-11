@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import { db } from "./db";
+import { db } from "../database/db";
 
 function isDBReady(){
   return Platform.OS !== "web" && db;
@@ -9,7 +9,7 @@ export async function getUsers(){
 
   if(!isDBReady()) return [];
 
-  return await db.getAllAsync(`
+  return await db!.getAllAsync(`
     SELECT * FROM users
   `);
 
@@ -30,7 +30,7 @@ export async function getTopics(subjectId:number){
 
   if(!isDBReady()) return [];
 
-  return await db.getAllAsync(
+  return await db!.getAllAsync(
     `SELECT id,name FROM topics WHERE subject_id=?`,
     [subjectId]
   );
@@ -41,7 +41,7 @@ export async function getQuestions(subjectId:number,topicId:number,limit=10){
 
   if(!isDBReady()) return [];
 
-  return await db.getAllAsync(
+  return await db!.getAllAsync(
     `SELECT *
      FROM questions
      WHERE subject_id=? AND topic_id=?

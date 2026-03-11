@@ -1,54 +1,136 @@
-import { Platform } from "react-native";
-import { db } from "./db";
+// database/initDB.ts
 
-export async function initDB() {
+import { SQLiteDatabase } from "expo-sqlite"
 
-  if (Platform.OS === "web" || !db) {
-    return;
-  }
+/*
+--------------------------------------------------
+Initialize All Database Tables
+--------------------------------------------------
+
+Called once when app starts.
+
+Responsible for creating all required tables.
+
+--------------------------------------------------
+*/
+
+export async function initDB(db: SQLiteDatabase) {
+
+  await createUsersTable(db)
+
+  await createSubjectsTable(db)
+
+  await createTopicsTable(db)
+
+  await createQuestionsTable(db)
+
+  await createReviewsTable(db)
+
+}
+
+/*
+--------------------------------------------------
+Users
+--------------------------------------------------
+*/
+
+async function createUsersTable(db: SQLiteDatabase) {
 
   await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL
+    )
+  `)
 
-CREATE TABLE IF NOT EXISTS users (
-id TEXT PRIMARY KEY,
-name TEXT NOT NULL
-);
+}
 
-CREATE TABLE IF NOT EXISTS subjects (
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-name TEXT UNIQUE
-);
+/*
+--------------------------------------------------
+Subjects
+--------------------------------------------------
+*/
 
-CREATE TABLE IF NOT EXISTS topics (
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-subject_id INTEGER,
-name TEXT
-);
+async function createSubjectsTable(db: SQLiteDatabase) {
 
-CREATE TABLE IF NOT EXISTS questions (
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-subject_id INTEGER,
-topic_id INTEGER,
-question TEXT,
-answer TEXT
-);
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS subjects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL
+    )
+  `)
 
-CREATE TABLE IF NOT EXISTS user_progress (
-user_id TEXT,
-question_id TEXT,
+}
 
-correct_count INTEGER DEFAULT 0,
-wrong_count INTEGER DEFAULT 0,
+/*
+--------------------------------------------------
+Topics
+--------------------------------------------------
+*/
 
-ease_factor REAL DEFAULT 2.5,
-interval INTEGER DEFAULT 0,
-next_review INTEGER DEFAULT 0,
+async function createTopicsTable(db: SQLiteDatabase) {
 
-last_answer_time INTEGER,
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS topics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject_id INTEGER,
+      name TEXT NOT NULL
+    )
+  `)
 
-PRIMARY KEY(user_id,question_id)
-);
+}
 
-`);
+/*
+--------------------------------------------------
+Questions
+--------------------------------------------------
+*/
+
+async function createQuestionsTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS questions (
+
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      topic_id INTEGER,
+
+      type TEXT,
+
+      question TEXT,
+      answer TEXT
+
+    )
+  `)
+
+}
+
+/*
+--------------------------------------------------
+Reviews (Spaced Repetition)
+--------------------------------------------------
+*/
+
+async function createReviewsTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS reviews (
+
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+      user_id INTEGER,
+      question_id INTEGER,
+
+      repetition INTEGER DEFAULT 0,
+      interval INTEGER DEFAULT 0,
+      ease_factor REAL DEFAULT 2.5,
+
+      next_review INTEGER,
+      last_result TEXT,
+
+      UNIQUE(user_id, question_id)
+
+    )
+  `)
 
 }
