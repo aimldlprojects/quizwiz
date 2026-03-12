@@ -3,129 +3,114 @@ import * as FileSystem from "expo-file-system/legacy"
 import * as Sharing from "expo-sharing"
 import * as SQLite from "expo-sqlite"
 
+import { getSyncMode } from "../database/settingsRepository"
 import { syncReviews } from "./sync/syncReviews"
 
 export class SyncService {
 
   private db: SQLite.SQLiteDatabase
-    private serverUrl: string | null = null
-    private userId: number | null = null
+  private serverUrl = "http://YOUR_SERVER_IP:8000"
+  private userId = 1
 
   constructor(db: SQLite.SQLiteDatabase) {
     this.db = db
   }
 
-    /*
-    --------------------------------------------------
-    Configure Sync
-    --------------------------------------------------
-    */
+  /*
+  --------------------------------------------------
+  Backup Entry Point
+  --------------------------------------------------
+  */
 
-    configure(
-        serverUrl: string,
-        userId: number
-    ) {
+  async backup(): Promise<void> {
 
-        this.serverUrl = serverUrl
-        this.userId = userId
-
-    }
-
-    /*
-    --------------------------------------------------
-    Backup Entry Point
-    --------------------------------------------------
-    */
-
-    async backup(): Promise<void> {
-
-      try {
-
-        const path = await this.exportData()
-
-        console.log("Backup saved at:", path)
-
-    } catch (err) {
-
-        console.error("Backup failed:", err)
-
-    }
-
-  }
-
-    /*
-    --------------------------------------------------
-    Export Data
-    --------------------------------------------------
-    */
-
-    async exportData(): Promise<string> {
-
-      const reviews =
-          await this.db.getAllAsync(
-              `SELECT * FROM reviews`
-          )
-
-      const questions =
-          await this.db.getAllAsync(
-              `SELECT * FROM questions`
-          )
-
-      const data = {
-          reviews,
-          questions,
-          exportedAt: Date.now()
-      }
-
-      const json =
-          JSON.stringify(data, null, 2)
-
-      const path =
-          Paths.document +
-          "quizwiz_backup.json"
-
-      await FileSystem.writeAsStringAsync(
-          path,
-          json
-      )
-
-      return path
-
-  }
-
-    /*
-    --------------------------------------------------
-    Share Backup
-    --------------------------------------------------
-    */
-
-    async shareBackup() {
+    try {
 
       const path = await this.exportData()
 
-      if (await Sharing.isAvailableAsync()) {
+      console.log("Backup saved at:", path)
 
-        await Sharing.shareAsync(path)
+    } catch (err) {
+
+      console.error("Backup failed:", err)
 
     }
 
   }
 
-    /*
-    --------------------------------------------------
-    Import Backup
-    --------------------------------------------------
-    */
+  /*
+  --------------------------------------------------
+  Export Data
+  --------------------------------------------------
+  */
 
-    async importData(json: string) {
+  async exportData(): Promise<string> {
 
-      const data = JSON.parse(json)
+    const reviews =
+      await this.db.getAllAsync(
+        `SELECT * FROM reviews`
+      )
 
-      if (!data.reviews) return
+    const questions =
+      await this.db.getAllAsync(
+        `SELECT * FROM questions`
+      )
 
-      for (const r of data.reviews) {
+    const data = {
+      reviews,
+      questions,
+      exportedAt: Date.now()
+    }
 
-        await this.db.runAsync(
+    const json =
+      JSON.stringify(data, null, 2)
+
+    const path =
+      Paths.document +
+      "quizwiz_backup.json"
+
+    await FileSystem.writeAsStringAsync(
+      path,
+      json
+    )
+
+    return path
+
+  }
+
+  /*
+  --------------------------------------------------
+  Share Backup
+  --------------------------------------------------
+  */
+
+  async shareBackup() {
+
+    const path = await this.exportData()
+
+    if (await Sharing.isAvailableAsync()) {
+
+      await Sharing.shareAsync(path)
+
+    }
+
+  }
+
+  /*
+  --------------------------------------------------
+  Import Backup
+  --------------------------------------------------
+  */
+
+  async importData(json: string) {
+
+    const data = JSON.parse(json)
+
+    if (!data.reviews) return
+
+    for (const r of data.reviews) {
+
+      await this.db.runAsync(
         `
         INSERT OR REPLACE INTO reviews
         (
@@ -140,40 +125,43 @@ export class SyncService {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
-          [
-              r.user_id,
-              r.question_id,
-              r.repetition,
-              r.interval,
-              r.ease_factor,
-              r.next_review,
-              r.last_result,
-              r.rev_id ?? Date.now()
-          ]
+        [
+          r.user_id,
+          r.question_id,
+          r.repetition,
+          r.interval,
+          r.ease_factor,
+          r.next_review,
+          r.last_result,
+          r.rev_id ?? Date.now()
+        ]
       )
 
     }
 
   }
 
-    /*
-    --------------------------------------------------
-    Run Full Sync
-    --------------------------------------------------
-    */
+  /*
+  --------------------------------------------------
+  Run Full Sync
+  --------------------------------------------------
+  */
 
-    async sync(): Promise<void> {
+  async sync(): Promise<void> {
 
-        if (!this.serverUrl || !this.userId) {
-            return
-        }
+    const mode =
+      await getSyncMode(this.db)
 
-        await syncReviews(
-            this.db,
-            this.serverUrl,
-            this.userId
-        )
-
+    if (mode === "local") {
+      return
     }
+
+    await syncReviews(
+      this.db,
+      this.serverUrl,
+      this.userId
+    )
+
+  }
 
 }
