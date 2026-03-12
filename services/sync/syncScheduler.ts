@@ -1,4 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
+
+import { getSyncMode } from "../../database/settingsRepository"
 import { syncReviews } from "./syncReviews"
 
 /*
@@ -12,11 +14,18 @@ export function startSyncScheduler(
   serverUrl: string,
   userId: number,
   intervalMs: number = 60000
-) {
+): number {
 
   const timer = setInterval(async () => {
 
     try {
+
+      const mode =
+        await getSyncMode(db)
+
+      if (mode !== "hybrid") {
+        return
+      }
 
       await syncReviews(
         db,
@@ -26,13 +35,16 @@ export function startSyncScheduler(
 
     } catch (err) {
 
-      console.error("Scheduled sync failed:", err)
+      console.error(
+        "Scheduled sync failed:",
+        err
+      )
 
     }
 
   }, intervalMs)
 
-  return timer
+  return timer as unknown as number
 
 }
 
@@ -43,7 +55,7 @@ Stop Sync Scheduler
 */
 
 export function stopSyncScheduler(
-  timer: NodeJS.Timeout
+  timer: number
 ) {
 
   clearInterval(timer)

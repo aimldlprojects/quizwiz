@@ -1,5 +1,3 @@
-// engine/practice/questionQueue.ts
-
 export interface Question {
   id: number
   question: string
@@ -22,7 +20,11 @@ export class QuestionQueue {
     this.batchSize = batchSize
   }
 
-  // ---------- initialize queue ----------
+  /*
+  --------------------------------------------------
+  Initialize Queue
+  --------------------------------------------------
+  */
 
   async init(): Promise<void> {
 
@@ -32,7 +34,11 @@ export class QuestionQueue {
 
   }
 
-  // ---------- fill queue ----------
+  /*
+  --------------------------------------------------
+  Fill Queue
+  --------------------------------------------------
+  */
 
   private async fillQueue(): Promise<void> {
 
@@ -40,16 +46,28 @@ export class QuestionQueue {
 
     this.loading = true
 
-    const questions =
-      await this.loader.loadQuestions(this.batchSize)
+    try {
 
-    this.queue.push(...questions)
+      const questions =
+        await this.loader.loadQuestions(
+          this.batchSize
+        )
 
-    this.loading = false
+      this.queue.push(...questions)
+
+    } finally {
+
+      this.loading = false
+
+    }
 
   }
 
-  // ---------- next question ----------
+  /*
+  --------------------------------------------------
+  Next Question
+  --------------------------------------------------
+  */
 
   async getNextQuestion(): Promise<Question | null> {
 
@@ -57,25 +75,44 @@ export class QuestionQueue {
       await this.fillQueue()
     }
 
-    const q = this.queue.shift() || null
+    const q =
+      this.queue.shift() || null
 
-    if (this.queue.length < this.batchSize / 2) {
+    if (
+      this.queue.length <
+      this.batchSize / 2
+    ) {
+
       this.fillQueue()
+
     }
 
     return q
+
   }
 
-  // ---------- queue size ----------
+  /*
+  --------------------------------------------------
+  Queue Size
+  --------------------------------------------------
+  */
 
   size(): number {
+
     return this.queue.length
+
   }
 
-  // ---------- clear queue ----------
+  /*
+  --------------------------------------------------
+  Clear Queue
+  --------------------------------------------------
+  */
 
   clear(): void {
+
     this.queue = []
+
   }
 
 }

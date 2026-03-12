@@ -1,5 +1,3 @@
-// database/statsRepository.ts
-
 import * as SQLite from "expo-sqlite"
 
 export class StatsRepository {
@@ -14,7 +12,7 @@ export class StatsRepository {
 
   async getTotalAttempts(userId: number) {
 
-    const row = await this.db.getFirstAsync<{count:number}>(
+    const row = await this.db.getFirstAsync<{ count: number }>(
       `
       SELECT COUNT(*) as count
       FROM reviews
@@ -30,7 +28,7 @@ export class StatsRepository {
 
   async getTotalCorrect(userId: number) {
 
-    const row = await this.db.getFirstAsync<{count:number}>(
+    const row = await this.db.getFirstAsync<{ count: number }>(
       `
       SELECT COUNT(*) as count
       FROM reviews
@@ -56,6 +54,51 @@ export class StatsRepository {
     return Math.round((correct / attempts) * 100)
   }
 
+  // ---------- cards learned ----------
+
+  async getCardsLearned(userId: number) {
+
+    const row = await this.db.getFirstAsync<{ count: number }>(
+      `
+      SELECT COUNT(*) as count
+      FROM reviews
+      WHERE user_id = ?
+      AND repetition > 0
+      `,
+      [userId]
+    )
+
+    return row?.count ?? 0
+  }
+
+  /*
+  --------------------------------------------------
+  Due Review Count
+  --------------------------------------------------
+  */
+
+  async getDueReviewCount(
+    userId: number
+  ) {
+
+    const row =
+      await this.db.getFirstAsync<{ count: number }>(
+        `
+        SELECT COUNT(*) as count
+        FROM reviews
+        WHERE user_id = ?
+        AND next_review <= ?
+        `,
+        [
+          userId,
+          Date.now()
+        ]
+      )
+
+    return row?.count ?? 0
+
+  }
+
   // ---------- topic progress ----------
 
   async getTopicProgress(userId: number) {
@@ -65,26 +108,20 @@ export class StatsRepository {
       SELECT
         t.id,
         t.name,
-
         COUNT(DISTINCT q.id) as total_questions,
-
         COUNT(DISTINCT r.question_id) as practiced
-
       FROM topics t
-
       LEFT JOIN questions q
-      ON q.topic_id = t.id
-
+        ON q.topic_id = t.id
       LEFT JOIN reviews r
-      ON r.question_id = q.id
-      AND r.user_id = ?
-
+        ON r.question_id = q.id
+        AND r.user_id = ?
       GROUP BY t.id
       `,
       [userId]
     )
 
-    return rows.map((row:any) => {
+    return rows.map((row: any) => {
 
       const progress =
         row.total_questions === 0
@@ -111,29 +148,22 @@ export class StatsRepository {
       SELECT
         s.id,
         s.name,
-
         COUNT(DISTINCT q.id) as total_questions,
-
         COUNT(DISTINCT r.question_id) as practiced
-
       FROM subjects s
-
       LEFT JOIN topics t
-      ON t.subject_id = s.id
-
+        ON t.subject_id = s.id
       LEFT JOIN questions q
-      ON q.topic_id = t.id
-
+        ON q.topic_id = t.id
       LEFT JOIN reviews r
-      ON r.question_id = q.id
-      AND r.user_id = ?
-
+        ON r.question_id = q.id
+        AND r.user_id = ?
       GROUP BY s.id
       `,
       [userId]
     )
 
-    return rows.map((row:any) => {
+    return rows.map((row: any) => {
 
       const progress =
         row.total_questions === 0
@@ -151,35 +181,21 @@ export class StatsRepository {
     })
   }
 
-  // ---------- due reviews count ----------
+  // ---------- debug topics ----------
 
-  async getDueReviewCount(userId: number) {
-
-    const row = await this.db.getFirstAsync<{count:number}>(
-      `
-      SELECT COUNT(*) as count
-      FROM reviews
-      WHERE user_id = ?
-      AND next_review <= ?
-      `,
-      [userId, Date.now()]
-    )
-
-    return row?.count ?? 0
-  }
-
-  // ------------- Debug --------------
   async debugTopics() {
 
   const rows = await this.db.getAllAsync(
     `
-    SELECT *
-    FROM topics
-    `
+      SELECT *
+      FROM topics
+      `
   )
 
   console.log("TOPICS TABLE:", rows)
 
   return rows
+
 }
+
 }

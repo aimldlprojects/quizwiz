@@ -1,5 +1,3 @@
-// engine/gamification/badgeEngine.ts
-
 export interface Badge {
 
   id: string
@@ -23,39 +21,49 @@ export interface BadgeMetrics {
 
 export class BadgeEngine {
 
-  private badges: Badge[] = [
+  private badges: Badge[]
 
-    {
-      id: "first_win",
-      title: "First Correct Answer",
-      description: "Answered your first question correctly",
-      unlocked: false
-    },
+  constructor(existing?: Badge[]) {
 
-    {
-      id: "streak_7",
-      title: "7 Day Streak",
-      description: "Practiced 7 days in a row",
-      unlocked: false
-    },
+    this.badges = existing ?? [
 
-    {
-      id: "hundred_correct",
-      title: "Century",
-      description: "Answered 100 questions correctly",
-      unlocked: false
-    },
+      {
+        id: "first_win",
+        title: "First Correct Answer",
+        description: "Answered your first question correctly",
+        unlocked: false
+      },
 
-    {
-      id: "topic_master",
-      title: "Topic Master",
-      description: "Mastered 5 topics",
-      unlocked: false
-    }
+      {
+        id: "streak_7",
+        title: "7 Day Streak",
+        description: "Practiced 7 days in a row",
+        unlocked: false
+      },
 
-  ]
+      {
+        id: "hundred_correct",
+        title: "Century",
+        description: "Answered 100 questions correctly",
+        unlocked: false
+      },
 
-  // ---------- evaluate badges ----------
+      {
+        id: "topic_master",
+        title: "Topic Master",
+        description: "Mastered 5 topics",
+        unlocked: false
+      }
+
+    ]
+
+  }
+
+  /*
+  --------------------------------------------------
+  Evaluate Badges
+  --------------------------------------------------
+  */
 
   evaluate(metrics: BadgeMetrics): Badge[] {
 
@@ -105,7 +113,11 @@ export class BadgeEngine {
 
   }
 
-  // ---------- unlock badge ----------
+  /*
+  --------------------------------------------------
+  Unlock Badge
+  --------------------------------------------------
+  */
 
   private unlock(badge: Badge) {
 
@@ -114,7 +126,11 @@ export class BadgeEngine {
 
   }
 
-  // ---------- get badges ----------
+  /*
+  --------------------------------------------------
+  Get Badges
+  --------------------------------------------------
+  */
 
   getBadges(): Badge[] {
 

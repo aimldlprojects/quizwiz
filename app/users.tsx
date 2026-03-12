@@ -1,11 +1,11 @@
 import { useState } from "react"
 import {
-  Button,
-  FlatList,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Button,
+    FlatList,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native"
 
 import { useDatabase } from "../hooks/useDatabase"

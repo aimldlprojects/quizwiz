@@ -1,16 +1,8 @@
-// database/initDB.ts
-
 import { SQLiteDatabase } from "expo-sqlite"
 
 /*
 --------------------------------------------------
 Initialize All Database Tables
---------------------------------------------------
-
-Called once when app starts.
-
-Responsible for creating all required tables.
-
 --------------------------------------------------
 */
 
@@ -27,6 +19,12 @@ export async function initDB(db: SQLiteDatabase) {
   await createReviewsTable(db)
 
   await createSyncMetaTable(db)
+
+  await createSettingsTable(db)
+
+  await createUserStreakTable(db)
+
+  await createUserBadgesTable(db)
 
 }
 
@@ -105,7 +103,6 @@ async function createQuestionsTable(db: SQLiteDatabase) {
     )
   `)
 
-
 }
 
 /*
@@ -161,6 +158,81 @@ async function createSyncMetaTable(db: SQLiteDatabase) {
     INSERT OR IGNORE INTO sync_meta
     (key,value)
     VALUES ('last_sync_rev','0')
+  `)
+
+}
+
+/*
+--------------------------------------------------
+Settings (Sync Mode Toggle)
+--------------------------------------------------
+*/
+
+async function createSettingsTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `)
+
+  await db.execAsync(`
+    INSERT OR IGNORE INTO settings
+    (key,value)
+    VALUES ('sync_mode','local')
+  `)
+
+}
+
+/*
+--------------------------------------------------
+User Streak
+--------------------------------------------------
+*/
+
+async function createUserStreakTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS user_streak (
+
+      user_id INTEGER PRIMARY KEY,
+
+      current_streak INTEGER DEFAULT 0,
+
+      longest_streak INTEGER DEFAULT 0,
+
+      last_practice_date TEXT
+
+    )
+  `)
+
+}
+
+/*
+--------------------------------------------------
+User Badges
+--------------------------------------------------
+*/
+
+async function createUserBadgesTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS user_badges (
+
+      user_id INTEGER,
+
+      id TEXT,
+
+      title TEXT,
+      description TEXT,
+
+      unlocked INTEGER,
+      unlockedAt INTEGER,
+
+      PRIMARY KEY(user_id,id)
+
+    )
   `)
 
 }

@@ -1,31 +1,68 @@
-// app/index.tsx
-
 import { useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 
 import { SafeAreaView } from "react-native-safe-area-context"
+
+import { useEffect, useState } from "react"
+
 import HomeStats from "../components/HomeStats"
+
+import { StreakController } from "../controllers/streakController"
 import { StatsRepository } from "../database/statsRepository"
+
 import { useBackupManager } from "../hooks/useBackupManager"
 import { useDatabase } from "../hooks/useDatabase"
 
 export default function HomeScreen() {
 
-  const { db, ready } = useDatabase()
+  const { db, loading } = useDatabase()
 
-  const backupManager = useBackupManager(db ?? null)
+  const backupManager =
+    useBackupManager(db ?? null)
 
   const router = useRouter()
 
-  if (!ready || !db) {
-    return <Text>Loading database...</Text>
-  }
-
-  const statsRepo = new StatsRepository(db)
+  const [streak, setStreak] =
+    useState<number>(0)
 
   const userId = 1
 
-  // ---------- navigation helpers ----------
+  useEffect(() => {
+
+    const loadStreak = async () => {
+
+      if (!db) return
+
+      const controller =
+        new StreakController(db)
+
+      const state =
+        await controller.getStreak(
+          userId
+        )
+
+      setStreak(
+        state.currentStreak
+      )
+
+    }
+
+    loadStreak()
+
+  }, [db])
+
+  if (loading || !db) {
+    return <Text>Loading database...</Text>
+  }
+
+  const statsRepo =
+    new StatsRepository(db)
+
+  /*
+  --------------------------------------------------
+  Navigation
+  --------------------------------------------------
+  */
 
   function goPractice() {
     router.push("/practice")
@@ -39,7 +76,11 @@ export default function HomeScreen() {
     router.push("/progress")
   }
 
-  // ---------- render title ----------
+  /*
+  --------------------------------------------------
+  Title
+  --------------------------------------------------
+  */
 
   function renderTitle() {
 
@@ -51,20 +92,44 @@ export default function HomeScreen() {
 
   }
 
-  // ---------- render stats ----------
+  /*
+  --------------------------------------------------
+  Stats
+  --------------------------------------------------
+  */
 
   function renderStats() {
 
     return (
-      <HomeStats
-        statsRepo={statsRepo}
-        userId={userId}
-      />
+
+      <View>
+
+        <HomeStats
+          statsRepo={statsRepo}
+          userId={userId}
+        />
+
+        <Text
+          style={{
+            textAlign: "center",
+            fontSize: 18,
+            marginTop: 10
+          }}
+        >
+          🔥 Streak: {streak} days
+        </Text>
+
+      </View>
+
     )
 
   }
 
-  // ---------- render main actions ----------
+  /*
+  --------------------------------------------------
+  Main Actions
+  --------------------------------------------------
+  */
 
   function renderMainActions() {
 
@@ -105,12 +170,20 @@ export default function HomeScreen() {
 
   }
 
+  /*
+  --------------------------------------------------
+  Render
+  --------------------------------------------------
+  */
+
   return (
 
     <SafeAreaView style={styles.container}>
 
       {renderTitle()}
+
       {renderStats()}
+
       {renderMainActions()}
 
     </SafeAreaView>

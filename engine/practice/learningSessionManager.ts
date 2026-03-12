@@ -1,5 +1,5 @@
 import { SessionCache } from "../sessionCache"
-import { QuestionQueue } from "./questionQueue"
+import { Question, QuestionQueue } from "./questionQueue"
 
 /*
 --------------------------------------------------
@@ -9,7 +9,7 @@ Learning Session Manager
 
 export class LearningSessionManager {
 
-  private cache = new SessionCache<any>()
+  private cache = new SessionCache<Question>()
   private queue: QuestionQueue
 
   constructor(queue: QuestionQueue) {
@@ -26,7 +26,7 @@ export class LearningSessionManager {
 
     await this.queue.init()
 
-    const questions: any[] = []
+    const questions: Question[] = []
 
     for (let i = 0; i < batchSize; i++) {
 
@@ -65,7 +65,7 @@ export class LearningSessionManager {
 
   /*
   --------------------------------------------------
-  Prefetch
+  Prefetch Questions
   --------------------------------------------------
   */
 
@@ -73,7 +73,7 @@ export class LearningSessionManager {
 
     if (this.cache.remaining() > 5) return
 
-    const extra: any[] = []
+    const extra: Question[] = []
 
     for (let i = 0; i < 10; i++) {
 
@@ -87,27 +87,35 @@ export class LearningSessionManager {
 
     if (extra.length === 0) return
 
-    const remaining: any[] = []
+    const remaining: Question[] = []
 
     let q = this.cache.next()
 
     while (q) {
+
       remaining.push(q)
+
       q = this.cache.next()
+
     }
 
-    this.cache.load([...remaining, ...extra])
+    this.cache.load([
+      ...remaining,
+      ...extra
+    ])
 
   }
 
   /*
   --------------------------------------------------
-  Remaining
+  Remaining Cards
   --------------------------------------------------
   */
 
   getRemaining() {
+
     return this.cache.remaining()
+
   }
 
 }

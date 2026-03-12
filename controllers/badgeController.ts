@@ -1,0 +1,107 @@
+import { SQLiteDatabase } from "expo-sqlite"
+import {
+    Badge,
+    BadgeEngine,
+    BadgeMetrics
+} from "../engine/gamification/badgeEngine"
+
+export class BadgeController {
+
+  private db: SQLiteDatabase
+  private engine: BadgeEngine
+
+  constructor(db: SQLiteDatabase) {
+
+    this.db = db
+    this.engine = new BadgeEngine()
+
+  }
+
+  /*
+  --------------------------------------------------
+  Load Badges From DB
+  --------------------------------------------------
+  */
+
+  async load(userId: number) {
+
+    const rows =
+      await this.db.getAllAsync<Badge>(
+        `
+        SELECT
+          id,
+          title,
+          description,
+          unlocked,
+          unlockedAt
+        FROM user_badges
+        WHERE user_id = ?
+        `,
+        [userId]
+      )
+
+    if (!rows || rows.length === 0) {
+      return
+    }
+
+    this.engine =
+      new BadgeEngine(rows)
+
+  }
+
+  /*
+  --------------------------------------------------
+  Evaluate Badges
+  --------------------------------------------------
+  */
+
+  async evaluate(
+    userId: number,
+    metrics: BadgeMetrics
+  ): Promise<Badge[]> {
+
+    await this.load(userId)
+
+    const badges =
+      this.engine.evaluate(metrics)
+
+    for (const b of badges) {
+
+      if (!b.unlocked) continue
+
+      await this.db.runAsync(
+        `
+        INSERT INTO user_badges
+        (
+          user_id,
+          id,
+          title,
+          description,
+          unlocked,
+          unlockedAt
+        )
+        VALUES (?,?,?,?,?,?)
+
+        ON CONFLICT(user_id,id)
+        DO UPDATE SET
+
+          unlocked = excluded.unlocked,
+          unlockedAt = excluded.unlockedAt
+        `,
+        [
+          userId,
+          b.id,
+          b.title,
+          b.description,
+          b.unlocked ? 1 : 0,
+          b.unlockedAt ?? null
+        ]
+      )
+
+    }
+
+    return badges
+
+  }
+
+}

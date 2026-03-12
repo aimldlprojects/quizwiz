@@ -1,25 +1,30 @@
-// engine/gamification/streakEngine.ts
-
 export interface StreakState {
 
   currentStreak: number
   longestStreak: number
-
   lastPracticeDate: string | null
 
 }
 
 export class StreakEngine {
 
-  private state: StreakState = {
+  private state: StreakState
 
-    currentStreak: 0,
-    longestStreak: 0,
-    lastPracticeDate: null
+  constructor(initial?: Partial<StreakState>) {
+
+    this.state = {
+      currentStreak: initial?.currentStreak ?? 0,
+      longestStreak: initial?.longestStreak ?? 0,
+      lastPracticeDate: initial?.lastPracticeDate ?? null
+    }
 
   }
 
-  // ---------- record practice ----------
+  /*
+  --------------------------------------------------
+  Record Practice
+  --------------------------------------------------
+  */
 
   recordPractice(date: Date = new Date()) {
 
@@ -33,15 +38,18 @@ export class StreakEngine {
 
       this.state.currentStreak = 1
 
-    } else if (this.state.lastPracticeDate === today) {
+    }
+    else if (this.state.lastPracticeDate === today) {
 
-      return
+      return this.state
 
-    } else if (this.state.lastPracticeDate === yesterday) {
+    }
+    else if (this.state.lastPracticeDate === yesterday) {
 
       this.state.currentStreak += 1
 
-    } else {
+    }
+    else {
 
       this.state.currentStreak = 1
 
@@ -59,9 +67,15 @@ export class StreakEngine {
 
     }
 
+    return this.state
+
   }
 
-  // ---------- get streak ----------
+  /*
+  --------------------------------------------------
+  Get Current Streak
+  --------------------------------------------------
+  */
 
   getCurrentStreak(): number {
 
@@ -69,13 +83,35 @@ export class StreakEngine {
 
   }
 
+  /*
+  --------------------------------------------------
+  Get Longest Streak
+  --------------------------------------------------
+  */
+
   getLongestStreak(): number {
 
     return this.state.longestStreak
 
   }
 
-  // ---------- helper ----------
+  /*
+  --------------------------------------------------
+  Get State
+  --------------------------------------------------
+  */
+
+  getState(): StreakState {
+
+    return this.state
+
+  }
+
+  /*
+  --------------------------------------------------
+  Helper
+  --------------------------------------------------
+  */
 
   private getYesterday(dateStr: string): string {
 

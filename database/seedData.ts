@@ -1,10 +1,12 @@
-import { Platform } from "react-native";
-import { db } from "../database/db";
+import { Platform } from "react-native"
+import { db } from "../database/db"
 
-export async function seedData(){
+export async function seedData() {
 
-  if (Platform.OS === "web" || !db) return;
+  if (Platform.OS === "web" || !db) return
+
   console.log("Running seed SQL")
+
   await db.execAsync(`
 
     DELETE FROM subjects
@@ -43,6 +45,34 @@ export async function seedData(){
     (3,'Grammar'),
     (3,'Comprehension');
 
-    `);
+  `)
+
+  /*
+  --------------------------------------------------
+  Seed Multiplication Table Questions
+  --------------------------------------------------
+  */
+
+  for (let i = 1; i <= 12; i++) {
+
+    for (let j = 1; j <= 12; j++) {
+
+      const question = `${i} × ${j}`
+      const answer = String(i * j)
+
+      await db.runAsync(
+        `
+        INSERT OR IGNORE INTO questions
+        (question, answer, topic_id)
+        VALUES (?, ?, 1)
+        `,
+        [question, answer]
+      )
 
     }
+
+  }
+
+  console.log("Seed data completed")
+
+}

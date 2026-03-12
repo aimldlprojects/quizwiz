@@ -7,9 +7,9 @@ import { QuestionQueue } from "../engine/practice/questionQueue"
 import { ReviewScheduler } from "../engine/scheduler/reviewScheduler"
 import { ReviewRating } from "../engine/scheduler/spacedRepetition"
 import { SessionCache } from "../engine/sessionCache"
+import { registerAchievementListener } from "../services/events/achievementListener"
 import { registerBackupListener } from "../services/events/backupListener"
 import { SyncService } from "../services/syncService"
-
 export class PracticeController {
 
   private session: PracticeSession
@@ -55,7 +55,11 @@ export class PracticeController {
       this.eventBus,
       this.syncService
     )
-
+    registerAchievementListener(
+      this.eventBus,
+      this.repo.getDB(),
+      this.userId
+    )
   }
 
   /*
@@ -190,11 +194,19 @@ export class PracticeController {
 
     try {
 
-      this.syncService.sync()
+      // run sync asynchronously so UI is not blocked
+      setTimeout(() => {
+
+        this.syncService.sync()
+
+      }, 0)
 
     } catch (err) {
 
-      console.log("Background sync failed:", err)
+      console.log(
+        "Background sync failed:",
+        err
+      )
 
     }
 
