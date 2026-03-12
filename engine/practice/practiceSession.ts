@@ -1,9 +1,10 @@
 // engine/practice/practiceSession.ts
 
+import { Review } from "../../domain/entities/review"
 import { SyncService } from "../../services/syncService"
 import { ReviewScheduler } from "../scheduler/reviewScheduler"
 import { ReviewRating } from "../scheduler/spacedRepetition"
-
+import { SchedulerReviewState } from "../scheduler/types"
 export interface Question {
   id: number
   question: string
@@ -19,8 +20,8 @@ export class PracticeSession {
 
   private scheduler: ReviewScheduler
   private syncService: SyncService
+  private userId: number
   private currentQuestion: Question | null = null
-
   private stats: SessionStats = {
     attempts: 0,
     correct: 0
@@ -32,10 +33,12 @@ export class PracticeSession {
   private backupCounter = 0
 
   constructor(
+    userId: number,
     scheduler: ReviewScheduler,
     syncService: SyncService
   ) {
 
+    this.userId = userId
     this.scheduler = scheduler
     this.syncService = syncService
 
@@ -64,7 +67,33 @@ export class PracticeSession {
 
     return next
   }
+  /*
+  --------------------------------------------------
+  Build Domain Review Entity
+  --------------------------------------------------
+  */
 
+  private buildReview(
+    questionId: number,
+    r: SchedulerReviewState,
+    rating: ReviewRating
+  ): Review {
+
+    return new Review({
+
+      userId: this.userId,
+      questionId,
+
+      repetition: r.repetition,
+      interval: r.interval,
+      easeFactor: r.easeFactor,
+
+      nextReview: r.nextReview,
+      lastResult: rating
+
+    })
+
+  }
   // ---------- submit answer ----------
 
   async submitAnswer(
@@ -87,21 +116,17 @@ export class PracticeSession {
       this.stats.correct += 1
     }
     // -------------------------------------------------
-    // Backup every 50 questions
+    // Update Review State
     // -------------------------------------------------
 
-    this.backupCounter++
-
-    if (this.backupCounter >= 50) {
-
-      await this.syncService.backup()
-
-      this.backupCounter = 0
-
-    }
-
-    const review = this.scheduler.updateReview(
+    const r = this.scheduler.updateReview(
       this.currentQuestion.id,
+      rating
+    )
+
+    const review = this.buildReview(
+      this.currentQuestion!.id,
+      r,
       rating
     )
 

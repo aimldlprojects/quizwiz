@@ -1,7 +1,7 @@
 // engine/scheduler/reviewScheduler.ts
 
 import { calculateNextReview, ReviewRating } from "./spacedRepetition"
-
+import { SchedulerReviewState } from "./types"
 export interface Question {
   id: number
   question: string
@@ -96,7 +96,7 @@ export class ReviewScheduler {
   updateReview(
     questionId: number,
     rating: ReviewRating
-  ): ReviewRecord {
+  ): SchedulerReviewState {
 
     const existing = this.reviews.find(
       r => r.question_id === questionId
@@ -131,7 +131,14 @@ export class ReviewScheduler {
       this.reviews.push(review)
     }
 
-    return review
+    return {
+
+      repetition: result.repetition,
+      interval: result.interval,
+      easeFactor: result.easeFactor,
+      nextReview: result.nextReview
+
+    }
   }
 
 }

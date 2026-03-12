@@ -1,8 +1,8 @@
-// database/reviewRepository.ts
-
 import * as SQLite from "expo-sqlite"
+import { Review } from "../domain/entities/review"
 
 export interface ReviewRecord {
+  id?: number
   question_id: number
   user_id: number
   repetition: number
@@ -10,6 +10,7 @@ export interface ReviewRecord {
   ease_factor: number
   next_review: number
   last_result: string
+  rev_id: number | null
 }
 
 export class ReviewRepository {
@@ -18,6 +19,16 @@ export class ReviewRepository {
 
   constructor(db: SQLite.SQLiteDatabase) {
     this.db = db
+  }
+
+  /*
+  --------------------------------------------------
+  Get Database Instance
+  --------------------------------------------------
+  */
+
+  getDB() {
+    return this.db
   }
 
   // ---------- create table ----------
@@ -39,6 +50,8 @@ export class ReviewRepository {
         next_review INTEGER,
         last_result TEXT,
 
+        rev_id INTEGER,
+
         UNIQUE(user_id, question_id)
       )
     `)
@@ -54,10 +67,19 @@ export class ReviewRepository {
 
     const row = await this.db.getFirstAsync<ReviewRecord>(
       `
-      SELECT *
+      SELECT
+        user_id,
+        question_id,
+        repetition,
+        interval,
+        ease_factor,
+        next_review,
+        last_result,
+        rev_id
       FROM reviews
       WHERE user_id = ?
       AND question_id = ?
+      LIMIT 1
       `,
       [userId, questionId]
     )
@@ -67,7 +89,11 @@ export class ReviewRepository {
 
   // ---------- save review ----------
 
-  async saveReview(review: ReviewRecord): Promise<void> {
+  async saveReview(review: Review): Promise<void> {
+
+    const incomingRev =
+      (review as any).revId ??
+      Date.now()
 
     await this.db.runAsync(
       `
@@ -78,9 +104,10 @@ export class ReviewRepository {
         interval,
         ease_factor,
         next_review,
-        last_result
+        last_result,
+        rev_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 
       ON CONFLICT(user_id, question_id)
       DO UPDATE SET
@@ -88,16 +115,21 @@ export class ReviewRepository {
         interval = excluded.interval,
         ease_factor = excluded.ease_factor,
         next_review = excluded.next_review,
-        last_result = excluded.last_result
+        last_result = excluded.last_result,
+        rev_id = excluded.rev_id
+
+      WHERE reviews.rev_id IS NULL
+         OR reviews.rev_id < excluded.rev_id
       `,
       [
-        review.user_id,
-        review.question_id,
+        review.userId,
+        review.questionId,
         review.repetition,
         review.interval,
-        review.ease_factor,
-        review.next_review,
-        review.last_result
+        review.easeFactor,
+        review.nextReview,
+        review.lastResult,
+        incomingRev
       ]
     )
 
@@ -114,11 +146,12 @@ export class ReviewRepository {
       `
       SELECT q.*
       FROM questions q
-      JOIN reviews r
-      ON q.id = r.question_id
+      INNER JOIN reviews r
+        ON q.id = r.question_id
 
       WHERE r.user_id = ?
-      AND r.next_review <= ?
+        AND r.next_review IS NOT NULL
+        AND r.next_review <= ?
 
       ORDER BY r.next_review ASC
       LIMIT ?
@@ -127,6 +160,7 @@ export class ReviewRepository {
     )
 
     return rows
+
   }
 
   // ---------- failed questions ----------
@@ -140,11 +174,11 @@ export class ReviewRepository {
       `
       SELECT q.*
       FROM questions q
-      JOIN reviews r
-      ON q.id = r.question_id
+      INNER JOIN reviews r
+        ON q.id = r.question_id
 
       WHERE r.user_id = ?
-      AND r.last_result = 'again'
+        AND r.last_result = 'again'
 
       ORDER BY r.next_review ASC
       LIMIT ?
@@ -153,6 +187,7 @@ export class ReviewRepository {
     )
 
     return rows
+
   }
 
   // ---------- new questions ----------
@@ -164,13 +199,14 @@ export class ReviewRepository {
 
     const rows = await this.db.getAllAsync(
       `
-      SELECT *
-      FROM questions
+      SELECT q.*
+      FROM questions q
 
-      WHERE id NOT IN (
-        SELECT question_id
-        FROM reviews
-        WHERE user_id = ?
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM reviews r
+        WHERE r.user_id = ?
+        AND r.question_id = q.id
       )
 
       ORDER BY RANDOM()
@@ -180,6 +216,26 @@ export class ReviewRepository {
     )
 
     return rows
+
+  }
+
+  // ---------- get max revision ----------
+
+  async getMaxRevision(
+    userId: number
+  ): Promise<number> {
+
+    const row = await this.db.getFirstAsync<{ max_rev: number }>(
+      `
+      SELECT MAX(rev_id) as max_rev
+      FROM reviews
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    return row?.max_rev ?? 0
+
   }
 
 }

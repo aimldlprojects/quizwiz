@@ -26,6 +26,8 @@ export async function initDB(db: SQLiteDatabase) {
 
   await createReviewsTable(db)
 
+  await createSyncMetaTable(db)
+
 }
 
 /*
@@ -103,6 +105,7 @@ async function createQuestionsTable(db: SQLiteDatabase) {
     )
   `)
 
+
 }
 
 /*
@@ -128,11 +131,36 @@ async function createReviewsTable(db: SQLiteDatabase) {
       next_review INTEGER,
       last_result TEXT,
 
+      rev_id INTEGER,
+
       created_at INTEGER DEFAULT (strftime('%s','now')*1000),
 
       UNIQUE(user_id, question_id)
 
     )
+  `)
+
+}
+
+/*
+--------------------------------------------------
+Sync Meta
+--------------------------------------------------
+*/
+
+async function createSyncMetaTable(db: SQLiteDatabase) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS sync_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `)
+
+  await db.execAsync(`
+    INSERT OR IGNORE INTO sync_meta
+    (key,value)
+    VALUES ('last_sync_rev','0')
   `)
 
 }
