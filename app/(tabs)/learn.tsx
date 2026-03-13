@@ -14,8 +14,8 @@ import {
     View
 } from "react-native"
 
-import FlashCard from "../components/FlashCard"
-import { LearnController } from "../controllers/learnController"
+import FlashCard from "../../components/FlashCard"
+import { LearnController } from "../../controllers/learnController"
 
 export default function LearnScreen() {
 

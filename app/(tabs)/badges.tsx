@@ -5,8 +5,8 @@ import {
     View
 } from "react-native"
 
-import { BadgeController } from "../controllers/badgeController"
-import { useDatabase } from "../hooks/useDatabase"
+import { BadgeController } from "../../controllers/badgeController"
+import { useDatabase } from "../../hooks/useDatabase"
 
 export default function BadgesScreen() {
 

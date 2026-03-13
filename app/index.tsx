@@ -1,6 +1,5 @@
 import { useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useEffect, useState } from "react"
@@ -11,21 +10,35 @@ import { StreakController } from "../controllers/streakController"
 import { StatsRepository } from "../database/statsRepository"
 
 import { useBackupManager } from "../hooks/useBackupManager"
-import { useDatabase } from "../hooks/useDatabase"
+
+import { useDatabase } from "@/hooks/useDatabase"
+import { useUsers } from "@/hooks/useUsers"
 
 export default function HomeScreen() {
 
+  const router = useRouter()
+
   const { db, loading } = useDatabase()
+
+  const { activeUser } = useUsers(db)
 
   const backupManager =
     useBackupManager(db ?? null)
 
-  const router = useRouter()
-
   const [streak, setStreak] =
     useState<number>(0)
 
-  const userId = 1
+  const userId = activeUser ?? 1
+
+  useEffect(() => {
+
+    if (loading) return
+
+    if (!activeUser) {
+      router.replace("/users")
+    }
+
+  }, [loading, activeUser])
 
   useEffect(() => {
 
@@ -49,7 +62,7 @@ export default function HomeScreen() {
 
     loadStreak()
 
-  }, [db])
+  }, [db, userId])
 
   if (loading || !db) {
     return <Text>Loading database...</Text>
@@ -57,12 +70,6 @@ export default function HomeScreen() {
 
   const statsRepo =
     new StatsRepository(db)
-
-  /*
-  --------------------------------------------------
-  Navigation
-  --------------------------------------------------
-  */
 
   function goPractice() {
     router.push("/practice")
@@ -76,12 +83,6 @@ export default function HomeScreen() {
     router.push("/progress")
   }
 
-  /*
-  --------------------------------------------------
-  Title
-  --------------------------------------------------
-  */
-
   function renderTitle() {
 
     return (
@@ -91,12 +92,6 @@ export default function HomeScreen() {
     )
 
   }
-
-  /*
-  --------------------------------------------------
-  Stats
-  --------------------------------------------------
-  */
 
   function renderStats() {
 
@@ -124,12 +119,6 @@ export default function HomeScreen() {
     )
 
   }
-
-  /*
-  --------------------------------------------------
-  Main Actions
-  --------------------------------------------------
-  */
 
   function renderMainActions() {
 
@@ -169,12 +158,6 @@ export default function HomeScreen() {
     )
 
   }
-
-  /*
-  --------------------------------------------------
-  Render
-  --------------------------------------------------
-  */
 
   return (
 

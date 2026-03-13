@@ -7,24 +7,24 @@ import {
     View
 } from "react-native"
 
-import { usePractice } from "../hooks/usePractice"
+import { usePractice } from "../../hooks/usePractice"
 
-import AnswerActions from "../components/AnswerActions"
-import ScoreHeader from "../components/ScoreHeader"
+import AnswerActions from "../../components/AnswerActions"
+import ScoreHeader from "../../components/ScoreHeader"
 
-import { PracticeController } from "../controllers/practiceController"
-import { QuestionQueue } from "../engine/practice/questionQueue"
-import { BatchLoader } from "../engine/questions/batchLoader"
-import { ReviewScheduler } from "../engine/scheduler/reviewScheduler"
+import { PracticeController } from "../../controllers/practiceController"
+import { QuestionQueue } from "../../engine/practice/questionQueue"
+import { BatchLoader } from "../../engine/questions/batchLoader"
+import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 
-import { ReviewRepository } from "../database/reviewRepository"
-import { useController } from "../hooks/useController"
-import { useDatabase } from "../hooks/useDatabase"
+import { ReviewRepository } from "../../database/reviewRepository"
+import { useController } from "../../hooks/useController"
+import { useDatabase } from "../../hooks/useDatabase"
 
 
 export default function PracticeScreen() {
 
-    const { db, ready } = useDatabase()
+    const { db, loading } = useDatabase()
 
     const controller = useController(() => {
 
@@ -60,7 +60,7 @@ export default function PracticeScreen() {
 
     const practice = usePractice(controller)
 
-    if (!ready || !db || !controller) {
+    if (!loading || !db || !controller) {
         return <Text>Loading database...</Text>
     }
 

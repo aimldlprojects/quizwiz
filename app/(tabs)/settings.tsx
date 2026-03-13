@@ -5,38 +5,48 @@ import { useSettings } from "@/hooks/useSettings"
 
 import { testMultiDeviceSync } from "@/services/sync/testMultiDeviceSync"
 
+import { useRouter } from "expo-router"
+
 export default function SettingsScreen() {
 
-    const { db, loading: dbLoading } = useDatabase()
+  const { db, loading: dbLoading } = useDatabase()
+
+  const router = useRouter()
 
   const {
     syncMode,
     updateSyncMode,
-      loading: settingsLoading
+    loading: settingsLoading
   } = useSettings(db)
 
-    if (!db || dbLoading || settingsLoading) {
+  if (!db || dbLoading || settingsLoading) {
     return <Text>Loading...</Text>
   }
 
   const hybridEnabled =
     syncMode === "hybrid"
 
-    async function runSyncTest() {
+  async function runSyncTest() {
 
-        if (!db) return
+    if (!db) return
 
-        await testMultiDeviceSync(
-            db,
-            "http://YOUR_SERVER_IP:8000",
-            1
-        )
+    await testMultiDeviceSync(
+      db,
+      "http://YOUR_SERVER_IP:8000",
+      1
+    )
 
-    }
+  }
+
+  function openAdmin() {
+    router.push("/admin")
+  }
 
   return (
 
     <View style={{ padding: 20 }}>
+
+      {/* Sync Mode */}
 
       <Text style={{ fontSize: 20 }}>
         Sync Mode
@@ -69,14 +79,27 @@ export default function SettingsScreen() {
 
       </View>
 
-          <View style={{ marginTop: 30 }}>
+      {/* Sync Test */}
 
-              <Button
-                  title="Test Multi Device Sync"
-                  onPress={runSyncTest}
-              />
+      <View style={{ marginTop: 30 }}>
 
-          </View>
+        <Button
+          title="Test Multi Device Sync"
+          onPress={runSyncTest}
+        />
+
+      </View>
+
+      {/* Admin Panel */}
+
+      <View style={{ marginTop: 30 }}>
+
+        <Button
+          title="Admin Panel"
+          onPress={openAdmin}
+        />
+
+      </View>
 
     </View>
 

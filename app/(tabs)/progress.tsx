@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
-import { StatsRepository } from "../database/statsRepository"
-import { useDatabase } from "../hooks/useDatabase"
+import { StatsRepository } from "../../database/statsRepository"
+import { useDatabase } from "../../hooks/useDatabase"
 
 export default function ProgressScreen() {
 
-    const { db, ready } = useDatabase()
+    const { db, loading } = useDatabase()
 
     const [accuracy, setAccuracy] = useState(0)
     const [topics, setTopics] = useState<any[]>([])
@@ -47,7 +47,7 @@ export default function ProgressScreen() {
 
     }, [statsRepo])
 
-    if (!ready || !db) {
+    if (!loading || !db) {
         return <Text>Loading database...</Text>
     }
 

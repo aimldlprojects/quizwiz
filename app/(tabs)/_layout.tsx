@@ -1,35 +1,118 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { useState } from "react"
+import {
+  Button,
+  FlatList,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native"
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useDatabase } from "../../hooks/useDatabase"
+import { useUsers } from "../../hooks/useUsers"
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function UsersScreen() {
+
+  const { db } = useDatabase()
+
+  const {
+    users,
+    activeUser,
+    createUser,
+    deleteUser,
+    selectUser,
+    loading
+  } = useUsers(db)
+
+  const [name, setName] =
+    useState("")
+
+  if (loading) {
+    return <Text>Loading...</Text>
+  }
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+
+    <View style={{ flex: 1, padding: 20 }}>
+
+      <Text style={{ fontSize: 22 }}>
+        User Profiles
+      </Text>
+
+      <TextInput
+        placeholder="Enter name"
+        value={name}
+        onChangeText={setName}
+        style={{
+          borderWidth: 1,
+          padding: 10,
+          marginTop: 15
         }}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+
+      <Button
+        title="Add User"
+        onPress={async () => {
+
+          if (!name) return
+
+          await createUser(name)
+
+          setName("")
+
         }}
       />
-    </Tabs>
-  );
+
+      <FlatList
+        data={users}
+        keyExtractor={(item) =>
+          String(item.id)
+        }
+        style={{ marginTop: 20 }}
+        renderItem={({ item }) => (
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginBottom: 10
+            }}
+          >
+
+            <TouchableOpacity
+              onPress={() =>
+                selectUser(item.id)
+              }
+            >
+
+              <Text
+                style={{
+                  fontSize: 18,
+                  color:
+                    activeUser === item.id
+                      ? "green"
+                      : "black"
+                }}
+              >
+                {item.name}
+              </Text>
+
+            </TouchableOpacity>
+
+            <Button
+              title="Delete"
+              onPress={() =>
+                deleteUser(item.id)
+              }
+            />
+
+          </View>
+
+        )}
+      />
+
+    </View>
+
+  )
+
 }
