@@ -11,8 +11,17 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import FlashCard from "../../components/FlashCard"
 import { LearnController } from "../../controllers/learnController"
+import {
+  getAllTopics,
+  getDescendantTopicIds,
+  getQuestionsForTopicTree,
+  getTopicById,
+  TopicRecord
+} from "../../database/contentRepository"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
+import { useUsers } from "../../hooks/useUsers"
+import { generateLearnCardsForTopic } from "../../engine/questions/questionFactory"
 
 type Card = {
   id: number
@@ -20,9 +29,25 @@ type Card = {
   answer: string | number
 }
 
-type TopicInfo = {
-  id: number
-  name: string
+function getTopicDescription(
+  topic: TopicRecord | null
+) {
+
+  if (!topic) {
+    return "Open the Topics tab and choose what to study."
+  }
+
+  switch (topic.key) {
+    case "multiplication_tables":
+    case "tables_1_5":
+    case "tables_6_10":
+    case "tables_11_15":
+    case "tables_16_20":
+      return "Swipe through generated table cards and replay them with audio."
+    default:
+      return "Flip through the cards in the selected topic."
+  }
+
 }
 
 export default function LearnScreen() {
@@ -34,18 +59,23 @@ export default function LearnScreen() {
 
   const { db, loading } = useDatabase()
   const {
+    activeUser,
+    loading: usersLoading
+  } = useUsers(db)
+  const {
     selectedTopicId,
     ttsEnabled,
     setTtsEnabled,
     loading: preferencesLoading
-  } = useStudyPreferences(db)
+  } = useStudyPreferences(
+    db,
+    activeUser
+  )
 
   const [card, setCard] =
     useState<Card | null>(null)
-  const [selectedTable, setSelectedTable] =
-    useState<number | null>(null)
-  const [topicName, setTopicName] =
-    useState<string>("")
+  const [topic, setTopic] =
+    useState<TopicRecord | null>(null)
   const [progress, setProgress] = useState({
     current: 0,
     total: 0
@@ -53,12 +83,12 @@ export default function LearnScreen() {
 
   useEffect(() => {
 
-    async function loadSelectedTopic() {
+    async function loadCards() {
 
       if (!db || !selectedTopicId) {
-        setTopicName("")
         controller.reset()
         setCard(null)
+        setTopic(null)
         setProgress({
           current: 0,
           total: 0
@@ -66,42 +96,51 @@ export default function LearnScreen() {
         return
       }
 
-      const topic =
-        await db.getFirstAsync<TopicInfo>(
-          `
-          SELECT id, name
-          FROM topics
-          WHERE id = ?
-          `,
-          [selectedTopicId]
+      const selectedTopic =
+        await getTopicById(
+          db,
+          selectedTopicId
         )
 
-      setTopicName(topic?.name ?? "")
+      const topics =
+        await getAllTopics(db)
 
-      if (topic?.name === "Tables") {
-        controller.reset()
-        setCard(null)
-        setSelectedTable(null)
-        setProgress({
-          current: 0,
-          total: 0
-        })
+      setTopic(selectedTopic ?? null)
+
+      const topicKey =
+        selectedTopic?.key ?? ""
+
+      const generatedCards =
+        generateLearnCardsForTopic(topicKey)
+
+      if (generatedCards.length > 0) {
+        controller.loadCards(generatedCards)
+        setCard(controller.getCurrentCard())
+        setProgress(controller.getProgress())
         return
       }
+
+      const topicIds =
+        getDescendantTopicIds(
+          topics,
+          selectedTopicId
+        )
 
       const rows =
-        await db.getAllAsync<Card>(
-          `
-          SELECT
-            id,
-            question,
-            answer
-          FROM questions
-          WHERE topic_id = ?
-          ORDER BY id
-          `,
-          [selectedTopicId]
+        await getQuestionsForTopicTree(
+          db,
+          topicIds
         )
+
+      if (rows.length === 0) {
+        controller.reset()
+        setCard(null)
+        setProgress({
+          current: 0,
+          total: 0
+        })
+        return
+      }
 
       controller.loadCards(
         rows.map((row) => ({
@@ -117,25 +156,22 @@ export default function LearnScreen() {
 
       setCard(controller.getCurrentCard())
       setProgress(controller.getProgress())
-      setSelectedTable(null)
+
     }
 
-    loadSelectedTopic()
+    loadCards()
 
   }, [db, selectedTopicId, controller])
 
-  function loadTable(table: number) {
+  useEffect(() => {
 
-    controller.loadTables(table)
+    if (!ttsEnabled || !card) {
+      return
+    }
 
-    const currentCard =
-      controller.getCurrentCard() as Card | null
+    controller.speak(card.question)
 
-    setSelectedTable(table)
-    setCard(currentCard)
-    setProgress(controller.getProgress())
-
-  }
+  }, [ttsEnabled, card, controller])
 
   function nextCard() {
 
@@ -165,7 +201,12 @@ export default function LearnScreen() {
 
   }
 
-  if (loading || preferencesLoading || !db) {
+  if (
+    loading ||
+    usersLoading ||
+    preferencesLoading ||
+    !db
+  ) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>
@@ -175,9 +216,6 @@ export default function LearnScreen() {
     )
   }
 
-  const showsTables =
-    topicName === "Tables"
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -186,15 +224,14 @@ export default function LearnScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.heroHeader}>
-            <View>
+            <View style={styles.heroCopy}>
               <Text style={styles.kicker}>
                 Learn mode
               </Text>
 
               <Text style={styles.title}>
-                {topicName
-                  ? `Learning ${topicName}`
-                  : "Choose a topic first"}
+                {topic?.name ??
+                  "Choose a topic first"}
               </Text>
             </View>
 
@@ -217,47 +254,9 @@ export default function LearnScreen() {
           </View>
 
           <Text style={styles.subtitle}>
-            {showsTables
-              ? "Pick any table from 1 to 20."
-              : selectedTopicId
-              ? "Flip through the current topic cards."
-              : "Open the Topics tab and choose what to study."}
+            {getTopicDescription(topic)}
           </Text>
         </View>
-
-        {showsTables ? (
-          <View style={styles.selector}>
-            {Array.from({ length: 20 }, (_, index) => {
-
-              const table = index + 1
-              const selected =
-                selectedTable === table
-
-              return (
-                <Pressable
-                  key={table}
-                  style={[
-                    styles.tableButton,
-                    selected &&
-                      styles.selectedTableButton
-                  ]}
-                  onPress={() => loadTable(table)}
-                >
-                  <Text
-                    style={[
-                      styles.tableButtonText,
-                      selected &&
-                        styles.selectedTableButtonText
-                    ]}
-                  >
-                    {table}
-                  </Text>
-                </Pressable>
-              )
-
-            })}
-          </View>
-        ) : null}
 
         <View style={styles.cardShell}>
           {card ? (
@@ -283,7 +282,7 @@ export default function LearnScreen() {
           ) : (
             <Text style={styles.placeholder}>
               {selectedTopicId
-                ? "Choose a table or start with the selected topic."
+                ? "No cards are ready for this topic yet."
                 : "Choose a topic before learning."}
             </Text>
           )}
@@ -364,6 +363,10 @@ const styles = StyleSheet.create({
     gap: 12
   },
 
+  heroCopy: {
+    flex: 1
+  },
+
   kicker: {
     color: "#15803d",
     fontWeight: "800",
@@ -392,41 +395,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center"
-  },
-
-  selector: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 20,
-    gap: 10
-  },
-
-  tableButton: {
-    width: "18%",
-    minWidth: 58,
-    aspectRatio: 1,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-    borderWidth: 2,
-    borderColor: "#93c5fd"
-  },
-
-  selectedTableButton: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb"
-  },
-
-  tableButtonText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#1e3a5f"
-  },
-
-  selectedTableButtonText: {
-    color: "#ffffff"
   },
 
   cardShell: {

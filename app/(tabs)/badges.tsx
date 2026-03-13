@@ -23,6 +23,13 @@ type BadgeCard = {
   level: BadgeLevel
 }
 
+type AchievementBadge = {
+  id: string
+  title: string
+  description: string
+  unlocked: number
+}
+
 function getLevelColor(level: BadgeLevel) {
 
   switch (level) {
@@ -63,6 +70,8 @@ export default function BadgesScreen() {
 
   const [badgeCards, setBadgeCards] =
     useState<BadgeCard[]>([])
+  const [achievementBadges, setAchievementBadges] =
+    useState<AchievementBadge[]>([])
 
   useEffect(() => {
 
@@ -148,6 +157,28 @@ export default function BadgesScreen() {
       ]
 
       setBadgeCards(cards)
+
+      const earned =
+        await db.getAllAsync<AchievementBadge>(
+          `
+          SELECT
+            b.id,
+            b.title,
+            b.description,
+            CASE
+              WHEN ub.id IS NULL THEN 0
+              ELSE 1
+            END as unlocked
+          FROM badges b
+          LEFT JOIN user_badges ub
+            ON ub.id = b.id
+            AND ub.user_id = ?
+          ORDER BY b.title
+          `,
+          [activeUser]
+        )
+
+      setAchievementBadges(earned)
 
     }
 
@@ -239,6 +270,41 @@ export default function BadgesScreen() {
             </View>
           </View>
         ))}
+
+        <Text style={styles.sectionTitle}>
+          Achievement Stickers
+        </Text>
+
+        {achievementBadges.map((badge) => (
+          <View
+            key={badge.id}
+            style={styles.achievementCard}
+          >
+            <MaterialIcons
+              name={
+                badge.unlocked
+                  ? "emoji-events"
+                  : "lock"
+              }
+              size={26}
+              color={
+                badge.unlocked
+                  ? "#f59e0b"
+                  : "#94a3b8"
+              }
+            />
+
+            <View style={styles.achievementBody}>
+              <Text style={styles.achievementTitle}>
+                {badge.title}
+              </Text>
+
+              <Text style={styles.achievementText}>
+                {badge.description}
+              </Text>
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   )
@@ -281,6 +347,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     marginBottom: 6
+  },
+
+  sectionTitle: {
+    marginTop: 10,
+    fontSize: 22,
+    color: "#1e3a5f",
+    fontWeight: "800"
   },
 
   badgeCard: {
@@ -331,6 +404,31 @@ const styles = StyleSheet.create({
   levelPill: {
     fontWeight: "800",
     fontSize: 14
+  },
+
+  achievementCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: "row",
+    gap: 14,
+    alignItems: "center"
+  },
+
+  achievementBody: {
+    flex: 1
+  },
+
+  achievementTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#1e3a5f"
+  },
+
+  achievementText: {
+    marginTop: 4,
+    color: "#475569",
+    lineHeight: 20
   }
 
 })

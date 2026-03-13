@@ -1,4 +1,5 @@
 import { ReviewRepository } from "../database/reviewRepository"
+import { StatsRepository } from "../database/statsRepository"
 import { EventBus } from "../engine/events/eventBus"
 import { Events } from "../engine/events/events"
 import { LearningSessionManager } from "../engine/practice/learningSessionManager"
@@ -17,8 +18,10 @@ export class PracticeController {
   private queue: QuestionQueue
   private repo: ReviewRepository
   private syncService: SyncService
+  private statsRepo: StatsRepository
   private eventBus = new EventBus()
   private userId: number
+  private topicId: number | null
   private sessionManager: LearningSessionManager
   private sessionCache = new SessionCache<any>()
 
@@ -26,13 +29,18 @@ export class PracticeController {
     userId: number,
     scheduler: ReviewScheduler,
     queue: QuestionQueue,
-    repo: ReviewRepository
+    repo: ReviewRepository,
+    topicId: number | null = null
   ) {
 
     this.userId = userId
+    this.topicId = topicId
     this.scheduler = scheduler
     this.queue = queue
     this.repo = repo
+    this.statsRepo = new StatsRepository(
+      repo.getDB()
+    )
 
     this.syncService = new SyncService(repo.getDB())
 
@@ -164,21 +172,8 @@ export class PracticeController {
     userAnswer: string,
     rating: ReviewRating
   ) {
-
-    const normalizedRating =
-      userAnswer.trim() ===
-      String(
-        this.session.getCurrentQuestion()
-          ?.answer ?? ""
-      ).trim()
-        ? rating
-        : "again"
-
     const result =
-      await this.session.submitAnswer(
-        userAnswer,
-        normalizedRating
-      )
+      await this.session.submitAnswer(userAnswer, rating)
 
     if (!result) return null
 
@@ -186,13 +181,22 @@ export class PracticeController {
 
     if (!current) return result
 
+    await this.repo.ensureQuestionRecord(
+      current,
+      this.topicId
+    )
     await this.repo.saveReview(result.review)
+    await this.statsRepo.recordAnswer(
+      this.userId,
+      result.correct ? 1 : 0,
+      result.correct ? 0 : 1
+    )
 
     this.eventBus.emit(
       Events.ANSWER_SUBMITTED,
       {
         questionId: current.id,
-        rating: normalizedRating
+        rating: result.rating
       }
     )
 

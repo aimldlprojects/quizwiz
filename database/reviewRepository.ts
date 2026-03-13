@@ -13,6 +13,13 @@ export interface ReviewRecord {
   rev_id: number | null
 }
 
+export interface StoredQuestionRecord {
+  id: number
+  question: string
+  answer: string | number
+  type?: string | null
+}
+
 export class ReviewRepository {
 
   private db: SQLite.SQLiteDatabase
@@ -133,6 +140,40 @@ export class ReviewRepository {
         review.nextReview,
         review.lastResult,
         incomingRev
+      ]
+    )
+
+  }
+
+  async ensureQuestionRecord(
+    question: StoredQuestionRecord,
+    topicId: number | null = null
+  ) {
+
+    await this.db.runAsync(
+      `
+      INSERT INTO questions (
+        id,
+        topic_id,
+        type,
+        question,
+        answer
+      )
+      VALUES (?, ?, ?, ?, ?)
+
+      ON CONFLICT(id)
+      DO UPDATE SET
+        topic_id = COALESCE(excluded.topic_id, questions.topic_id),
+        type = COALESCE(excluded.type, questions.type),
+        question = excluded.question,
+        answer = excluded.answer
+      `,
+      [
+        question.id,
+        topicId,
+        question.type ?? null,
+        question.question,
+        String(question.answer)
       ]
     )
 

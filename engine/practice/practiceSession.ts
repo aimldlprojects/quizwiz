@@ -128,24 +128,29 @@ export class PracticeSession {
     if (isCorrect) {
       this.stats.correct += 1
     }
+
+    const effectiveRating: ReviewRating =
+      isCorrect ? rating : "again"
+
     // -------------------------------------------------
     // Update Review State
     // -------------------------------------------------
 
     const r = this.scheduler.updateReview(
       this.currentQuestion.id,
-      rating
+      effectiveRating
     )
 
     const review = this.buildReview(
       this.currentQuestion!.id,
       r,
-      rating
+      effectiveRating
     )
 
     return {
       correct: isCorrect,
       correctAnswer,
+      rating: effectiveRating,
       review
     }
   }

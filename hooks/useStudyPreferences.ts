@@ -1,5 +1,10 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { useEffect, useState } from "react"
+import { useFocusEffect } from "@react-navigation/native"
+import {
+  useCallback,
+  useEffect,
+  useState
+} from "react"
 
 import { ttsService } from "@/services/ttsService"
 
@@ -15,21 +20,9 @@ const DEFAULTS: Preferences = {
   ttsEnabled: true
 }
 
-async function ensureSettings(
-  db: SQLiteDatabase
-) {
-
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )
-  `)
-
-}
-
 export function useStudyPreferences(
-  db: SQLiteDatabase | null
+  db: SQLiteDatabase | null,
+  userId: number | null = null
 ) {
 
   const [loading, setLoading] =
@@ -43,7 +36,16 @@ export function useStudyPreferences(
 
     load()
 
-  }, [db])
+  }, [db, userId])
+
+  useFocusEffect(useCallback(() => {
+
+    if (!db) {
+      return
+    }
+
+    load()
+  }, [db, userId]))
 
   useEffect(() => {
 
@@ -59,8 +61,14 @@ export function useStudyPreferences(
 
     if (!db) return
 
-    await ensureSettings(db)
-
+    const selectedSubjectKey =
+      userId == null
+        ? "selected_subject_id"
+        : `selected_subject_id_user_${userId}`
+    const selectedTopicKey =
+      userId == null
+        ? "selected_topic_id"
+        : `selected_topic_id_user_${userId}`
     const rows =
       await db.getAllAsync<{
         key: string
@@ -69,23 +77,26 @@ export function useStudyPreferences(
         `
         SELECT key, value
         FROM settings
-        WHERE key IN (
-          'selected_subject_id',
-          'selected_topic_id',
-          'tts_enabled'
-        )
-        `
+        WHERE key = ?
+        OR key = ?
+        OR key = ?
+        `,
+        [
+          selectedSubjectKey,
+          selectedTopicKey,
+          "tts_enabled"
+        ]
       )
 
     const next = { ...DEFAULTS }
 
     for (const row of rows) {
       switch (row.key) {
-        case "selected_subject_id":
+        case selectedSubjectKey:
           next.selectedSubjectId =
             row.value ? Number(row.value) : null
           break
-        case "selected_topic_id":
+        case selectedTopicKey:
           next.selectedTopicId =
             row.value ? Number(row.value) : null
           break
@@ -106,8 +117,6 @@ export function useStudyPreferences(
   ) {
 
     if (!db) return
-
-    await ensureSettings(db)
 
     await db.runAsync(
       `
@@ -132,13 +141,17 @@ export function useStudyPreferences(
     }))
 
     await savePreference(
-      "selected_subject_id",
+      userId == null
+        ? "selected_subject_id"
+        : `selected_subject_id_user_${userId}`,
       subjectId == null
         ? null
         : String(subjectId)
     )
     await savePreference(
-      "selected_topic_id",
+      userId == null
+        ? "selected_topic_id"
+        : `selected_topic_id_user_${userId}`,
       null
     )
 
@@ -154,7 +167,9 @@ export function useStudyPreferences(
     }))
 
     await savePreference(
-      "selected_topic_id",
+      userId == null
+        ? "selected_topic_id"
+        : `selected_topic_id_user_${userId}`,
       topicId == null
         ? null
         : String(topicId)

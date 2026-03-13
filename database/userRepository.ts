@@ -3,6 +3,7 @@ import { SQLiteDatabase } from "expo-sqlite"
 export interface User {
   id: number
   name: string
+  disabled: number
 }
 
 export class UserRepository {
@@ -20,17 +21,39 @@ export class UserRepository {
   */
 
   async getUsers(): Promise<User[]> {
+    return this.getUsersByStatus(false)
+  }
+
+  async getUsersByStatus(
+    includeDisabled: boolean
+  ): Promise<User[]> {
 
     const rows =
       await this.db.getAllAsync<User>(
         `
-        SELECT id,name
+        SELECT
+          COALESCE(id, rowid) as id,
+          name,
+          COALESCE(disabled, 0) as disabled
         FROM users
-        ORDER BY id
+        ORDER BY id DESC
         `
       )
 
-    return rows
+    const validRows = rows.filter(
+      (row) =>
+        row.id != null &&
+        row.name != null &&
+        row.name.trim().length > 0
+    )
+
+    if (includeDisabled) {
+      return validRows
+    }
+
+    return validRows.filter(
+      (row) => row.disabled !== 1
+    )
 
   }
 
@@ -47,7 +70,10 @@ export class UserRepository {
     const row =
       await this.db.getFirstAsync<User>(
         `
-        SELECT id,name
+        SELECT
+          id,
+          name,
+          COALESCE(disabled, 0) as disabled
         FROM users
         WHERE id = ?
         `,
@@ -68,13 +94,53 @@ export class UserRepository {
     name: string
   ) {
 
-    await this.db.runAsync(
+    const existing =
+      await this.db.getFirstAsync<{
+        id: number
+        disabled: number
+      }>(
+        `
+        SELECT
+          id,
+          COALESCE(disabled, 0) as disabled
+        FROM users
+        WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+        LIMIT 1
+        `,
+        [name]
+      )
+
+    if (existing) {
+      if (existing.disabled === 1) {
+        await this.db.runAsync(
+          `
+          UPDATE users
+          SET
+            name = ?,
+            disabled = 0
+          WHERE id = ?
+          `,
+          [name, existing.id]
+        )
+
+        return existing.id
+      }
+
+      throw new Error(
+        "A user with this name already exists."
+      )
+    }
+
+    const result =
+      await this.db.runAsync(
       `
-      INSERT INTO users(name)
-      VALUES(?)
+      INSERT INTO users(name, disabled)
+      VALUES(?, 0)
       `,
       [name]
     )
+
+    return result.lastInsertRowId
 
   }
 
@@ -85,16 +151,285 @@ export class UserRepository {
   */
 
   async deleteUser(
-    id: number
+    id: number,
+    name?: string
   ) {
+
+    const userId = Number(id)
+    const normalizedName =
+      name?.trim().toLowerCase() ?? ""
+    const matchingRows =
+      await this.db.getAllAsync<{
+        id: number
+      }>(
+        `
+        SELECT COALESCE(id, rowid) as id
+        FROM users
+        WHERE id = ?
+        OR (
+          ? != ''
+          AND LOWER(TRIM(name)) = ?
+        )
+        `,
+        [
+          userId,
+          normalizedName,
+          normalizedName
+        ]
+      )
+    const targetIds = Array.from(
+      new Set(
+        matchingRows.map((row) =>
+          Number(row.id)
+        )
+      )
+    ).filter((targetId) =>
+      Number.isFinite(targetId)
+    )
+
+    if (
+      !Number.isFinite(userId) &&
+      targetIds.length === 0
+    ) {
+      throw new Error(
+        "Invalid user id for delete."
+      )
+    }
+
+    const idsToDelete =
+      targetIds.length > 0
+        ? targetIds
+        : [userId]
+
+    for (const currentUserId of idsToDelete) {
+      await this.deleteSingleUser(
+        currentUserId
+      )
+    }
+
+    if (normalizedName) {
+      await this.db.runAsync(
+        `
+        DELETE FROM users
+        WHERE LOWER(TRIM(name)) = ?
+        `,
+        [normalizedName]
+      )
+    }
+
+  }
+
+  private async deleteSingleUser(
+    userId: number
+  ) {
+
+    await this.db.runAsync(
+      `
+      DELETE FROM reviews
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM stats
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM user_streak
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM user_badges
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM user_subjects
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM user_topics
+      WHERE user_id = ?
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM sync_meta
+      WHERE key = ?
+      `,
+      [`reviews_last_rev_${userId}`]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE key IN (?, ?)
+      `,
+      [
+        `selected_subject_id_user_${userId}`,
+        `selected_topic_id_user_${userId}`
+      ]
+    )
+
+    const adminPathKeys =
+      await this.db.getAllAsync<{
+        key: string
+      }>(
+        `
+        SELECT key
+        FROM settings
+        WHERE key LIKE ?
+        `,
+        [`admin_selected_topic_path_${userId}:%`]
+      )
+
+    for (const row of adminPathKeys) {
+      await this.db.runAsync(
+        `
+        DELETE FROM settings
+        WHERE key = ?
+        `,
+        [row.key]
+      )
+    }
+
+    const activeUser =
+      await this.db.getFirstAsync<{
+        value: string
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE key = 'active_user'
+        `
+      )
+
+    if (String(activeUser?.value ?? "") === String(userId)) {
+      await this.db.runAsync(
+        `
+        UPDATE settings
+        SET value = NULL
+        WHERE key = 'active_user'
+        `,
+        []
+      )
+    }
 
     await this.db.runAsync(
       `
       DELETE FROM users
       WHERE id = ?
       `,
-      [id]
+      [userId]
     )
+  }
+
+  async setUserDisabled(
+    id: number,
+    disabled: boolean,
+    name?: string
+  ) {
+
+    const userId = Number(id)
+    const normalizedName =
+      name?.trim().toLowerCase() ?? ""
+    const matchingRows =
+      await this.db.getAllAsync<{
+        id: number
+      }>(
+        `
+        SELECT COALESCE(id, rowid) as id
+        FROM users
+        WHERE id = ?
+        OR (
+          ? != ''
+          AND LOWER(TRIM(name)) = ?
+        )
+        `,
+        [
+          userId,
+          normalizedName,
+          normalizedName
+        ]
+      )
+    const targetIds = Array.from(
+      new Set(
+        matchingRows.map((row) =>
+          Number(row.id)
+        )
+      )
+    ).filter((targetId) =>
+      Number.isFinite(targetId)
+    )
+
+    if (
+      !Number.isFinite(userId) &&
+      targetIds.length === 0
+    ) {
+      throw new Error(
+        "Invalid user id for disable."
+      )
+    }
+
+    const idsToUpdate =
+      targetIds.length > 0
+        ? targetIds
+        : [userId]
+
+    for (const currentUserId of idsToUpdate) {
+      await this.db.runAsync(
+        `
+        UPDATE users
+        SET disabled = ?
+        WHERE id = ?
+        `,
+        [disabled ? 1 : 0, currentUserId]
+      )
+    }
+
+    if (normalizedName) {
+      await this.db.runAsync(
+        `
+        UPDATE users
+        SET disabled = ?
+        WHERE LOWER(TRIM(name)) = ?
+        `,
+        [disabled ? 1 : 0, normalizedName]
+      )
+    }
+
+    if (disabled) {
+      for (const currentUserId of idsToUpdate) {
+        await this.db.runAsync(
+          `
+          UPDATE settings
+          SET value = NULL
+          WHERE key = 'active_user'
+          AND value = ?
+          `,
+          [String(currentUserId)]
+        )
+      }
+    }
 
   }
 

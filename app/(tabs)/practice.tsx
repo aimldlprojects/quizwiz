@@ -1,5 +1,5 @@
-import { useMemo } from "react"
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
+import { useEffect, useMemo, useState } from "react"
 import {
   Pressable,
   StyleSheet,
@@ -9,21 +9,39 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { usePractice } from "../../hooks/usePractice"
-
 import AnswerActions from "../../components/AnswerActions"
 import ScoreHeader from "../../components/ScoreHeader"
-
 import { PracticeController } from "../../controllers/practiceController"
+import {
+  getAllTopics,
+  getDescendantTopicIds,
+  getQuestionsForTopicTree,
+  getTopicById,
+  TopicRecord
+} from "../../database/contentRepository"
+import { ReviewRepository } from "../../database/reviewRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import { BatchLoader } from "../../engine/questions/batchLoader"
+import { generateQuestionBatch } from "../../engine/questions/questionFactory"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
-
-import { ReviewRepository } from "../../database/reviewRepository"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
+import { usePractice } from "../../hooks/usePractice"
+
+function getKeyboardType(answer: unknown) {
+
+  if (
+    typeof answer === "number" ||
+    /^\d+([/.]\d+)?$/.test(String(answer))
+  ) {
+    return "numeric" as const
+  }
+
+  return "default" as const
+
+}
 
 export default function PracticeScreen() {
 
@@ -37,7 +55,36 @@ export default function PracticeScreen() {
     ttsEnabled,
     setTtsEnabled,
     loading: preferencesLoading
-  } = useStudyPreferences(db)
+  } = useStudyPreferences(
+    db,
+    activeUser
+  )
+
+  const [selectedTopic, setSelectedTopic] =
+    useState<TopicRecord | null>(null)
+
+  useEffect(() => {
+
+    async function loadTopic() {
+
+      if (!db || !selectedTopicId) {
+        setSelectedTopic(null)
+        return
+      }
+
+      const topic =
+        await getTopicById(
+          db,
+          selectedTopicId
+        )
+
+      setSelectedTopic(topic ?? null)
+
+    }
+
+    loadTopic()
+
+  }, [db, selectedTopicId])
 
   const controller = useMemo(() => {
 
@@ -48,46 +95,99 @@ export default function PracticeScreen() {
       reviews: []
     })
 
-    const queue = new QuestionQueue({
-      loadQuestions: async (limit: number) => {
-
-        if (selectedTopicId) {
-          return db.getAllAsync(
-            `
-            SELECT
-              id,
-              question,
-              answer
-            FROM questions
-            WHERE topic_id = ?
-            ORDER BY RANDOM()
-            LIMIT ?
-            `,
-            [selectedTopicId, limit]
-          )
-        }
-
-        const batchLoader = new BatchLoader({
-          batchSize: limit
-        })
-
-        return batchLoader.loadBatch()
-
-      }
-    })
-
     const repo = new ReviewRepository(db)
+
+    const queue = new QuestionQueue(
+      {
+        loadQuestions: async (
+          limit: number
+        ) => {
+          if (selectedTopicId) {
+            const topic =
+              await getTopicById(
+                db,
+                selectedTopicId
+              )
+            const topics =
+              await getAllTopics(db)
+            const topicIds =
+              getDescendantTopicIds(
+                topics,
+                selectedTopicId
+              )
+
+            const rows =
+              await getQuestionsForTopicTree(
+                db,
+                topicIds,
+                limit
+              )
+
+            if (rows.length > 0) {
+              return rows.map((row) => ({
+                id: row.id,
+                question: row.question,
+                answer: Number.isNaN(
+                  Number(row.answer)
+                )
+                  ? row.answer
+                  : Number(row.answer),
+                type: row.type ?? undefined
+              }))
+            }
+
+            if (topic?.key) {
+              const generated =
+                generateQuestionBatch(
+                  topic.key,
+                  limit
+                )
+
+              if (generated.length > 0) {
+                return generated
+              }
+            }
+          }
+
+          const batchLoader = new BatchLoader({
+            batchSize: limit,
+            source: "mixed"
+          })
+
+          return batchLoader.loadBatch()
+        }
+      },
+      10,
+      repo,
+      activeUser
+    )
 
     return new PracticeController(
       activeUser,
       scheduler,
       queue,
-      repo
+      repo,
+      selectedTopicId ?? null
     )
 
   }, [db, activeUser, selectedTopicId])
 
   const practice = usePractice(controller)
+
+  useEffect(() => {
+
+    if (
+      !ttsEnabled ||
+      !practice.question
+    ) {
+      return
+    }
+
+    ttsService.speak(
+      practice.question.question
+    )
+
+  }, [ttsEnabled, practice.question])
 
   if (
     loading ||
@@ -134,6 +234,14 @@ export default function PracticeScreen() {
     )
   }
 
+  function replayQuestion() {
+
+    if (!practice.question) return
+
+    ttsService.speak(practice.question.question)
+
+  }
+
   function renderQuestion() {
 
     if (!practice.question) {
@@ -143,12 +251,16 @@ export default function PracticeScreen() {
             No question ready yet
           </Text>
 
+          <Text style={styles.emptyText}>
+            This topic has no playable content yet.
+          </Text>
+
           <Pressable
             style={styles.retryButton}
             onPress={practice.startPractice}
           >
             <Text style={styles.retryButtonText}>
-              Start Practice
+              Try Again
             </Text>
           </Pressable>
         </View>
@@ -184,22 +296,21 @@ export default function PracticeScreen() {
 
   }
 
-  function replayQuestion() {
-
-    if (!practice.question) return
-
-    ttsService.speak(practice.question.question)
-
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
-            <Text style={styles.screenTitle}>
-              Practice Arena
-            </Text>
+            <View style={styles.headerTitleWrap}>
+              <Text style={styles.screenTitle}>
+                Practice Arena
+              </Text>
+
+              <Text style={styles.topicLabel}>
+                {selectedTopic?.name ??
+                  "Selected topic"}
+              </Text>
+            </View>
 
             <View style={styles.headerActions}>
               <Pressable
@@ -237,6 +348,10 @@ export default function PracticeScreen() {
             correct={practice.stats.correct}
             accuracy={practice.accuracy}
           />
+
+          <Text style={styles.scoreText}>
+            Score: {practice.score}
+          </Text>
         </View>
 
         <View style={styles.questionCard}>
@@ -248,7 +363,10 @@ export default function PracticeScreen() {
                 style={styles.input}
                 value={practice.answer}
                 onChangeText={practice.setAnswer}
-                keyboardType="numeric"
+                keyboardType={getKeyboardType(
+                  practice.question.answer
+                )}
+                autoCapitalize="none"
                 returnKeyType="done"
                 onSubmitEditing={() =>
                   practice.submitAnswer("good")
@@ -264,18 +382,18 @@ export default function PracticeScreen() {
 
         {practice.question ? (
           <View style={styles.actionsCard}>
-          <AnswerActions
-            answered={!!practice.result}
-            onSubmit={() =>
-              practice.submitAnswer("good")
-            }
-            onNext={() =>
-              practice.nextQuestion()
-            }
-            onRate={() => {}}
-          />
-        </View>
-      ) : null}
+            <AnswerActions
+              answered={!!practice.result}
+              onSubmit={() =>
+                practice.submitAnswer("good")
+              }
+              onNext={() =>
+                practice.nextQuestion()
+              }
+              onRate={() => {}}
+            />
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   )
@@ -315,8 +433,18 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 12
+  },
+
+  headerTitleWrap: {
+    flex: 1
+  },
+
+  topicLabel: {
+    color: "#475569",
+    fontWeight: "700",
+    marginTop: 2
   },
 
   headerActions: {
@@ -337,8 +465,14 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "800",
     color: "#1e3a5f",
-    marginBottom: 12,
-    flex: 1
+    marginBottom: 4
+  },
+
+  scoreText: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1e3a5f"
   },
 
   questionCard: {
@@ -396,6 +530,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: "#1e3a5f",
+    textAlign: "center",
+    marginBottom: 10
+  },
+
+  emptyText: {
+    color: "#64748b",
     textAlign: "center",
     marginBottom: 16
   },

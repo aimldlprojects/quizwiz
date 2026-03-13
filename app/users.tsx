@@ -70,7 +70,9 @@ export default function UsersScreen() {
 
       {hasUsers ? (
         <FlatList
-          data={users}
+          data={users.filter(
+            (user) => user.id != null
+          )}
           keyExtractor={(item) =>
             String(item.id)
           }

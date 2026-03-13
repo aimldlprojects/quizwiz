@@ -6,6 +6,90 @@ import { getSyncMode } from "@/database/settingsRepository"
 import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
 
+let sharedDb: SQLite.SQLiteDatabase | null =
+  null
+let sharedDbPromise: Promise<SQLite.SQLiteDatabase> | null =
+  null
+
+async function getSharedDatabase() {
+
+  if (sharedDb) {
+    return sharedDb
+  }
+
+  if (!sharedDbPromise) {
+    sharedDbPromise =
+      initializeDatabase()
+  }
+
+  sharedDb = await sharedDbPromise
+  return sharedDb
+
+}
+
+async function initializeDatabase() {
+
+  const database =
+    await SQLite.openDatabaseAsync("quizwiz.db")
+
+  await initDB(database)
+
+  const mode =
+    await getSyncMode(database)
+
+  if (mode === "hybrid") {
+
+    const activeUserRow =
+      await database.getFirstAsync<{
+        value: string
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE key = 'active_user'
+        `
+      )
+
+    const serverUrl =
+      getSyncServerUrl()
+
+    if (!serverUrl) {
+      console.log(
+        "Initial sync skipped: sync server URL is not configured."
+      )
+    } else {
+
+      try {
+
+        const activeUser =
+          Number(
+            activeUserRow?.value ?? "0"
+          ) || 0
+
+        if (activeUser) {
+          await pullReviews(
+            database,
+            serverUrl,
+            activeUser
+          )
+        }
+
+      } catch (err) {
+
+        console.log(
+          "Initial sync failed:",
+          err
+        )
+
+      }
+    }
+
+  }
+
+  return database
+
+}
+
 export function useDatabase() {
 
   const [db, setDb] =
@@ -16,75 +100,16 @@ export function useDatabase() {
 
   useEffect(() => {
 
-    init()
+    void init()
 
   }, [])
 
   async function init() {
 
     const database =
-      await SQLite.openDatabaseAsync("quizwiz.db")
-
-    await initDB(database)
-
-    const mode =
-      await getSyncMode(database)
-
-    if (mode === "hybrid") {
-
-      const activeUserRow =
-        await database.getFirstAsync<{
-          value: string
-        }>(
-          `
-          SELECT value
-          FROM settings
-          WHERE key = 'active_user'
-          `
-        )
-
-      const serverUrl =
-        getSyncServerUrl()
-
-      if (!serverUrl) {
-        console.log(
-          "Initial sync skipped: sync server URL is not configured."
-        )
-      } else {
-
-        try {
-
-          const activeUser =
-            Number(
-              activeUserRow?.value ?? "0"
-            ) || 0
-
-          if (!activeUser) {
-            setDb(database)
-            setLoading(false)
-            return
-          }
-
-          await pullReviews(
-            database,
-            serverUrl,
-            activeUser
-          )
-
-        } catch (err) {
-
-          console.log(
-            "Initial sync failed:",
-            err
-          )
-
-        }
-      }
-
-    }
+      await getSharedDatabase()
 
     setDb(database)
-
     setLoading(false)
 
   }

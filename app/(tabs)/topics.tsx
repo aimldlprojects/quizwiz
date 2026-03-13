@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Pressable,
   ScrollView,
@@ -10,6 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
+import {
+  getAllTopics,
+  getTopicLineage
+} from "../../database/contentRepository"
+import { useUsers } from "../../hooks/useUsers"
+import { UserSubjectRepository } from "../../database/userSubjectRepository"
 
 type Subject = {
   id: number
@@ -18,6 +24,7 @@ type Subject = {
 
 type Topic = {
   id: number
+  key: string | null
   name: string
   subject_id: number
   parent_topic_id: number | null
@@ -27,23 +34,42 @@ export default function TopicsScreen() {
 
   const { db, loading } = useDatabase()
   const {
+    activeUser,
+    setSubjectEnabled,
+    setTopicEnabled,
+    loading: usersLoading
+  } = useUsers(db)
+  const {
     selectedSubjectId,
     selectedTopicId,
     setSelectedSubjectId,
     setSelectedTopicId,
     loading: preferencesLoading
-  } = useStudyPreferences(db)
+  } = useStudyPreferences(
+    db,
+    activeUser
+  )
 
   const [subjects, setSubjects] =
     useState<Subject[]>([])
   const [topics, setTopics] =
     useState<Topic[]>([])
+  const [topicQuestionCounts, setTopicQuestionCounts] =
+    useState<Record<number, number>>({})
+  const [allowedTopicIds, setAllowedTopicIds] =
+    useState<Set<number>>(new Set())
 
   useEffect(() => {
 
     async function loadOptions() {
 
       if (!db) return
+
+      if (!activeUser) {
+        setSubjects([])
+        setTopics([])
+        return
+      }
 
       const loadedSubjects =
         await db.getAllAsync<Subject>(
@@ -55,28 +81,126 @@ export default function TopicsScreen() {
         )
 
       const loadedTopics =
-        await db.getAllAsync<Topic>(
+        await getAllTopics(db)
+      const accessRepo =
+        new UserSubjectRepository(db)
+      const allowedTopics =
+        await accessRepo.getAllowedTopics(
+          activeUser
+        )
+      const questionCountRows =
+        await db.getAllAsync<{
+          topic_id: number
+          count: number
+        }>(
           `
           SELECT
-            id,
-            name,
-            subject_id,
-            parent_topic_id
-          FROM topics
-          ORDER BY name
+            topic_id,
+            COUNT(*) as count
+          FROM questions
+          GROUP BY topic_id
           `
         )
 
       setSubjects(loadedSubjects)
       setTopics(loadedTopics)
+      setAllowedTopicIds(
+        new Set(
+          allowedTopics.map((topic) => topic.id)
+        )
+      )
+      setTopicQuestionCounts(
+        Object.fromEntries(
+          questionCountRows.map((row) => [
+            row.topic_id,
+            row.count
+          ])
+        )
+      )
 
     }
 
     loadOptions()
 
-  }, [db])
+  }, [db, activeUser])
 
-  if (loading || preferencesLoading || !db) {
+  const selectedTopic =
+    topics.find((topic) => topic.id === selectedTopicId)
+  const lineage =
+    getTopicLineage(
+      topics,
+      selectedTopicId
+    )
+  const lineageIds = new Set(
+    lineage.map((topic) => topic.id)
+  )
+  const availableTopicIds =
+    getAvailableTopicIds(
+      topics,
+      topicQuestionCounts
+    )
+  const topicStatus =
+    useMemo(
+      () =>
+        buildTopicStatusMap(
+          topics.filter((topic) =>
+            availableTopicIds.has(topic.id)
+          ),
+          allowedTopicIds
+        ),
+      [topics, availableTopicIds, allowedTopicIds]
+    )
+  const visibleSubjects =
+    subjects.filter((subject) =>
+      topics.some(
+        (topic) =>
+          topic.subject_id === subject.id &&
+          availableTopicIds.has(topic.id)
+      )
+    )
+  const subjectStatus =
+    useMemo(
+      () =>
+        buildSubjectStatusMap(
+          visibleSubjects,
+          topics.filter((topic) =>
+            availableTopicIds.has(topic.id)
+          ),
+          topicStatus
+        ),
+      [
+        visibleSubjects,
+        topics,
+        availableTopicIds,
+        topicStatus
+      ]
+    )
+
+  useEffect(() => {
+
+    if (
+      visibleSubjects.length > 0 &&
+      selectedSubjectId != null &&
+      !visibleSubjects.some(
+        (subject) =>
+          subject.id === selectedSubjectId
+      )
+    ) {
+      setSelectedSubjectId(null)
+    }
+
+  }, [
+    visibleSubjects,
+    selectedSubjectId,
+    setSelectedSubjectId
+  ])
+
+  if (
+    loading ||
+    usersLoading ||
+    preferencesLoading ||
+    !db
+  ) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>
@@ -86,19 +210,40 @@ export default function TopicsScreen() {
     )
   }
 
-  const visibleTopics =
-    topics.filter(
-      (topic) =>
-        topic.subject_id ===
-          selectedSubjectId &&
-        topic.parent_topic_id == null &&
-        selectedSubjectId != null
-    )
+  const topicLevels: Topic[][] = []
 
-  const selectedTopic =
-    topics.find(
-      (topic) => topic.id === selectedTopicId
-    )
+  if (selectedSubjectId != null) {
+    let parentId: number | null = null
+
+    while (true) {
+      const levelTopics =
+        topics.filter(
+          (topic) =>
+            topic.subject_id ===
+              selectedSubjectId &&
+            topic.parent_topic_id === parentId &&
+            availableTopicIds.has(topic.id)
+        )
+
+      if (levelTopics.length === 0) {
+        break
+      }
+
+      topicLevels.push(levelTopics)
+
+      const selectedLevelTopic =
+        lineage.find(
+          (topic) =>
+            topic.parent_topic_id === parentId
+        )
+
+      if (!selectedLevelTopic) {
+        break
+      }
+
+      parentId = selectedLevelTopic.id
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -114,30 +259,81 @@ export default function TopicsScreen() {
           Learn or Practice.
         </Text>
 
+        <Text style={styles.helperText}>
+          Green means allowed, white means off, yellow means some child topics are off, and the blue border shows your current path.
+        </Text>
+
+        {activeUser && visibleSubjects.length === 0 ? (
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>
+              No playable subjects
+            </Text>
+
+            <Text style={styles.noticeText}>
+              Ask the admin to enable a subject that has at least one playable topic.
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>
             Subjects
           </Text>
 
           <View style={styles.chipWrap}>
-            {subjects.map((subject) => (
+            {visibleSubjects.map((subject) => (
               <Pressable
                 key={subject.id}
                 style={[
                   styles.chip,
+                  subjectStatus[subject.id] ===
+                    "all" &&
+                    styles.allowedChip,
+                  subjectStatus[subject.id] ===
+                    "partial" &&
+                    styles.partialChip,
                   selectedSubjectId === subject.id &&
-                    styles.selectedChip
+                    styles.selectedChipPath
                 ]}
                 onPress={() =>
-                  setSelectedSubjectId(subject.id)
+                  void (async () => {
+                    if (!activeUser) {
+                      return
+                    }
+
+                    await setSelectedSubjectId(
+                      subject.id
+                    )
+                    await setSubjectEnabled(
+                      activeUser,
+                      subject.id,
+                      subjectStatus[subject.id] !==
+                        "all"
+                    )
+
+                    const accessRepo =
+                      new UserSubjectRepository(db)
+                    const allowedTopics =
+                      await accessRepo.getAllowedTopics(
+                        activeUser
+                      )
+
+                    setAllowedTopicIds(
+                      new Set(
+                        allowedTopics.map(
+                          (topic) => topic.id
+                        )
+                      )
+                    )
+                  })()
                 }
               >
                 <Text
                   style={[
                     styles.chipText,
-                    selectedSubjectId ===
-                      subject.id &&
-                      styles.selectedChipText
+                    subjectStatus[subject.id] ===
+                      "all" &&
+                      styles.allowedChipText
                   ]}
                 >
                   {subject.name}
@@ -157,32 +353,94 @@ export default function TopicsScreen() {
               Select a subject first.
             </Text>
           ) : (
-            <View style={styles.chipWrap}>
-              {visibleTopics.map((topic) => (
-                <Pressable
-                  key={topic.id}
-                  style={[
-                    styles.chip,
-                    selectedTopicId === topic.id &&
-                      styles.selectedChip
-                  ]}
-                  onPress={() =>
-                    setSelectedTopicId(topic.id)
-                  }
+            topicLevels.map(
+              (levelTopics, levelIndex) => (
+                <View
+                  key={`level-${levelIndex}`}
+                  style={styles.levelBlock}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selectedTopicId ===
-                        topic.id &&
-                        styles.selectedChipText
-                    ]}
-                  >
-                    {topic.name}
+                  <Text style={styles.levelTitle}>
+                    Level {levelIndex + 1}
                   </Text>
-                </Pressable>
-              ))}
-            </View>
+
+                  <View style={styles.chipWrap}>
+                    {levelTopics.map((topic) => {
+                      const isInLineage =
+                        lineageIds.has(topic.id)
+
+                      return (
+                        <Pressable
+                          key={topic.id}
+                          style={[
+                            styles.chip,
+                            topicStatus[topic.id] ===
+                              "all" &&
+                              styles.allowedChip,
+                            topicStatus[topic.id] ===
+                              "partial" &&
+                              styles.partialChip,
+                            isInLineage &&
+                              styles.selectedChipPath
+                          ]}
+                          onPress={async () => {
+                            if (!activeUser) {
+                              return
+                            }
+
+                            const shouldToggle =
+                              selectedTopicId ===
+                              topic.id
+
+                            await setSelectedTopicId(
+                              topic.id
+                            )
+
+                            await setTopicEnabled(
+                              activeUser,
+                              topic.id,
+                              shouldToggle
+                                ? !allowedTopicIds.has(
+                                    topic.id
+                                  )
+                                : true
+                            )
+
+                            const accessRepo =
+                              new UserSubjectRepository(
+                                db
+                              )
+                            const allowedTopics =
+                              await accessRepo.getAllowedTopics(
+                                activeUser
+                              )
+
+                            setAllowedTopicIds(
+                              new Set(
+                                allowedTopics.map(
+                                  (allowedTopic) =>
+                                    allowedTopic.id
+                                )
+                              )
+                            )
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              topicStatus[topic.id] ===
+                                "all" &&
+                                styles.allowedChipText
+                            ]}
+                          >
+                            {topic.name}
+                          </Text>
+                        </Pressable>
+                      )
+                    })}
+                  </View>
+                </View>
+              )
+            )
           )}
         </View>
 
@@ -193,7 +451,7 @@ export default function TopicsScreen() {
 
           <Text style={styles.summaryText}>
             Subject:{" "}
-            {subjects.find(
+            {visibleSubjects.find(
               (subject) =>
                 subject.id === selectedSubjectId
             )?.name ?? "Not selected"}
@@ -205,10 +463,12 @@ export default function TopicsScreen() {
           </Text>
 
           <Text style={styles.helperText}>
-            Subtopics are not populated in the
-            current database yet. The selector
-            is ready for topic hierarchies once
-            that data exists.
+            Path:{" "}
+            {lineage.length === 0
+              ? "Choose a topic"
+              : lineage
+                  .map((topic) => topic.name)
+                  .join(" -> ")}
           </Text>
         </View>
       </ScrollView>
@@ -260,6 +520,24 @@ const styles = StyleSheet.create({
     padding: 18
   },
 
+  noticeCard: {
+    backgroundColor: "#fff7ed",
+    borderRadius: 22,
+    padding: 18
+  },
+
+  noticeTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#9a3412",
+    marginBottom: 6
+  },
+
+  noticeText: {
+    color: "#9a3412",
+    lineHeight: 21
+  },
+
   summaryCard: {
     backgroundColor: "#dbeafe",
     borderRadius: 22,
@@ -279,15 +557,36 @@ const styles = StyleSheet.create({
     gap: 10
   },
 
-  chip: {
-    backgroundColor: "#eff6ff",
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 10
+  levelBlock: {
+    marginBottom: 14
   },
 
-  selectedChip: {
-    backgroundColor: "#2563eb"
+  levelTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#475569",
+    marginBottom: 10
+  },
+
+  chip: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: "#dbe4f0"
+  },
+
+  allowedChip: {
+    backgroundColor: "#16a34a"
+  },
+
+  partialChip: {
+    backgroundColor: "#fde68a"
+  },
+
+  selectedChipPath: {
+    borderColor: "#1d4ed8"
   },
 
   chipText: {
@@ -295,7 +594,7 @@ const styles = StyleSheet.create({
     fontWeight: "700"
   },
 
-  selectedChipText: {
+  allowedChipText: {
     color: "#ffffff"
   },
 
@@ -312,3 +611,198 @@ const styles = StyleSheet.create({
   }
 
 })
+
+const GENERATOR_TOPIC_KEYS = new Set([
+  "multiplication_tables",
+  "tables_1_5",
+  "tables_6_10",
+  "tables_11_15",
+  "tables_16_20",
+  "addition",
+  "subtraction",
+  "division",
+  "word_problems"
+])
+
+function getAvailableTopicIds(
+  topics: Topic[],
+  questionCounts: Record<number, number>
+) {
+
+  const available = new Set<number>()
+  const childrenByParent = new Map<
+    number | null,
+    Topic[]
+  >()
+
+  for (const topic of topics) {
+    const parentId =
+      topic.parent_topic_id ?? null
+    const siblings =
+      childrenByParent.get(parentId) ?? []
+
+    siblings.push(topic)
+    childrenByParent.set(parentId, siblings)
+  }
+
+  function hasPlayableContent(
+    topic: Topic
+  ): boolean {
+
+    if (
+      (questionCounts[topic.id] ?? 0) > 0 ||
+      (topic.key != null &&
+        GENERATOR_TOPIC_KEYS.has(topic.key))
+    ) {
+      available.add(topic.id)
+      return true
+    }
+
+    const children =
+      childrenByParent.get(topic.id) ?? []
+
+    let childPlayable = false
+
+    for (const child of children) {
+      if (hasPlayableContent(child)) {
+        childPlayable = true
+      }
+    }
+
+    if (childPlayable) {
+      available.add(topic.id)
+    }
+
+    return childPlayable
+
+  }
+
+  for (const rootTopic of topics) {
+    hasPlayableContent(rootTopic)
+  }
+
+  return available
+
+}
+
+function buildTopicStatusMap(
+  topics: Topic[],
+  allowedTopicIds: Set<number>
+) {
+
+  const childrenByParent = new Map<
+    number | null,
+    Topic[]
+  >()
+  const statusMap: Record<
+    number,
+    "all" | "partial" | "off"
+  > = {}
+
+  for (const topic of topics) {
+    const parentId =
+      topic.parent_topic_id ?? null
+    const siblings =
+      childrenByParent.get(parentId) ?? []
+
+    siblings.push(topic)
+    childrenByParent.set(parentId, siblings)
+  }
+
+  function getStatus(
+    topic: Topic
+  ): "all" | "partial" | "off" {
+
+    const children =
+      childrenByParent.get(topic.id) ?? []
+
+    if (children.length === 0) {
+      return allowedTopicIds.has(topic.id)
+        ? "all"
+        : "off"
+    }
+
+    const childStatuses =
+      children.map(getStatus)
+    const selfAllowed =
+      allowedTopicIds.has(topic.id)
+    const allChildrenAllowed =
+      childStatuses.every(
+        (status) => status === "all"
+      )
+    const anyAllowed =
+      selfAllowed ||
+      childStatuses.some(
+        (status) => status !== "off"
+      )
+
+    if (selfAllowed && allChildrenAllowed) {
+      return "all"
+    }
+
+    return anyAllowed ? "partial" : "off"
+
+  }
+
+  for (const topic of topics) {
+    statusMap[topic.id] = getStatus(topic)
+  }
+
+  return statusMap
+
+}
+
+function buildSubjectStatusMap(
+  subjects: Subject[],
+  topics: Topic[],
+  topicStatus: Record<
+    number,
+    "all" | "partial" | "off"
+  >
+) {
+
+  const statusMap: Record<
+    number,
+    "all" | "partial" | "off"
+  > = {}
+
+  for (const subject of subjects) {
+    const subjectTopics =
+      topics.filter(
+        (topic) =>
+          topic.subject_id === subject.id
+      )
+
+    if (subjectTopics.length === 0) {
+      statusMap[subject.id] = "off"
+      continue
+    }
+
+    const statuses = subjectTopics.map(
+      (topic) => topicStatus[topic.id] ?? "off"
+    )
+
+    if (
+      statuses.every(
+        (status) => status === "all"
+      )
+    ) {
+      statusMap[subject.id] = "all"
+      continue
+    }
+
+    if (
+      statuses.some(
+        (status) => status !== "off"
+      )
+    ) {
+      statusMap[subject.id] = "partial"
+      continue
+    }
+
+    statusMap[subject.id] = "off"
+  }
+
+  return statusMap
+
+}

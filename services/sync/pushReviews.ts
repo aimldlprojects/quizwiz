@@ -13,7 +13,7 @@ async function getLocalReviewChanges(
   lastSync: number
 ) {
 
-  return await db.getAllAsync(
+  const rows = await db.getAllAsync(
     `
     SELECT
       user_id,
@@ -31,6 +31,36 @@ async function getLocalReviewChanges(
     `,
     [userId, lastSync]
   )
+
+  return rows.map((row: any) => ({
+    ...row,
+    question_id: normalizeQuestionId(
+      row.question_id
+    )
+  }))
+
+}
+
+function normalizeQuestionId(
+  questionId: unknown
+) {
+
+  if (typeof questionId === "number") {
+    return questionId
+  }
+
+  const raw = String(questionId)
+
+  const match =
+    raw.match(/^tables_(\d+)_(\d+)$/)
+
+  if (match) {
+    return Number(`${match[1]}${match[2]}`)
+  }
+
+  const numeric = Number(raw)
+
+  return Number.isNaN(numeric) ? 0 : numeric
 
 }
 
@@ -77,7 +107,10 @@ export async function pushReviews(
   )
 
   if (!res.ok) {
-    throw new Error(`Push reviews failed: ${res.status}`)
+    const body = await res.text()
+    throw new Error(
+      `Push reviews failed: ${res.status} ${body}`
+    )
   }
 
   const data = await res.json()

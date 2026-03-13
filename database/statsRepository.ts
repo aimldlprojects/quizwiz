@@ -8,6 +8,23 @@ export class StatsRepository {
     this.db = db
   }
 
+  async recordAnswer(
+    userId: number,
+    correct: number,
+    wrong: number
+  ) {
+
+    await this.db.runAsync(
+      `
+      INSERT INTO stats
+      (user_id, correct, wrong)
+      VALUES (?, ?, ?)
+      `,
+      [userId, correct, wrong]
+    )
+
+  }
+
   // ---------- total attempts ----------
 
   async getTotalAttempts(userId: number) {
@@ -179,6 +196,17 @@ export class StatsRepository {
       }
 
     })
+  }
+
+  async getTopicsMastered(userId: number) {
+
+    const progress =
+      await this.getTopicProgress(userId)
+
+    return progress.filter(
+      (topic) => topic.progress >= 100
+    ).length
+
   }
 
   // ---------- debug topics ----------

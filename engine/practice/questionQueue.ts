@@ -1,7 +1,9 @@
+import { ReviewRepository } from "../../database/reviewRepository"
+
 export interface Question {
   id: number
   question: string
-  answer: string
+  answer: string | number
 }
 
 export interface QuestionLoader {
@@ -13,11 +15,20 @@ export class QuestionQueue {
   private queue: Question[] = []
   private batchSize: number
   private loader: QuestionLoader
+  private reviewRepo?: ReviewRepository
+  private userId?: number
   private loading: boolean = false
 
-  constructor(loader: QuestionLoader, batchSize: number = 10) {
+  constructor(
+    loader: QuestionLoader,
+    batchSize: number = 10,
+    reviewRepo?: ReviewRepository,
+    userId?: number
+  ) {
     this.loader = loader
     this.batchSize = batchSize
+    this.reviewRepo = reviewRepo
+    this.userId = userId
   }
 
   /*
@@ -48,12 +59,39 @@ export class QuestionQueue {
 
     try {
 
-      const questions =
-        await this.loader.loadQuestions(
-          this.batchSize
-        )
+      if (
+        this.reviewRepo &&
+        this.userId !== undefined
+      ) {
+        const dueReviews =
+          await this.reviewRepo.getDueReviews(
+            this.userId,
+            this.batchSize
+          )
 
-      this.queue.push(...questions)
+        const normalizedDueReviews =
+          dueReviews.map((row: any) => ({
+            id: Number(row.id),
+            question: String(row.question),
+            answer: row.answer
+          }))
+
+        this.queue.push(
+          ...normalizedDueReviews
+        )
+      }
+
+      const remaining =
+        this.batchSize - this.queue.length
+
+      if (remaining > 0) {
+        const loadedQuestions =
+          await this.loader.loadQuestions(
+            remaining
+          )
+
+        this.queue.push(...loadedQuestions)
+      }
 
     } finally {
 

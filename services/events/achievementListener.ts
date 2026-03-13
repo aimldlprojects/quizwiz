@@ -61,6 +61,10 @@ export function registerAchievementListener(
         await statsRepo.getTotalAttempts(
           userId
         )
+      const topicsMastered =
+        await statsRepo.getTopicsMastered(
+          userId
+        )
 
       /*
       --------------------------------------------------
@@ -74,8 +78,14 @@ export function registerAchievementListener(
           totalCorrect,
           totalAttempts,
           streak: streakState.currentStreak,
-          topicsMastered: 0
+          topicsMastered
         }
+      )
+
+      await badgeController.checkAchievements(
+        userId,
+        totalCorrect,
+        streakState.currentStreak
       )
 
     }

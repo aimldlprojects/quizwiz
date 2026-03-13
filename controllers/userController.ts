@@ -24,9 +24,13 @@ export class UserController {
   --------------------------------------------------
   */
 
-  async getUsers() {
+  async getUsers(
+    includeDisabled = false
+  ) {
 
-    return this.userRepo.getUsers()
+    return includeDisabled
+      ? this.userRepo.getUsersByStatus(true)
+      : this.userRepo.getUsers()
 
   }
 
@@ -40,7 +44,7 @@ export class UserController {
     name: string
   ) {
 
-    await this.userRepo.createUser(
+    return this.userRepo.createUser(
       name
     )
 
@@ -53,11 +57,27 @@ export class UserController {
   */
 
   async deleteUser(
-    id: number
+    id: number,
+    name?: string
   ) {
 
     await this.userRepo.deleteUser(
-      id
+      id,
+      name
+    )
+
+  }
+
+  async setUserDisabled(
+    id: number,
+    disabled: boolean,
+    name?: string
+  ) {
+
+    await this.userRepo.setUserDisabled(
+      id,
+      disabled,
+      name
     )
 
   }

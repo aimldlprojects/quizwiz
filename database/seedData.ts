@@ -1,78 +1,443 @@
-import { Platform } from "react-native"
-import { db } from "../database/db"
+import { SQLiteDatabase } from "expo-sqlite"
+import { seedBadges } from "./seedBadges"
+import {
+  seedSubjects,
+  SUBJECTS
+} from "./seedSubjects"
+import {
+  seedTopics,
+  TOPIC_DEFINITIONS
+} from "./seedTopics"
+import { UserSubjectRepository } from "./userSubjectRepository"
 
-export async function seedData() {
+const USERS = [
+  [1, "Bhavi"],
+  [2, "Madhu"],
+  [3, "Quiz Kid"]
+] as const
 
-  if (Platform.OS === "web" || !db) return
+type QuestionSeed = {
+  topicKey: string
+  type: string
+  question: string
+  answer: string
+}
 
-  console.log("Running seed SQL")
+const QUESTION_SEEDS: QuestionSeed[] = [
+  {
+    topicKey: "addition",
+    type: "math-addition",
+    question: "4 + 3 = ?",
+    answer: "7"
+  },
+  {
+    topicKey: "addition",
+    type: "math-addition",
+    question: "9 + 6 = ?",
+    answer: "15"
+  },
+  {
+    topicKey: "subtraction",
+    type: "math-subtraction",
+    question: "12 - 5 = ?",
+    answer: "7"
+  },
+  {
+    topicKey: "subtraction",
+    type: "math-subtraction",
+    question: "18 - 9 = ?",
+    answer: "9"
+  },
+  {
+    topicKey: "division",
+    type: "math-division",
+    question: "24 / 6 = ?",
+    answer: "4"
+  },
+  {
+    topicKey: "division",
+    type: "math-division",
+    question: "35 / 5 = ?",
+    answer: "7"
+  },
+  {
+    topicKey: "fractions",
+    type: "fractions",
+    question: "What fraction of 8 slices is 4 slices?",
+    answer: "1/2"
+  },
+  {
+    topicKey: "fractions",
+    type: "fractions",
+    question: "What fraction of 10 stars is 5 stars?",
+    answer: "1/2"
+  },
+  {
+    topicKey: "word_problems",
+    type: "word-problem",
+    question: "Ria has 3 apples and gets 4 more. How many apples now?",
+    answer: "7"
+  },
+  {
+    topicKey: "word_problems",
+    type: "word-problem",
+    question: "There are 12 birds and 5 fly away. How many are left?",
+    answer: "7"
+  },
+  {
+    topicKey: "two_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: I am __ school.",
+    answer: "at"
+  },
+  {
+    topicKey: "two_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: We go __ home.",
+    answer: "to"
+  },
+  {
+    topicKey: "three_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: The sun is h_t.",
+    answer: "hot"
+  },
+  {
+    topicKey: "three_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: The cat sat on the m_t.",
+    answer: "mat"
+  },
+  {
+    topicKey: "four_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: The fish can s__m fast.",
+    answer: "swim"
+  },
+  {
+    topicKey: "four_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: We read a b__k.",
+    answer: "book"
+  },
+  {
+    topicKey: "five_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: I like to r__d books.",
+    answer: "read"
+  },
+  {
+    topicKey: "five_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: We plant a s__ed in soil.",
+    answer: "seed"
+  },
+  {
+    topicKey: "six_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: The bright p__ple flower smells nice.",
+    answer: "purple"
+  },
+  {
+    topicKey: "six_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: We saw a r__bit in the garden.",
+    answer: "rabbit"
+  },
+  {
+    topicKey: "seven_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: The r__nbow has many colors.",
+    answer: "rainbow"
+  },
+  {
+    topicKey: "seven_letter_words",
+    type: "spelling-fill-blank",
+    question: "Fill in the blank: A g__affe has a long neck.",
+    answer: "giraffe"
+  },
+  {
+    topicKey: "jumble_three_letter",
+    type: "jumble-word",
+    question: "Unscramble the word: tac",
+    answer: "cat"
+  },
+  {
+    topicKey: "jumble_three_letter",
+    type: "jumble-word",
+    question: "Unscramble the word: god",
+    answer: "dog"
+  },
+  {
+    topicKey: "jumble_five_letter",
+    type: "jumble-word",
+    question: "Unscramble the word: leapp",
+    answer: "apple"
+  },
+  {
+    topicKey: "jumble_five_letter",
+    type: "jumble-word",
+    question: "Unscramble the word: girte",
+    answer: "tiger"
+  },
+  {
+    topicKey: "science_short_words",
+    type: "science-spelling",
+    question: "Fill in the blank: The sun gives us h__.",
+    answer: "heat"
+  },
+  {
+    topicKey: "science_short_words",
+    type: "science-spelling",
+    question: "Fill in the blank: Plants need a_r.",
+    answer: "air"
+  },
+  {
+    topicKey: "science_long_words",
+    type: "science-spelling",
+    question: "Fill in the blank: A p__net moves around the sun.",
+    answer: "planet"
+  },
+  {
+    topicKey: "science_long_words",
+    type: "science-spelling",
+    question: "Fill in the blank: A r__ket flies into space.",
+    answer: "rocket"
+  }
+]
 
-  await db.execAsync(`
+export async function seedData(
+  db: SQLiteDatabase
+) {
 
-    DELETE FROM subjects
-    WHERE id NOT IN (
-      SELECT MIN(id)
+  await cleanupLegacyCurriculum(db)
+
+  for (const [id, name] of USERS) {
+    await db.runAsync(
+      `
+      INSERT INTO users(id, name)
+      VALUES (?, ?)
+      ON CONFLICT(id)
+      DO UPDATE SET name = excluded.name
+      `,
+      [id, name]
+    )
+  }
+
+  const subjectIds =
+    await seedSubjects(db)
+  const topicIds =
+    await seedTopics(db, subjectIds)
+  const userSubjectRepo =
+    new UserSubjectRepository(db)
+
+  await seedBadges(db)
+
+  for (const [id] of USERS) {
+    const existingAssignments =
+      await db.getFirstAsync<{
+        count: number
+      }>(
+        `
+        SELECT COUNT(*) as count
+        FROM user_subjects
+        WHERE user_id = ?
+        `,
+        [id]
+      )
+
+    if ((existingAssignments?.count ?? 0) === 0) {
+      await userSubjectRepo.grantAllSubjects(id)
+    }
+
+    const existingTopicAssignments =
+      await db.getFirstAsync<{
+        count: number
+      }>(
+        `
+        SELECT COUNT(*) as count
+        FROM user_topics
+        WHERE user_id = ?
+        `,
+        [id]
+      )
+
+    if ((existingTopicAssignments?.count ?? 0) === 0) {
+      await userSubjectRepo.grantAllTopics(id)
+    }
+  }
+
+  for (const seed of QUESTION_SEEDS) {
+    const topicId =
+      topicIds[seed.topicKey]
+
+    if (!topicId) {
+      continue
+    }
+
+    await db.runAsync(
+      `
+      INSERT OR IGNORE INTO questions (
+        topic_id,
+        type,
+        question,
+        answer
+      )
+      VALUES (?, ?, ?, ?)
+      `,
+      [
+        topicId,
+        seed.type,
+        seed.question,
+        seed.answer
+      ]
+    )
+  }
+
+}
+
+async function cleanupLegacyCurriculum(
+  db: SQLiteDatabase
+) {
+
+  const allowedSubjects = SUBJECTS
+  const allowedTopicKeys = new Set(
+    TOPIC_DEFINITIONS.map(
+      (topic) => topic.key
+    )
+  )
+
+  const legacySubjectRows =
+    await db.getAllAsync<{ id: number }>(
+      `
+      SELECT id
       FROM subjects
-      GROUP BY name
-    );
+      WHERE name NOT IN (
+        ${allowedSubjects.map(() => "?").join(", ")}
+      )
+      `,
+      allowedSubjects
+    )
 
-    DELETE FROM topics
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM topics
-      GROUP BY name
-    );
+  const legacySubjectIds =
+    legacySubjectRows.map((row) => row.id)
 
-    INSERT OR IGNORE INTO users(id,name) VALUES
-    (1,'Bhavi'),
-    (2,'Madhu'),
-    (3,'Test User');
+  if (legacySubjectIds.length > 0) {
+    const placeholders =
+      legacySubjectIds
+        .map(() => "?")
+        .join(", ")
 
-    INSERT OR IGNORE INTO subjects(name) VALUES
-    ('Mathematics'),
-    ('Science'),
-    ('English'),
-    ('Hindi'),
-    ('Social Science'),
-    ('Computer');
+    await db.runAsync(
+      `
+      DELETE FROM user_subjects
+      WHERE subject_id IN (${placeholders})
+      `,
+      legacySubjectIds
+    )
 
-    INSERT OR IGNORE INTO topics(subject_id,name) VALUES
-    (1,'Tables'),
-    (1,'Algebra'),
-    (1,'Mensuration'),
-    (2,'Physics'),
-    (2,'Chemistry'),
-    (3,'Grammar'),
-    (3,'Comprehension');
+    const legacyTopicRows =
+      await db.getAllAsync<{ id: number }>(
+        `
+        SELECT id
+        FROM topics
+        WHERE subject_id IN (${placeholders})
+        `,
+        legacySubjectIds
+      )
 
-  `)
+    const legacyTopicIds =
+      legacyTopicRows.map((row) => row.id)
 
-  /*
-  --------------------------------------------------
-  Seed Multiplication Table Questions
-  --------------------------------------------------
-  */
-
-  for (let i = 1; i <= 12; i++) {
-
-    for (let j = 1; j <= 12; j++) {
-
-      const question = `${i} × ${j}`
-      const answer = String(i * j)
+    if (legacyTopicIds.length > 0) {
+      const topicPlaceholders =
+        legacyTopicIds
+          .map(() => "?")
+          .join(", ")
 
       await db.runAsync(
         `
-        INSERT OR IGNORE INTO questions
-        (question, answer, topic_id)
-        VALUES (?, ?, 1)
+        DELETE FROM questions
+        WHERE topic_id IN (${topicPlaceholders})
         `,
-        [question, answer]
+        legacyTopicIds
       )
 
+      await db.runAsync(
+        `
+        DELETE FROM user_topics
+        WHERE topic_id IN (${topicPlaceholders})
+        `,
+        legacyTopicIds
+      )
+
+      await db.runAsync(
+        `
+        DELETE FROM topics
+        WHERE id IN (${topicPlaceholders})
+        `,
+        legacyTopicIds
+      )
     }
 
+    await db.runAsync(
+      `
+      DELETE FROM subjects
+      WHERE id IN (${placeholders})
+      `,
+      legacySubjectIds
+    )
   }
 
-  console.log("Seed data completed")
+  const existingTopics =
+    await db.getAllAsync<{
+      id: number
+      key: string | null
+    }>(
+      `
+      SELECT id, key
+      FROM topics
+      `
+    )
+
+  const removableTopicIds =
+    existingTopics
+      .filter(
+        (topic) =>
+          topic.key == null ||
+          !allowedTopicKeys.has(topic.key)
+      )
+      .map((topic) => topic.id)
+
+  if (removableTopicIds.length > 0) {
+    const placeholders =
+      removableTopicIds
+        .map(() => "?")
+        .join(", ")
+
+    await db.runAsync(
+      `
+      DELETE FROM questions
+      WHERE topic_id IN (${placeholders})
+      `,
+      removableTopicIds
+    )
+
+    await db.runAsync(
+      `
+      DELETE FROM user_topics
+      WHERE topic_id IN (${placeholders})
+      `,
+      removableTopicIds
+    )
+
+    await db.runAsync(
+      `
+      DELETE FROM topics
+      WHERE id IN (${placeholders})
+      `,
+      removableTopicIds
+    )
+  }
 
 }

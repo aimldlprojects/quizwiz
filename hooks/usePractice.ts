@@ -14,6 +14,7 @@ export function usePractice(controller: PracticeController | null) {
   const [answer, setAnswer] = useState("")
   const [result, setResult] = useState<PracticeResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [score, setScore] = useState(0)
 
   const [stats, setStats] = useState({
     attempts: 0,
@@ -54,6 +55,10 @@ export function usePractice(controller: PracticeController | null) {
     if (!res) return
 
     setResult(res)
+
+    if (res.correct) {
+      setScore((s) => s + 1)
+    }
 
     const s = safeController.getStats()
     setStats(s)
@@ -110,6 +115,7 @@ export function usePractice(controller: PracticeController | null) {
       attempts: 0,
       correct: 0
     })
+    setScore(0)
 
     setAnswer("")
     setResult(null)
@@ -137,6 +143,7 @@ export function usePractice(controller: PracticeController | null) {
     result,
 
     stats,
+    score,
     accuracy:
       stats.attempts === 0
         ? 0

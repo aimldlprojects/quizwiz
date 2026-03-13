@@ -1,6 +1,4 @@
-// engine/questions/batchLoader.ts
-
-import { TablesGenerator } from "./tablesGenerator"
+import { generateQuestionBatch } from "./questionFactory"
 
 export interface Question {
 
@@ -18,7 +16,13 @@ export interface Question {
 
 export interface BatchLoaderOptions {
 
-  source?: "tables" | "mixed"
+  source?:
+    | "tables"
+    | "mixed"
+    | "addition"
+    | "subtraction"
+    | "division"
+    | "word_problems"
 
   batchSize?: number
 
@@ -48,6 +52,15 @@ export class BatchLoader {
       case "mixed":
         return this.loadMixedBatch()
 
+      case "addition":
+      case "subtraction":
+      case "division":
+      case "word_problems":
+        return generateQuestionBatch(
+          this.source,
+          this.batchSize
+        )
+
       default:
         return this.loadTablesBatch()
 
@@ -59,7 +72,8 @@ export class BatchLoader {
 
   private loadTablesBatch(): Question[] {
 
-    return TablesGenerator.generateBatch(
+    return generateQuestionBatch(
+      "multiplication_tables",
       this.batchSize
     )
 
@@ -71,12 +85,30 @@ export class BatchLoader {
 
     const questions: Question[] = []
 
-    const tables =
-      TablesGenerator.generateBatch(
-        Math.floor(this.batchSize * 0.7)
+    questions.push(
+      ...generateQuestionBatch(
+        "multiplication_tables",
+        Math.floor(this.batchSize * 0.4)
       )
-
-    questions.push(...tables)
+    )
+    questions.push(
+      ...generateQuestionBatch(
+        "addition",
+        Math.floor(this.batchSize * 0.2)
+      )
+    )
+    questions.push(
+      ...generateQuestionBatch(
+        "subtraction",
+        Math.floor(this.batchSize * 0.2)
+      )
+    )
+    questions.push(
+      ...generateQuestionBatch(
+        "division",
+        this.batchSize - questions.length
+      )
+    )
 
     return questions
 

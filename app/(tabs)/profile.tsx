@@ -1,10 +1,12 @@
 import { useRouter } from "expo-router"
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  ActivityIndicator,
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -13,8 +15,9 @@ import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { getSyncServerUrl } from "@/services/sync/config"
-import { testMultiDeviceSync } from "@/services/sync/testMultiDeviceSync"
+import { syncReviews } from "@/services/sync/syncReviews"
 import { useUsers } from "@/hooks/useUsers"
+import { useState } from "react"
 
 function getAvatarLetter(name: string) {
 
@@ -44,7 +47,12 @@ export default function ProfileScreen() {
     ttsEnabled,
     setTtsEnabled,
     loading: preferencesLoading
-  } = useStudyPreferences(db)
+  } = useStudyPreferences(
+    db,
+    activeUser
+  )
+  const [syncing, setSyncing] =
+    useState(false)
 
   if (
     dbLoading ||
@@ -67,7 +75,7 @@ export default function ProfileScreen() {
   const hybridEnabled =
     syncMode === "hybrid"
 
-  async function runSyncTest() {
+  async function syncProfileData() {
 
     if (!db || !activeUser) return
 
@@ -75,17 +83,36 @@ export default function ProfileScreen() {
       getSyncServerUrl()
 
     if (!serverUrl) {
-      console.log(
-        "Sync test skipped: sync server URL is not configured."
+      Alert.alert(
+        "Sync unavailable",
+        "Global sync is not configured yet on this device."
       )
       return
     }
 
-    await testMultiDeviceSync(
-      db,
-      serverUrl,
-      activeUser
-    )
+    setSyncing(true)
+
+    try {
+      await syncReviews(
+        db,
+        serverUrl,
+        activeUser
+      )
+
+      Alert.alert(
+        "Sync complete",
+        "Your profile progress was saved to the global database and refreshed from the server."
+      )
+    } catch (error) {
+      Alert.alert(
+        "Sync failed",
+        error instanceof Error
+          ? error.message
+          : "We could not sync your profile data right now."
+      )
+    } finally {
+      setSyncing(false)
+    }
 
   }
 
@@ -158,11 +185,16 @@ export default function ProfileScreen() {
 
           <Pressable
             style={styles.secondaryButton}
-            onPress={runSyncTest}
+            onPress={syncProfileData}
+            disabled={syncing}
           >
-            <Text style={styles.secondaryButtonText}>
-              Test Sync
-            </Text>
+            {syncing ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.secondaryButtonText}>
+                Sync To Global DB
+              </Text>
+            )}
           </Pressable>
         </View>
 
