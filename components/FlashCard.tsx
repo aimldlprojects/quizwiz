@@ -1,6 +1,6 @@
 // components/FlashCard.tsx
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
     StyleSheet,
     Text,
@@ -11,21 +11,41 @@ import {
 interface Props {
   question: string
   answer: string
+  revealed?: boolean
+  onToggle?: (revealed: boolean) => void
 }
 
 export default function FlashCard({
   question,
-  answer
+  answer,
+  revealed,
+  onToggle
 }: Props) {
 
-  const [revealed, setRevealed] = useState(false)
+  const [internalRevealed, setInternalRevealed] =
+    useState(false)
+
+  const isControlled =
+    typeof revealed === "boolean"
+  const isRevealed =
+    isControlled
+      ? revealed
+      : internalRevealed
+
+  useEffect(() => {
+    if (!isControlled) {
+      setInternalRevealed(false)
+    }
+  }, [question, isControlled])
 
   function toggleCard() {
-    setRevealed(!revealed)
-  }
+    const nextValue = !isRevealed
 
-  function reset() {
-    setRevealed(false)
+    if (!isControlled) {
+      setInternalRevealed(nextValue)
+    }
+
+    onToggle?.(nextValue)
   }
 
   return (
@@ -36,7 +56,7 @@ export default function FlashCard({
       onPress={toggleCard}
     >
 
-      {!revealed ? (
+      {!isRevealed ? (
 
         <View style={styles.content}>
           <Text style={styles.label}>

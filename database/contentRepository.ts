@@ -119,7 +119,8 @@ export function getTopicLineage(
 export async function getQuestionsForTopicTree(
   db: SQLiteDatabase,
   topicIds: number[],
-  limit?: number
+  limit?: number,
+  orderBy: "random" | "sequence" = "random"
 ) {
 
   if (topicIds.length === 0) {
@@ -131,6 +132,10 @@ export async function getQuestionsForTopicTree(
 
   const limitClause =
     limit == null ? "" : "LIMIT ?"
+  const orderClause =
+    orderBy === "sequence"
+      ? "ORDER BY topic_id ASC, id ASC"
+      : "ORDER BY RANDOM()"
 
   return db.getAllAsync<QuestionRecord>(
     `
@@ -142,7 +147,7 @@ export async function getQuestionsForTopicTree(
       answer
     FROM questions
     WHERE topic_id IN (${placeholders})
-    ORDER BY RANDOM()
+    ${orderClause}
     ${limitClause}
     `,
     limit == null

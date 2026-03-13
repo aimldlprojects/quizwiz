@@ -12,6 +12,12 @@ export interface LearnCard {
 
 }
 
+export type LearnFeedback =
+  | "very_hard"
+  | "hard"
+  | "easy"
+  | "very_easy"
+
 export class LearnController {
 
   private cards: LearnCard[] = []
@@ -87,6 +93,55 @@ export class LearnController {
     if (!spokenText) return
 
     ttsService.speak(spokenText)
+
+  }
+
+  rateCurrentCard(
+    feedback: LearnFeedback
+  ): LearnCard | null {
+
+    if (this.cards.length === 0) {
+      return null
+    }
+
+    const currentCard =
+      this.cards[this.index]
+
+    if (!currentCard) {
+      return null
+    }
+
+    const offsets: Record<
+      LearnFeedback,
+      number
+    > = {
+      very_hard: 1,
+      hard: 3,
+      easy: 6,
+      very_easy: 10
+    }
+
+    this.cards.splice(this.index, 1)
+
+    const targetIndex = Math.min(
+      this.index + offsets[feedback],
+      this.cards.length
+    )
+
+    this.cards.splice(
+      targetIndex,
+      0,
+      currentCard
+    )
+
+    if (this.index >= this.cards.length) {
+      this.index = Math.max(
+        0,
+        this.cards.length - 1
+      )
+    }
+
+    return this.getCurrentCard()
 
   }
 

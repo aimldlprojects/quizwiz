@@ -54,6 +54,12 @@ export default function PracticeScreen() {
     selectedTopicId,
     ttsEnabled,
     setTtsEnabled,
+    autoNextEnabled,
+    setAutoNextEnabled,
+    autoNextCorrectDelaySeconds,
+    autoNextWrongDelaySeconds,
+    practiceRandomOrderEnabled,
+    setPracticeRandomOrderEnabled,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
@@ -120,11 +126,12 @@ export default function PracticeScreen() {
               await getQuestionsForTopicTree(
                 db,
                 topicIds,
-                limit
+                limit,
+                "sequence"
               )
 
             if (rows.length > 0) {
-              return rows.map((row) => ({
+              const mappedRows = rows.map((row) => ({
                 id: row.id,
                 question: row.question,
                 answer: Number.isNaN(
@@ -134,6 +141,10 @@ export default function PracticeScreen() {
                   : Number(row.answer),
                 type: row.type ?? undefined
               }))
+
+              return practiceRandomOrderEnabled
+                ? mappedRows
+                : mappedRows
             }
 
             if (topic?.key) {
@@ -154,12 +165,19 @@ export default function PracticeScreen() {
             source: "mixed"
           })
 
-          return batchLoader.loadBatch()
+          const batch =
+            await batchLoader.loadBatch()
+
+          return batch
         }
       },
       10,
-      repo,
-      activeUser
+      practiceRandomOrderEnabled
+        ? repo
+        : undefined,
+      practiceRandomOrderEnabled
+        ? activeUser
+        : undefined
     )
 
     return new PracticeController(
@@ -170,24 +188,61 @@ export default function PracticeScreen() {
       selectedTopicId ?? null
     )
 
-  }, [db, activeUser, selectedTopicId])
+  }, [
+    db,
+    activeUser,
+    selectedTopicId,
+    practiceRandomOrderEnabled
+  ])
 
   const practice = usePractice(controller)
+  const practiceQuestion =
+    practice.question
+  const practiceResult =
+    practice.result
+  const practiceAnswered =
+    practice.answered
+  const autoNextQuestion =
+    practice.autoNext
 
   useEffect(() => {
 
     if (
       !ttsEnabled ||
-      !practice.question
+      !practiceQuestion
     ) {
       return
     }
 
     ttsService.speak(
-      practice.question.question
+      practiceQuestion.question
     )
 
-  }, [ttsEnabled, practice.question])
+  }, [ttsEnabled, practiceQuestion])
+
+  useEffect(() => {
+
+    if (
+      !autoNextEnabled ||
+      !practiceResult
+    ) {
+      return
+    }
+
+    const delaySeconds =
+      practiceResult.correct
+        ? autoNextCorrectDelaySeconds
+        : autoNextWrongDelaySeconds
+
+    autoNextQuestion(delaySeconds * 1000)
+
+  }, [
+    autoNextEnabled,
+    autoNextCorrectDelaySeconds,
+    autoNextWrongDelaySeconds,
+    autoNextQuestion,
+    practiceResult
+  ])
 
   if (
     loading ||
@@ -224,7 +279,7 @@ export default function PracticeScreen() {
     )
   }
 
-  if (!practice.question && practice.loading) {
+  if (!practiceQuestion && practice.loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>
@@ -236,15 +291,15 @@ export default function PracticeScreen() {
 
   function replayQuestion() {
 
-    if (!practice.question) return
+    if (!practiceQuestion) return
 
-    ttsService.speak(practice.question.question)
+    ttsService.speak(practiceQuestion.question)
 
   }
 
   function renderQuestion() {
 
-    if (!practice.question) {
+    if (!practiceQuestion) {
       return (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>
@@ -268,8 +323,8 @@ export default function PracticeScreen() {
     }
 
     return (
-      <Text style={styles.question}>
-        {practice.question.question}
+        <Text style={styles.question}>
+        {practiceQuestion.question}
       </Text>
     )
 
@@ -277,9 +332,9 @@ export default function PracticeScreen() {
 
   function renderResult() {
 
-    if (!practice.result) return null
+    if (!practiceResult) return null
 
-    if (practice.result.correct) {
+    if (practiceResult.correct) {
       return (
         <Text style={styles.correct}>
           Correct answer. Great job.
@@ -290,7 +345,7 @@ export default function PracticeScreen() {
     return (
       <Text style={styles.wrong}>
         Try again next time. Correct answer:{" "}
-        {practice.result.correctAnswer}
+        {practiceResult.correctAnswer}
       </Text>
     )
 
@@ -314,7 +369,47 @@ export default function PracticeScreen() {
 
             <View style={styles.headerActions}>
               <Pressable
-                style={styles.iconButton}
+                style={[
+                  styles.iconButton,
+                  practiceRandomOrderEnabled &&
+                    styles.activeIconButton
+                ]}
+                onPress={() =>
+                  setPracticeRandomOrderEnabled(
+                    !practiceRandomOrderEnabled
+                  )
+                }
+              >
+                <MaterialIcons
+                  name="shuffle"
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  autoNextEnabled &&
+                    styles.activeIconButton
+                ]}
+                onPress={() =>
+                  setAutoNextEnabled(!autoNextEnabled)
+                }
+              >
+                <MaterialIcons
+                  name="skip-next"
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  ttsEnabled &&
+                    styles.activeIconButton
+                ]}
                 onPress={() =>
                   setTtsEnabled(!ttsEnabled)
                 }
@@ -357,17 +452,22 @@ export default function PracticeScreen() {
         <View style={styles.questionCard}>
           {renderQuestion()}
 
-          {practice.question ? (
+          {practiceQuestion ? (
             <>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  practiceAnswered &&
+                    styles.inputDisabled
+                ]}
                 value={practice.answer}
                 onChangeText={practice.setAnswer}
                 keyboardType={getKeyboardType(
-                  practice.question.answer
+                  practiceQuestion.answer
                 )}
                 autoCapitalize="none"
                 returnKeyType="done"
+                editable={!practiceAnswered}
                 onSubmitEditing={() =>
                   practice.submitAnswer("good")
                 }
@@ -380,10 +480,10 @@ export default function PracticeScreen() {
           ) : null}
         </View>
 
-        {practice.question ? (
+        {practiceQuestion ? (
           <View style={styles.actionsCard}>
             <AnswerActions
-              answered={!!practice.result}
+              answered={practiceAnswered}
               onSubmit={() =>
                 practice.submitAnswer("good")
               }
@@ -461,6 +561,10 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
 
+  activeIconButton: {
+    backgroundColor: "#0f766e"
+  },
+
   screenTitle: {
     fontSize: 28,
     fontWeight: "800",
@@ -498,6 +602,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     fontSize: 22,
     textAlign: "center"
+  },
+
+  inputDisabled: {
+    backgroundColor: "#e2e8f0",
+    color: "#64748b"
   },
 
   correct: {

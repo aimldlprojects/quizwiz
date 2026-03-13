@@ -12,12 +12,28 @@ type Preferences = {
   selectedSubjectId: number | null
   selectedTopicId: number | null
   ttsEnabled: boolean
+  autoNextEnabled: boolean
+  autoNextCorrectDelaySeconds: number
+  autoNextWrongDelaySeconds: number
+  learnAutoPlayEnabled: boolean
+  learnFrontDelaySeconds: number
+  learnBackDelaySeconds: number
+  learnRandomOrderEnabled: boolean
+  practiceRandomOrderEnabled: boolean
 }
 
 const DEFAULTS: Preferences = {
   selectedSubjectId: null,
   selectedTopicId: null,
-  ttsEnabled: true
+  ttsEnabled: true,
+  autoNextEnabled: false,
+  autoNextCorrectDelaySeconds: 2,
+  autoNextWrongDelaySeconds: 5,
+  learnAutoPlayEnabled: false,
+  learnFrontDelaySeconds: 5,
+  learnBackDelaySeconds: 5,
+  learnRandomOrderEnabled: false,
+  practiceRandomOrderEnabled: false
 }
 
 export function useStudyPreferences(
@@ -69,6 +85,38 @@ export function useStudyPreferences(
       userId == null
         ? "selected_topic_id"
         : `selected_topic_id_user_${userId}`
+    const autoNextEnabledKey =
+      userId == null
+        ? "auto_next_enabled"
+        : `auto_next_enabled_user_${userId}`
+    const autoNextCorrectDelayKey =
+      userId == null
+        ? "auto_next_correct_delay_seconds"
+        : `auto_next_correct_delay_seconds_user_${userId}`
+    const autoNextWrongDelayKey =
+      userId == null
+        ? "auto_next_wrong_delay_seconds"
+        : `auto_next_wrong_delay_seconds_user_${userId}`
+    const learnAutoPlayKey =
+      userId == null
+        ? "learn_auto_play_enabled"
+        : `learn_auto_play_enabled_user_${userId}`
+    const learnFrontDelayKey =
+      userId == null
+        ? "learn_front_delay_seconds"
+        : `learn_front_delay_seconds_user_${userId}`
+    const learnBackDelayKey =
+      userId == null
+        ? "learn_back_delay_seconds"
+        : `learn_back_delay_seconds_user_${userId}`
+    const learnRandomOrderKey =
+      userId == null
+        ? "learn_random_order_enabled"
+        : `learn_random_order_enabled_user_${userId}`
+    const practiceRandomOrderKey =
+      userId == null
+        ? "practice_random_order_enabled"
+        : `practice_random_order_enabled_user_${userId}`
     const rows =
       await db.getAllAsync<{
         key: string
@@ -80,11 +128,27 @@ export function useStudyPreferences(
         WHERE key = ?
         OR key = ?
         OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
+        OR key = ?
         `,
         [
           selectedSubjectKey,
           selectedTopicKey,
-          "tts_enabled"
+          "tts_enabled",
+          autoNextEnabledKey,
+          autoNextCorrectDelayKey,
+          autoNextWrongDelayKey,
+          learnAutoPlayKey,
+          learnFrontDelayKey,
+          learnBackDelayKey,
+          learnRandomOrderKey,
+          practiceRandomOrderKey
         ]
       )
 
@@ -102,6 +166,54 @@ export function useStudyPreferences(
           break
         case "tts_enabled":
           next.ttsEnabled = row.value !== "0"
+          break
+        case autoNextEnabledKey:
+          next.autoNextEnabled =
+            row.value === "1"
+          break
+        case autoNextCorrectDelayKey:
+          next.autoNextCorrectDelaySeconds =
+            Math.max(
+              1,
+              Number(row.value) ||
+                DEFAULTS.autoNextCorrectDelaySeconds
+            )
+          break
+        case autoNextWrongDelayKey:
+          next.autoNextWrongDelaySeconds =
+            Math.max(
+              1,
+              Number(row.value) ||
+                DEFAULTS.autoNextWrongDelaySeconds
+            )
+          break
+        case learnAutoPlayKey:
+          next.learnAutoPlayEnabled =
+            row.value === "1"
+          break
+        case learnFrontDelayKey:
+          next.learnFrontDelaySeconds =
+            Math.max(
+              1,
+              Number(row.value) ||
+                DEFAULTS.learnFrontDelaySeconds
+            )
+          break
+        case learnBackDelayKey:
+          next.learnBackDelaySeconds =
+            Math.max(
+              1,
+              Number(row.value) ||
+                DEFAULTS.learnBackDelaySeconds
+            )
+          break
+        case learnRandomOrderKey:
+          next.learnRandomOrderEnabled =
+            row.value === "1"
+          break
+        case practiceRandomOrderKey:
+          next.practiceRandomOrderEnabled =
+            row.value === "1"
           break
       }
     }
@@ -193,12 +305,172 @@ export function useStudyPreferences(
 
   }
 
+  async function setAutoNextEnabled(
+    enabled: boolean
+  ) {
+
+    setPreferences((current) => ({
+      ...current,
+      autoNextEnabled: enabled
+    }))
+
+    await savePreference(
+      userId == null
+        ? "auto_next_enabled"
+        : `auto_next_enabled_user_${userId}`,
+      enabled ? "1" : "0"
+    )
+
+  }
+
+  async function setAutoNextCorrectDelaySeconds(
+    seconds: number
+  ) {
+
+    const nextValue = Math.max(1, seconds)
+
+    setPreferences((current) => ({
+      ...current,
+      autoNextCorrectDelaySeconds: nextValue
+    }))
+
+    await savePreference(
+      userId == null
+        ? "auto_next_correct_delay_seconds"
+        : `auto_next_correct_delay_seconds_user_${userId}`,
+      String(nextValue)
+    )
+
+  }
+
+  async function setAutoNextWrongDelaySeconds(
+    seconds: number
+  ) {
+
+    const nextValue = Math.max(1, seconds)
+
+    setPreferences((current) => ({
+      ...current,
+      autoNextWrongDelaySeconds: nextValue
+    }))
+
+    await savePreference(
+      userId == null
+        ? "auto_next_wrong_delay_seconds"
+        : `auto_next_wrong_delay_seconds_user_${userId}`,
+      String(nextValue)
+    )
+
+  }
+
+  async function setLearnAutoPlayEnabled(
+    enabled: boolean
+  ) {
+
+    setPreferences((current) => ({
+      ...current,
+      learnAutoPlayEnabled: enabled
+    }))
+
+    await savePreference(
+      userId == null
+        ? "learn_auto_play_enabled"
+        : `learn_auto_play_enabled_user_${userId}`,
+      enabled ? "1" : "0"
+    )
+
+  }
+
+  async function setLearnFrontDelaySeconds(
+    seconds: number
+  ) {
+
+    const nextValue = Math.max(1, seconds)
+
+    setPreferences((current) => ({
+      ...current,
+      learnFrontDelaySeconds: nextValue
+    }))
+
+    await savePreference(
+      userId == null
+        ? "learn_front_delay_seconds"
+        : `learn_front_delay_seconds_user_${userId}`,
+      String(nextValue)
+    )
+
+  }
+
+  async function setLearnBackDelaySeconds(
+    seconds: number
+  ) {
+
+    const nextValue = Math.max(1, seconds)
+
+    setPreferences((current) => ({
+      ...current,
+      learnBackDelaySeconds: nextValue
+    }))
+
+    await savePreference(
+      userId == null
+        ? "learn_back_delay_seconds"
+        : `learn_back_delay_seconds_user_${userId}`,
+      String(nextValue)
+    )
+
+  }
+
+  async function setLearnRandomOrderEnabled(
+    enabled: boolean
+  ) {
+
+    setPreferences((current) => ({
+      ...current,
+      learnRandomOrderEnabled: enabled
+    }))
+
+    await savePreference(
+      userId == null
+        ? "learn_random_order_enabled"
+        : `learn_random_order_enabled_user_${userId}`,
+      enabled ? "1" : "0"
+    )
+
+  }
+
+  async function setPracticeRandomOrderEnabled(
+    enabled: boolean
+  ) {
+
+    setPreferences((current) => ({
+      ...current,
+      practiceRandomOrderEnabled: enabled
+    }))
+
+    await savePreference(
+      userId == null
+        ? "practice_random_order_enabled"
+        : `practice_random_order_enabled_user_${userId}`,
+      enabled ? "1" : "0"
+    )
+
+  }
+
   return {
     ...preferences,
     loading,
     setSelectedSubjectId,
     setSelectedTopicId,
-    setTtsEnabled
+    setTtsEnabled,
+    setAutoNextEnabled,
+    setAutoNextCorrectDelaySeconds,
+    setAutoNextWrongDelaySeconds,
+    setLearnAutoPlayEnabled,
+    setLearnFrontDelaySeconds,
+    setLearnBackDelaySeconds,
+    setLearnRandomOrderEnabled,
+    setPracticeRandomOrderEnabled
   }
 
 }

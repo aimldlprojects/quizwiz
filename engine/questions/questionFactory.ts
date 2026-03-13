@@ -43,8 +43,15 @@ export function generateQuestionBatch(
 ) {
 
   const questions: GeneratedQuestion[] = []
+  const seenIds = new Set<number>()
+  let attempts = 0
 
-  for (let index = 0; index < limit; index++) {
+  while (
+    questions.length < limit &&
+    attempts < limit * 10
+  ) {
+    attempts += 1
+
     const question =
       generateQuestionForTopic(topicKey)
 
@@ -52,10 +59,12 @@ export function generateQuestionBatch(
       break
     }
 
-    questions.push({
-      ...question,
-      id: Number(`${question.id}${index}`)
-    })
+    if (seenIds.has(question.id)) {
+      continue
+    }
+
+    seenIds.add(question.id)
+    questions.push(question)
   }
 
   return questions

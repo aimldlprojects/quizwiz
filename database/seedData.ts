@@ -277,6 +277,23 @@ export async function seedData(
 
     await db.runAsync(
       `
+      UPDATE questions
+      SET
+        topic_id = ?,
+        type = ?,
+        answer = ?
+      WHERE question = ?
+      `,
+      [
+        topicId,
+        seed.type,
+        seed.answer,
+        seed.question
+      ]
+    )
+
+    await db.runAsync(
+      `
       INSERT OR IGNORE INTO questions (
         topic_id,
         type,

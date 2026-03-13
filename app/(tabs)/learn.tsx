@@ -1,5 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
-import { useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 import {
   Pressable,
   ScrollView,
@@ -10,7 +16,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import FlashCard from "../../components/FlashCard"
-import { LearnController } from "../../controllers/learnController"
+import {
+  LearnController,
+  LearnFeedback
+} from "../../controllers/learnController"
 import {
   getAllTopics,
   getDescendantTopicIds,
@@ -66,6 +75,12 @@ export default function LearnScreen() {
     selectedTopicId,
     ttsEnabled,
     setTtsEnabled,
+    learnAutoPlayEnabled,
+    setLearnAutoPlayEnabled,
+    learnFrontDelaySeconds,
+    learnBackDelaySeconds,
+    learnRandomOrderEnabled,
+    setLearnRandomOrderEnabled,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
@@ -74,12 +89,80 @@ export default function LearnScreen() {
 
   const [card, setCard] =
     useState<Card | null>(null)
+  const [revealed, setRevealed] =
+    useState(false)
   const [topic, setTopic] =
     useState<TopicRecord | null>(null)
   const [progress, setProgress] = useState({
     current: 0,
     total: 0
   })
+  const autoFlipTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    )
+  const autoNextTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    )
+
+  function clearLearnTimers() {
+
+    if (autoFlipTimeoutRef.current) {
+      clearTimeout(autoFlipTimeoutRef.current)
+      autoFlipTimeoutRef.current = null
+    }
+
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+      autoNextTimeoutRef.current = null
+    }
+
+  }
+
+  const nextCard = useCallback(() => {
+
+    clearLearnTimers()
+
+    const next =
+      controller.next() as Card | null
+
+    setCard(next)
+    setRevealed(false)
+    setProgress(controller.getProgress())
+
+  }, [controller])
+
+  const prevCard = useCallback(() => {
+
+    clearLearnTimers()
+
+    const previous =
+      controller.previous() as Card | null
+
+    setCard(previous)
+    setRevealed(false)
+    setProgress(controller.getProgress())
+
+  }, [controller])
+
+  const rateCard = useCallback((
+    feedback: LearnFeedback
+  ) => {
+
+    clearLearnTimers()
+
+    const next = learnRandomOrderEnabled
+      ? (controller.rateCurrentCard(
+          feedback
+        ) as Card | null)
+      : (controller.next() as Card | null)
+
+    setCard(next)
+    setRevealed(false)
+    setProgress(controller.getProgress())
+
+  }, [controller, learnRandomOrderEnabled])
 
   useEffect(() => {
 
@@ -88,6 +171,7 @@ export default function LearnScreen() {
       if (!db || !selectedTopicId) {
         controller.reset()
         setCard(null)
+        setRevealed(false)
         setTopic(null)
         setProgress({
           current: 0,
@@ -116,6 +200,7 @@ export default function LearnScreen() {
       if (generatedCards.length > 0) {
         controller.loadCards(generatedCards)
         setCard(controller.getCurrentCard())
+        setRevealed(false)
         setProgress(controller.getProgress())
         return
       }
@@ -129,12 +214,15 @@ export default function LearnScreen() {
       const rows =
         await getQuestionsForTopicTree(
           db,
-          topicIds
+          topicIds,
+          undefined,
+          "sequence"
         )
 
       if (rows.length === 0) {
         controller.reset()
         setCard(null)
+        setRevealed(false)
         setProgress({
           current: 0,
           total: 0
@@ -142,26 +230,31 @@ export default function LearnScreen() {
         return
       }
 
-      controller.loadCards(
-        rows.map((row) => ({
-          id: row.id,
-          question: row.question,
-          answer: Number.isNaN(
-            Number(row.answer)
-          )
-            ? row.answer
-            : Number(row.answer)
-        }))
-      )
+      const loadedCards = rows.map((row) => ({
+        id: row.id,
+        question: row.question,
+        answer: Number.isNaN(
+          Number(row.answer)
+        )
+          ? row.answer
+          : Number(row.answer)
+      }))
+
+      controller.loadCards(loadedCards)
 
       setCard(controller.getCurrentCard())
+      setRevealed(false)
       setProgress(controller.getProgress())
 
     }
 
     loadCards()
 
-  }, [db, selectedTopicId, controller])
+  }, [
+    db,
+    selectedTopicId,
+    controller
+  ])
 
   useEffect(() => {
 
@@ -173,25 +266,42 @@ export default function LearnScreen() {
 
   }, [ttsEnabled, card, controller])
 
-  function nextCard() {
+  useEffect(() => {
 
-    const next =
-      controller.next() as Card | null
+    clearLearnTimers()
 
-    setCard(next)
-    setProgress(controller.getProgress())
+    if (
+      !learnAutoPlayEnabled ||
+      !card
+    ) {
+      return
+    }
 
-  }
+    setRevealed(false)
 
-  function prevCard() {
+    autoFlipTimeoutRef.current = setTimeout(() => {
+      setRevealed(true)
 
-    const previous =
-      controller.previous() as Card | null
+      autoNextTimeoutRef.current = setTimeout(() => {
+        nextCard()
+      }, learnBackDelaySeconds * 1000)
+    }, learnFrontDelaySeconds * 1000)
 
-    setCard(previous)
-    setProgress(controller.getProgress())
+    return () => {
+      clearLearnTimers()
+    }
 
-  }
+  }, [
+    card,
+    learnAutoPlayEnabled,
+    learnFrontDelaySeconds,
+    learnBackDelaySeconds,
+    nextCard
+  ])
+
+  useEffect(() => () => {
+    clearLearnTimers()
+  }, [])
 
   function replayQuestion() {
 
@@ -235,22 +345,77 @@ export default function LearnScreen() {
               </Text>
             </View>
 
-            <Pressable
-              style={styles.iconButton}
-              onPress={() =>
-                setTtsEnabled(!ttsEnabled)
-              }
-            >
-              <MaterialIcons
-                name={
-                  ttsEnabled
-                    ? "volume-up"
-                    : "volume-off"
+            <View style={styles.headerActions}>
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  learnRandomOrderEnabled &&
+                    styles.activeIconButton
+                ]}
+                onPress={() =>
+                  setLearnRandomOrderEnabled(
+                    !learnRandomOrderEnabled
+                  )
                 }
-                size={20}
-                color="#ffffff"
-              />
-            </Pressable>
+              >
+                <MaterialIcons
+                  name="shuffle"
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  learnAutoPlayEnabled &&
+                    styles.activeIconButton
+                ]}
+                onPress={() =>
+                  setLearnAutoPlayEnabled(
+                    !learnAutoPlayEnabled
+                  )
+                }
+              >
+                <MaterialIcons
+                  name="skip-next"
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  ttsEnabled &&
+                    styles.activeIconButton
+                ]}
+                onPress={() =>
+                  setTtsEnabled(!ttsEnabled)
+                }
+              >
+                <MaterialIcons
+                  name={
+                    ttsEnabled
+                      ? "volume-up"
+                      : "volume-off"
+                  }
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+
+              <Pressable
+                style={styles.iconButton}
+                onPress={replayQuestion}
+              >
+                <MaterialIcons
+                  name="play-arrow"
+                  size={20}
+                  color="#ffffff"
+                />
+              </Pressable>
+            </View>
           </View>
 
           <Text style={styles.subtitle}>
@@ -260,25 +425,12 @@ export default function LearnScreen() {
 
         <View style={styles.cardShell}>
           {card ? (
-            <>
-              <View style={styles.cardActions}>
-                <Pressable
-                  style={styles.smallButton}
-                  onPress={replayQuestion}
-                >
-                  <MaterialIcons
-                    name="play-arrow"
-                    size={18}
-                    color="#ffffff"
-                  />
-                </Pressable>
-              </View>
-
-              <FlashCard
-                question={card.question}
-                answer={String(card.answer)}
-              />
-            </>
+            <FlashCard
+              question={card.question}
+              answer={String(card.answer)}
+              revealed={revealed}
+              onToggle={setRevealed}
+            />
           ) : (
             <Text style={styles.placeholder}>
               {selectedTopicId
@@ -306,6 +458,60 @@ export default function LearnScreen() {
               >
                 <Text style={styles.controlText}>
                   Next
+                </Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.feedbackRow}>
+              <Pressable
+                style={[
+                  styles.feedbackButton,
+                  styles.feedbackEasiest
+                ]}
+                onPress={() =>
+                  rateCard("very_easy")
+                }
+              >
+                <Text style={styles.feedbackText}>
+                  Very Easy
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.feedbackButton,
+                  styles.feedbackEasy
+                ]}
+                onPress={() => rateCard("easy")}
+              >
+                <Text style={styles.feedbackText}>
+                  Easy
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.feedbackButton,
+                  styles.feedbackHard
+                ]}
+                onPress={() => rateCard("hard")}
+              >
+                <Text style={styles.feedbackText}>
+                  Hard
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.feedbackButton,
+                  styles.feedbackHardest
+                ]}
+                onPress={() =>
+                  rateCard("very_hard")
+                }
+              >
+                <Text style={styles.feedbackText}>
+                  Very Hard
                 </Text>
               </Pressable>
             </View>
@@ -367,6 +573,11 @@ const styles = StyleSheet.create({
     flex: 1
   },
 
+  headerActions: {
+    flexDirection: "row",
+    gap: 8
+  },
+
   kicker: {
     color: "#15803d",
     fontWeight: "800",
@@ -397,6 +608,10 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
 
+  activeIconButton: {
+    backgroundColor: "#0f766e"
+  },
+
   cardShell: {
     marginTop: 24,
     backgroundColor: "#ffffff",
@@ -406,18 +621,39 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
 
-  cardActions: {
-    alignItems: "flex-end",
-    marginBottom: 12
+  feedbackRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18
   },
 
-  smallButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#0ea5e9",
-    alignItems: "center",
-    justifyContent: "center"
+  feedbackButton: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: "center"
+  },
+
+  feedbackHardest: {
+    backgroundColor: "#ef4444"
+  },
+
+  feedbackHard: {
+    backgroundColor: "#f97316"
+  },
+
+  feedbackEasy: {
+    backgroundColor: "#22c55e"
+  },
+
+  feedbackEasiest: {
+    backgroundColor: "#0ea5e9"
+  },
+
+  feedbackText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 12
   },
 
   placeholder: {

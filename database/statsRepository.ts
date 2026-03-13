@@ -125,8 +125,17 @@ export class StatsRepository {
       SELECT
         t.id,
         t.name,
+        t.subject_id,
+        t.parent_topic_id,
         COUNT(DISTINCT q.id) as total_questions,
-        COUNT(DISTINCT r.question_id) as practiced
+        COUNT(DISTINCT r.question_id) as practiced,
+        COUNT(
+          DISTINCT CASE
+            WHEN r.last_result IS NOT NULL
+             AND r.last_result != 'again'
+            THEN r.question_id
+          END
+        ) as correct
       FROM topics t
       LEFT JOIN questions q
         ON q.topic_id = t.id
@@ -138,18 +147,101 @@ export class StatsRepository {
       [userId]
     )
 
-    return rows.map((row: any) => {
+    const typedRows = rows.map((row: any) => ({
+      topicId: Number(row.id),
+      topicName: String(row.name),
+      subjectId: Number(row.subject_id),
+      parentTopicId:
+        row.parent_topic_id == null
+          ? null
+          : Number(row.parent_topic_id),
+      totalQuestions: Number(row.total_questions) || 0,
+      practiced: Number(row.practiced) || 0,
+      correct: Number(row.correct) || 0
+    }))
 
+    const childrenByParent = new Map<
+      number | null,
+      typeof typedRows
+    >()
+
+    for (const row of typedRows) {
+      const siblings =
+        childrenByParent.get(row.parentTopicId) ?? []
+
+      siblings.push(row)
+      childrenByParent.set(row.parentTopicId, siblings)
+    }
+
+    function collectTotals(
+      topicId: number
+    ): {
+      totalQuestions: number
+      practiced: number
+      correct: number
+    } {
+
+      const current =
+        typedRows.find(
+          (row) => row.topicId === topicId
+        )
+
+      if (!current) {
+        return {
+          totalQuestions: 0,
+          practiced: 0,
+          correct: 0
+        }
+      }
+
+      const children =
+        childrenByParent.get(topicId) ?? []
+
+      let totalQuestions =
+        current.totalQuestions
+      let practiced = current.practiced
+      let correct = current.correct
+
+      for (const child of children) {
+        const childTotals =
+          collectTotals(child.topicId)
+
+        totalQuestions +=
+          childTotals.totalQuestions
+        practiced += childTotals.practiced
+        correct += childTotals.correct
+      }
+
+      return {
+        totalQuestions,
+        practiced,
+        correct
+      }
+
+    }
+
+    return typedRows.map((row) => {
+
+      const totals =
+        collectTotals(row.topicId)
       const progress =
-        row.total_questions === 0
+        totals.practiced === 0
           ? 0
           : Math.round(
-              (row.practiced / row.total_questions) * 100
+              (totals.correct /
+                totals.practiced) *
+                100
             )
 
       return {
-        topicId: row.id,
-        topicName: row.name,
+        topicId: row.topicId,
+        topicName: row.topicName,
+        subjectId: row.subjectId,
+        parentTopicId: row.parentTopicId,
+        totalQuestions:
+          totals.totalQuestions,
+        practiced: totals.practiced,
+        correct: totals.correct,
         progress
       }
 
@@ -160,38 +252,57 @@ export class StatsRepository {
 
   async getSubjectProgress(userId: number) {
 
-    const rows = await this.db.getAllAsync(
+    const topicProgress =
+      await this.getTopicProgress(userId)
+    const rows = await this.db.getAllAsync<{
+      id: number
+      name: string
+    }>(
       `
-      SELECT
-        s.id,
-        s.name,
-        COUNT(DISTINCT q.id) as total_questions,
-        COUNT(DISTINCT r.question_id) as practiced
-      FROM subjects s
-      LEFT JOIN topics t
-        ON t.subject_id = s.id
-      LEFT JOIN questions q
-        ON q.topic_id = t.id
-      LEFT JOIN reviews r
-        ON r.question_id = q.id
-        AND r.user_id = ?
-      GROUP BY s.id
-      `,
-      [userId]
+      SELECT id, name
+      FROM subjects
+      ORDER BY name
+      `
     )
 
-    return rows.map((row: any) => {
+    return rows.map((row) => {
 
+      const subjectTopics =
+        topicProgress.filter(
+          (topic) =>
+            topic.subjectId === row.id &&
+            topic.parentTopicId == null
+        )
+
+      const practiced = subjectTopics.reduce(
+        (total, topic) =>
+          total + topic.practiced,
+        0
+      )
+      const correct = subjectTopics.reduce(
+        (total, topic) =>
+          total + topic.correct,
+        0
+      )
+      const totalQuestions =
+        subjectTopics.reduce(
+          (total, topic) =>
+            total + topic.totalQuestions,
+          0
+        )
       const progress =
-        row.total_questions === 0
+        practiced === 0
           ? 0
           : Math.round(
-              (row.practiced / row.total_questions) * 100
+              (correct / practiced) * 100
             )
 
       return {
         subjectId: row.id,
         subjectName: row.name,
+        totalQuestions,
+        practiced,
+        correct,
         progress
       }
 

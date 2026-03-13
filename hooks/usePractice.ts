@@ -1,6 +1,11 @@
 // hooks/usePractice.ts
 
-import { useEffect, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react"
 
 import { PracticeController } from "../controllers/practiceController"
 import { ReviewRating } from "../engine/scheduler/spacedRepetition"
@@ -15,6 +20,11 @@ export function usePractice(controller: PracticeController | null) {
   const [result, setResult] = useState<PracticeResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [score, setScore] = useState(0)
+  const autoNextTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    )
+  const isSubmittingRef = useRef(false)
 
   const [stats, setStats] = useState({
     attempts: 0,
@@ -23,10 +33,7 @@ export function usePractice(controller: PracticeController | null) {
 
   const safeController = controller
 
-
-  // ---------- start practice ----------
-
-  async function startPractice() {
+  const startPractice = useCallback(async () => {
 
     if (!safeController) return
 
@@ -40,72 +47,83 @@ export function usePractice(controller: PracticeController | null) {
 
     setLoading(false)
 
-  }
+  }, [safeController])
 
+  const submitAnswer = useCallback(async (
+    rating: ReviewRating
+  ) => {
 
-  // ---------- submit answer ----------
+    if (
+      !safeController ||
+      !question ||
+      result ||
+      isSubmittingRef.current
+    ) {
+      return
+    }
 
-  async function submitAnswer(rating: ReviewRating) {
+    isSubmittingRef.current = true
 
-    if (!safeController || !question) return
+    let res: Awaited<
+      ReturnType<PracticeController["submitAnswer"]>
+    > | null = null
 
-    const res =
-      await safeController.submitAnswer(answer, rating)
+    try {
+      res = await safeController.submitAnswer(
+        answer,
+        rating
+      )
+    } finally {
+      isSubmittingRef.current = false
+    }
 
     if (!res) return
 
     setResult(res)
 
-    if (res.correct) {
-      setScore((s) => s + 1)
-    }
+    setScore((s) =>
+      Math.max(0, s + (res.correct ? 1 : -1))
+    )
 
-    const s = safeController.getStats()
-    setStats(s)
+    const nextStats =
+      safeController.getStats()
+    setStats(nextStats)
 
-  }
+  }, [answer, question, result, safeController])
 
-
-  // ---------- next question ----------
-
-  async function nextQuestion() {
+  const nextQuestion = useCallback(async () => {
 
     if (!safeController) return
+
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+      autoNextTimeoutRef.current = null
+    }
 
     const q = await safeController.nextQuestion()
 
     setQuestion(q)
     setAnswer("")
     setResult(null)
+    isSubmittingRef.current = false
 
-  }
+  }, [safeController])
 
+  const autoNext = useCallback((
+    delay: number = 2000
+  ) => {
 
-  // ---------- auto next ----------
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+    }
 
-  function autoNext(delay: number = 2000) {
-
-    setTimeout(() => {
+    autoNextTimeoutRef.current = setTimeout(() => {
       nextQuestion()
     }, delay)
 
-  }
+  }, [nextQuestion])
 
-
-  // ---------- accuracy ----------
-
-  function getAccuracy() {
-
-    if (!safeController) return 0
-
-    return safeController.getAccuracy()
-
-  }
-
-
-  // ---------- reset ----------
-
-  function resetSession() {
+  const resetSession = useCallback(() => {
 
     if (!safeController) return
 
@@ -119,11 +137,9 @@ export function usePractice(controller: PracticeController | null) {
 
     setAnswer("")
     setResult(null)
+    isSubmittingRef.current = false
 
-  }
-
-
-  // ---------- init ----------
+  }, [safeController])
 
   useEffect(() => {
 
@@ -131,8 +147,15 @@ export function usePractice(controller: PracticeController | null) {
 
     startPractice()
 
-  }, [safeController])
+  }, [safeController, startPractice])
 
+  useEffect(() => () => {
+
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+    }
+
+  }, [])
 
   return {
 
@@ -141,6 +164,7 @@ export function usePractice(controller: PracticeController | null) {
     setAnswer,
 
     result,
+    answered: !!result,
 
     stats,
     score,

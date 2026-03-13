@@ -110,17 +110,43 @@ export default function ProgressScreen() {
             Topics
           </Text>
 
-          {topics.map((topic) => (
+          {buildTopicRows(topics).map((topic) => (
             <View
               key={topic.topicId}
-              style={styles.row}
+              style={styles.progressItem}
             >
-              <Text style={styles.rowLabel}>
-                {topic.topicName}
-              </Text>
+              <View
+                style={[
+                  styles.row,
+                  topic.level > 0 &&
+                    styles.indentedRow
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.rowLabel,
+                    topic.level > 0 &&
+                      styles.childRowLabel
+                  ]}
+                >
+                  {topic.indexLabel} {topic.topicName}
+                </Text>
 
-              <Text style={styles.rowValue}>
-                {topic.progress}%
+                <Text style={styles.rowValue}>
+                  {topic.progress}%
+                </Text>
+              </View>
+
+              <Text
+                style={[
+                  styles.detailText,
+                  topic.level > 0 &&
+                    styles.indentedDetailText
+                ]}
+              >
+                {topic.correct}/{topic.practiced} correct
+                {"  "}•{"  "}
+                {topic.practiced}/{topic.totalQuestions} seen
               </Text>
             </View>
           ))}
@@ -134,14 +160,22 @@ export default function ProgressScreen() {
           {subjects.map((subject) => (
             <View
               key={subject.subjectId}
-              style={styles.row}
+              style={styles.progressItem}
             >
-              <Text style={styles.rowLabel}>
-                {subject.subjectName}
-              </Text>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>
+                  {subject.subjectName}
+                </Text>
 
-              <Text style={styles.rowValue}>
-                {subject.progress}%
+                <Text style={styles.rowValue}>
+                  {subject.progress}%
+                </Text>
+              </View>
+
+              <Text style={styles.detailText}>
+                {subject.correct}/{subject.practiced} correct
+                {"  "}•{"  "}
+                {subject.practiced}/{subject.totalQuestions} seen
               </Text>
             </View>
           ))}
@@ -223,12 +257,35 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginVertical: 6
+    marginVertical: 6,
+    gap: 12
+  },
+
+  progressItem: {
+    marginBottom: 10
+  },
+
+  indentedRow: {
+    paddingLeft: 18
   },
 
   rowLabel: {
+    flex: 1,
     fontSize: 16,
     color: "#475569"
+  },
+
+  childRowLabel: {
+    color: "#64748b"
+  },
+
+  detailText: {
+    color: "#64748b",
+    fontSize: 13
+  },
+
+  indentedDetailText: {
+    paddingLeft: 18
   },
 
   rowValue: {
@@ -238,3 +295,76 @@ const styles = StyleSheet.create({
   }
 
 })
+
+function buildTopicRows(
+  topics: {
+    topicId: number
+    topicName: string
+    parentTopicId: number | null
+    progress: number
+  }[]
+) {
+
+  const childrenByParent = new Map<
+    number | null,
+    typeof topics
+  >()
+
+  for (const topic of topics) {
+    const siblings =
+      childrenByParent.get(topic.parentTopicId) ?? []
+
+    siblings.push(topic)
+    childrenByParent.set(topic.parentTopicId, siblings)
+  }
+
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort((left, right) =>
+      left.topicName.localeCompare(
+        right.topicName
+      )
+    )
+  }
+
+  const rows: (
+    (typeof topics)[number] & {
+      level: number
+      indexLabel: string
+    }
+  )[] = []
+
+  function visit(
+    parentId: number | null,
+    level: number,
+    prefix: string
+  ) {
+
+    const siblings =
+      childrenByParent.get(parentId) ?? []
+
+    siblings.forEach((topic, index) => {
+      const indexLabel =
+        prefix === ""
+          ? String(index + 1)
+          : `${prefix}.${index + 1}`
+
+      rows.push({
+        ...topic,
+        level,
+        indexLabel
+      })
+
+      visit(
+        topic.topicId,
+        level + 1,
+        indexLabel
+      )
+    })
+
+  }
+
+  visit(null, 0, "")
+
+  return rows
+
+}

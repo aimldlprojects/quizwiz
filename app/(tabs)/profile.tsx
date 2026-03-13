@@ -42,10 +42,22 @@ export default function ProfileScreen() {
     users,
     activeUser,
     loading: usersLoading
-  } = useUsers(db)
+  } = useUsers(db, true)
   const {
     ttsEnabled,
     setTtsEnabled,
+    autoNextEnabled,
+    setAutoNextEnabled,
+    autoNextCorrectDelaySeconds,
+    setAutoNextCorrectDelaySeconds,
+    autoNextWrongDelaySeconds,
+    setAutoNextWrongDelaySeconds,
+    learnAutoPlayEnabled,
+    setLearnAutoPlayEnabled,
+    learnFrontDelaySeconds,
+    setLearnFrontDelaySeconds,
+    learnBackDelaySeconds,
+    setLearnBackDelaySeconds,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
@@ -70,7 +82,10 @@ export default function ProfileScreen() {
   }
 
   const currentUser =
-    users.find((user) => user.id === activeUser)
+    users.find(
+      (user) =>
+        Number(user.id) === Number(activeUser)
+    )
 
   const hybridEnabled =
     syncMode === "hybrid"
@@ -113,6 +128,42 @@ export default function ProfileScreen() {
     } finally {
       setSyncing(false)
     }
+
+  }
+
+  async function adjustDelay(
+    type:
+      | "correct"
+      | "wrong"
+      | "learn_front"
+      | "learn_back",
+    delta: number
+  ) {
+
+    if (type === "correct") {
+      await setAutoNextCorrectDelaySeconds(
+        autoNextCorrectDelaySeconds + delta
+      )
+      return
+    }
+
+    if (type === "learn_front") {
+      await setLearnFrontDelaySeconds(
+        learnFrontDelaySeconds + delta
+      )
+      return
+    }
+
+    if (type === "learn_back") {
+      await setLearnBackDelaySeconds(
+        learnBackDelaySeconds + delta
+      )
+      return
+    }
+
+    await setAutoNextWrongDelaySeconds(
+      autoNextWrongDelaySeconds + delta
+    )
 
   }
 
@@ -212,6 +263,196 @@ export default function ProfileScreen() {
               value={ttsEnabled}
               onValueChange={setTtsEnabled}
             />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Practice navigation
+          </Text>
+
+          <Text style={styles.cardText}>
+            Move to the next question automatically after each answer.
+          </Text>
+
+          <View style={styles.syncRow}>
+            <Text style={styles.syncLabel}>
+              Auto next
+            </Text>
+
+            <Switch
+              value={autoNextEnabled}
+              onValueChange={setAutoNextEnabled}
+            />
+          </View>
+
+          <View style={styles.delayRow}>
+            <Text style={styles.delayLabel}>
+              Correct answer delay
+            </Text>
+
+            <View style={styles.stepper}>
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay("correct", -1)
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  -
+                </Text>
+              </Pressable>
+
+              <Text style={styles.delayValue}>
+                {autoNextCorrectDelaySeconds}s
+              </Text>
+
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay("correct", 1)
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  +
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.delayRow}>
+            <Text style={styles.delayLabel}>
+              Wrong answer delay
+            </Text>
+
+            <View style={styles.stepper}>
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay("wrong", -1)
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  -
+                </Text>
+              </Pressable>
+
+              <Text style={styles.delayValue}>
+                {autoNextWrongDelaySeconds}s
+              </Text>
+
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay("wrong", 1)
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  +
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Learn navigation
+          </Text>
+
+          <Text style={styles.cardText}>
+            Auto flip flash cards and move to the next card after the answer side is shown.
+          </Text>
+
+          <View style={styles.syncRow}>
+            <Text style={styles.syncLabel}>
+              Auto play learn cards
+            </Text>
+
+            <Switch
+              value={learnAutoPlayEnabled}
+              onValueChange={setLearnAutoPlayEnabled}
+            />
+          </View>
+
+          <View style={styles.delayRow}>
+            <Text style={styles.delayLabel}>
+              Front side delay
+            </Text>
+
+            <View style={styles.stepper}>
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay(
+                    "learn_front",
+                    -1
+                  )
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  -
+                </Text>
+              </Pressable>
+
+              <Text style={styles.delayValue}>
+                {learnFrontDelaySeconds}s
+              </Text>
+
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay(
+                    "learn_front",
+                    1
+                  )
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  +
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.delayRow}>
+            <Text style={styles.delayLabel}>
+              Back side delay
+            </Text>
+
+            <View style={styles.stepper}>
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay(
+                    "learn_back",
+                    -1
+                  )
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  -
+                </Text>
+              </Pressable>
+
+              <Text style={styles.delayValue}>
+                {learnBackDelaySeconds}s
+              </Text>
+
+              <Pressable
+                style={styles.stepButton}
+                onPress={() =>
+                  adjustDelay(
+                    "learn_back",
+                    1
+                  )
+                }
+              >
+                <Text style={styles.stepButtonText}>
+                  +
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -331,6 +572,47 @@ const styles = StyleSheet.create({
   syncLabel: {
     fontSize: 16,
     fontWeight: "700",
+    color: "#1e3a5f"
+  },
+
+  delayRow: {
+    marginTop: 16,
+    gap: 10
+  },
+
+  delayLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1e3a5f"
+  },
+
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+
+  stepButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#dbeafe",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  stepButtonText: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1d4ed8"
+  },
+
+  delayValue: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "800",
     color: "#1e3a5f"
   },
 

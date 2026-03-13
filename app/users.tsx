@@ -92,7 +92,7 @@ export default function UsersScreen() {
                 ]}
                 onPress={async () => {
                   await selectUser(item.id)
-                  router.replace("/learn")
+                  router.replace("/topics")
                 }}
               >
                 <View

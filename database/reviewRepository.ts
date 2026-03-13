@@ -163,7 +163,7 @@ export class ReviewRepository {
 
       ON CONFLICT(id)
       DO UPDATE SET
-        topic_id = COALESCE(excluded.topic_id, questions.topic_id),
+        topic_id = COALESCE(questions.topic_id, excluded.topic_id),
         type = COALESCE(excluded.type, questions.type),
         question = excluded.question,
         answer = excluded.answer

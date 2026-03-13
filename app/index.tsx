@@ -39,7 +39,7 @@ export default function HomeScreen() {
       return
     }
 
-    router.replace("/learn")
+    router.replace("/topics")
 
   }, [loading, activeUser, router])
 
