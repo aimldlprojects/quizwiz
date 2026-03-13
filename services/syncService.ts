@@ -1,4 +1,3 @@
-import { Paths } from "expo-file-system"
 import * as FileSystem from "expo-file-system/legacy"
 import * as Sharing from "expo-sharing"
 import * as SQLite from "expo-sqlite"
@@ -65,8 +64,14 @@ export class SyncService {
     const json =
       JSON.stringify(data, null, 2)
 
+    if (!FileSystem.documentDirectory) {
+      throw new Error(
+        "Document directory is not available"
+      )
+    }
+
     const path =
-      Paths.document +
+      FileSystem.documentDirectory +
       "quizwiz_backup.json"
 
     await FileSystem.writeAsStringAsync(

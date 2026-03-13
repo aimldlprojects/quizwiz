@@ -36,9 +36,12 @@ export default function HomeScreen() {
 
     if (!activeUser) {
       router.replace("/users")
+      return
     }
 
-  }, [loading, activeUser])
+    router.replace("/learn")
+
+  }, [loading, activeUser, router])
 
   useEffect(() => {
 

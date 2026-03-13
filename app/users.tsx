@@ -1,105 +1,117 @@
-import { Button, Switch, Text, View } from "react-native"
-
-import { useDatabase } from "@/hooks/useDatabase"
-import { useSettings } from "@/hooks/useSettings"
-
-import { testMultiDeviceSync } from "@/services/sync/testMultiDeviceSync"
-
-import { useRouter } from "expo-router"
 import { router } from "expo-router"
-export default function SettingsScreen() {
+import { useState } from "react"
+import {
+  Button,
+  FlatList,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native"
 
-  const { db, loading: dbLoading } = useDatabase()
+import { useDatabase } from "../hooks/useDatabase"
+import { useUsers } from "../hooks/useUsers"
 
-  const router = useRouter()
+export default function UsersScreen() {
+
+  const { db } = useDatabase()
 
   const {
-    syncMode,
-    updateSyncMode,
-    loading: settingsLoading
-  } = useSettings(db)
+    users,
+    activeUser,
+    createUser,
+    deleteUser,
+    selectUser,
+    loading
+  } = useUsers(db)
 
-  if (!db || dbLoading || settingsLoading) {
+  const [name, setName] =
+    useState("")
+
+  if (loading) {
     return <Text>Loading...</Text>
-  }
-
-  const hybridEnabled =
-    syncMode === "hybrid"
-
-  async function runSyncTest() {
-
-    if (!db) return
-
-    await testMultiDeviceSync(
-      db,
-      "http://YOUR_SERVER_IP:8000",
-      1
-    )
-
-  }
-
-  function openAdmin() {
-    router.push("/admin")
   }
 
   return (
 
-    <View style={{ padding: 20 }}>
+    <View style={{ flex: 1, padding: 20 }}>
 
-      {/* Sync Mode */}
-
-      <Text style={{ fontSize: 20 }}>
-        Sync Mode
+      <Text style={{ fontSize: 22 }}>
+        User Profiles
       </Text>
 
-      <View
+      <TextInput
+        placeholder="Enter name"
+        value={name}
+        onChangeText={setName}
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginTop: 20
+          borderWidth: 1,
+          padding: 10,
+          marginTop: 15
         }}
-      >
+      />
 
-        <Text style={{ marginRight: 10 }}>
-          Local
-        </Text>
+      <Button
+        title="Add User"
+        onPress={async () => {
 
-        <Switch
-          value={hybridEnabled}
-          onValueChange={(v) =>
-            updateSyncMode(
-              v ? "hybrid" : "local"
-            )
-          }
-        />
+          if (!name) return
 
-        <Text style={{ marginLeft: 10 }}>
-          Hybrid
-        </Text>
+          await createUser(name)
 
-      </View>
+          setName("")
 
-      {/* Sync Test */}
+        }}
+      />
 
-      <View style={{ marginTop: 30 }}>
+      <FlatList
+        data={users}
+        keyExtractor={(item) =>
+          String(item.id)
+        }
+        style={{ marginTop: 20 }}
+        renderItem={({ item }) => (
 
-        <Button
-          title="Test Multi Device Sync"
-          onPress={runSyncTest}
-        />
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginBottom: 10
+            }}
+          >
 
-      </View>
+            <TouchableOpacity
+              onPress={() => {
+                selectUser(item.id)
+                router.replace("/learn")
+              }}
+            >
 
-      {/* Admin Panel */}
+              <Text
+                style={{
+                  fontSize: 18,
+                  color:
+                    activeUser === item.id
+                      ? "green"
+                      : "black"
+                }}
+              >
+                {item.name}
+              </Text>
 
-      <View style={{ marginTop: 30 }}>
+            </TouchableOpacity>
 
-        <Button
-          title="Admin Panel"
-          onPress={openAdmin}
-        />
+            <Button
+              title="Delete"
+              onPress={() =>
+                deleteUser(item.id)
+              }
+            />
 
-      </View>
+          </View>
+
+        )}
+      />
 
     </View>
 
