@@ -28,7 +28,8 @@ Get Last Sync Revision
 */
 
 export async function getLastSyncRev(
-  db: SQLiteDatabase
+  db: SQLiteDatabase,
+  userId: number
 ): Promise<number> {
 
   await ensureTable(db)
@@ -37,8 +38,9 @@ export async function getLastSyncRev(
     `
     SELECT value
     FROM sync_meta
-    WHERE key = 'reviews_last_rev'
-    `
+    WHERE key = ?
+    `,
+    [`reviews_last_rev_${userId}`]
   )
 
   return row?.value ?? 0
@@ -53,6 +55,7 @@ Set Last Sync Revision
 
 export async function setLastSyncRev(
   db: SQLiteDatabase,
+  userId: number,
   rev: number
 ): Promise<void> {
 
@@ -61,12 +64,12 @@ export async function setLastSyncRev(
   await db.runAsync(
     `
     INSERT INTO sync_meta (key, value)
-    VALUES ('reviews_last_rev', ?)
+    VALUES (?, ?)
 
     ON CONFLICT(key)
     DO UPDATE SET value = excluded.value
     `,
-    [rev]
+    [`reviews_last_rev_${userId}`, rev]
   )
 
 }

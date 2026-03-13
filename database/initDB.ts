@@ -13,10 +13,12 @@ export async function initDB(db: SQLiteDatabase) {
   await createSubjectsTable(db)
 
   await createTopicsTable(db)
+  await migrateTopicsTable(db)
 
   await createQuestionsTable(db)
 
   await createReviewsTable(db)
+  await migrateReviewsTable(db)
 
   await createSyncMetaTable(db)
 
@@ -74,9 +76,34 @@ async function createTopicsTable(db: SQLiteDatabase) {
     CREATE TABLE IF NOT EXISTS topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       subject_id INTEGER,
+      parent_topic_id INTEGER,
       name TEXT NOT NULL
     )
   `)
+
+}
+
+async function migrateTopicsTable(
+  db: SQLiteDatabase
+) {
+
+  const columns =
+    await db.getAllAsync<{ name: string }>(
+      `
+      PRAGMA table_info(topics)
+      `
+    )
+
+  const columnNames = new Set(
+    columns.map((column) => column.name)
+  )
+
+  if (!columnNames.has("parent_topic_id")) {
+    await db.execAsync(`
+      ALTER TABLE topics
+      ADD COLUMN parent_topic_id INTEGER
+    `)
+  }
 
 }
 
@@ -136,6 +163,38 @@ async function createReviewsTable(db: SQLiteDatabase) {
 
     )
   `)
+
+}
+
+async function migrateReviewsTable(
+  db: SQLiteDatabase
+) {
+
+  const columns =
+    await db.getAllAsync<{ name: string }>(
+      `
+      PRAGMA table_info(reviews)
+      `
+    )
+
+  const columnNames = new Set(
+    columns.map((column) => column.name)
+  )
+
+  if (!columnNames.has("rev_id")) {
+    await db.execAsync(`
+      ALTER TABLE reviews
+      ADD COLUMN rev_id INTEGER
+    `)
+  }
+
+  if (!columnNames.has("created_at")) {
+    await db.execAsync(`
+      ALTER TABLE reviews
+      ADD COLUMN created_at INTEGER
+      DEFAULT (strftime('%s','now')*1000)
+    `)
+  }
 
 }
 

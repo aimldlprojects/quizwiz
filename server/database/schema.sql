@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS reviews (
 
-  user_id INT NOT NULL,
-  question_id INT NOT NULL,
+  user_id BIGINT NOT NULL,
+  question_id BIGINT NOT NULL,
 
   repetition INT DEFAULT 0,
   interval INT DEFAULT 0,

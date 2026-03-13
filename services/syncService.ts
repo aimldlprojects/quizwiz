@@ -3,12 +3,12 @@ import * as Sharing from "expo-sharing"
 import * as SQLite from "expo-sqlite"
 
 import { getSyncMode } from "../database/settingsRepository"
+import { getSyncServerUrl } from "./sync/config"
 import { syncReviews } from "./sync/syncReviews"
 
 export class SyncService {
 
   private db: SQLite.SQLiteDatabase
-  private serverUrl = "http://YOUR_SERVER_IP:8000"
   private userId = 1
 
   constructor(db: SQLite.SQLiteDatabase) {
@@ -161,9 +161,19 @@ export class SyncService {
       return
     }
 
+    const serverUrl =
+      getSyncServerUrl()
+
+    if (!serverUrl) {
+      console.log(
+        "Sync skipped: sync server URL is not configured."
+      )
+      return
+    }
+
     await syncReviews(
       this.db,
-      this.serverUrl,
+      serverUrl,
       this.userId
     )
 

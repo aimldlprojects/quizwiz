@@ -20,7 +20,10 @@ export async function pullReviews(
   userId: number
 ): Promise<void> {
 
-  const lastSync = await getLastSyncRev(db)
+  const lastSync = await getLastSyncRev(
+    db,
+    userId
+  )
 
   const res = await fetch(
     `${serverUrl}/reviews/changes?user_id=${userId}&since=${lastSync}`
@@ -74,7 +77,11 @@ export async function pullReviews(
   }
 
   if (maxRev > lastSync) {
-    await setLastSyncRev(db, maxRev)
+    await setLastSyncRev(
+      db,
+      userId,
+      maxRev
+    )
   }
 
 }

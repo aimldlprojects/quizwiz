@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 
 import { initDB } from "@/database/initDB"
 import { getSyncMode } from "@/database/settingsRepository"
+import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
 
 export function useDatabase() {
@@ -31,21 +32,53 @@ export function useDatabase() {
 
     if (mode === "hybrid") {
 
-      try {
-
-        await pullReviews(
-          database,
-          "http://YOUR_SERVER_IP:8000",
-          1
+      const activeUserRow =
+        await database.getFirstAsync<{
+          value: string
+        }>(
+          `
+          SELECT value
+          FROM settings
+          WHERE key = 'active_user'
+          `
         )
 
-      } catch (err) {
+      const serverUrl =
+        getSyncServerUrl()
 
+      if (!serverUrl) {
         console.log(
-          "Initial sync failed:",
-          err
+          "Initial sync skipped: sync server URL is not configured."
         )
+      } else {
 
+        try {
+
+          const activeUser =
+            Number(
+              activeUserRow?.value ?? "0"
+            ) || 0
+
+          if (!activeUser) {
+            setDb(database)
+            setLoading(false)
+            return
+          }
+
+          await pullReviews(
+            database,
+            serverUrl,
+            activeUser
+          )
+
+        } catch (err) {
+
+          console.log(
+            "Initial sync failed:",
+            err
+          )
+
+        }
       }
 
     }

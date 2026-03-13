@@ -73,6 +73,10 @@ export class PracticeController {
     const question =
       await this.sessionManager.startSession()
 
+    this.session.setCurrentQuestion(
+      question
+    )
+
     return question
 
   }
@@ -99,6 +103,8 @@ export class PracticeController {
 
     const q =
       await this.sessionManager.nextQuestion()
+
+    this.session.setCurrentQuestion(q)
 
     if (!q) return null
 
@@ -159,8 +165,20 @@ export class PracticeController {
     rating: ReviewRating
   ) {
 
+    const normalizedRating =
+      userAnswer.trim() ===
+      String(
+        this.session.getCurrentQuestion()
+          ?.answer ?? ""
+      ).trim()
+        ? rating
+        : "again"
+
     const result =
-      await this.session.submitAnswer(userAnswer, rating)
+      await this.session.submitAnswer(
+        userAnswer,
+        normalizedRating
+      )
 
     if (!result) return null
 
@@ -174,7 +192,7 @@ export class PracticeController {
       Events.ANSWER_SUBMITTED,
       {
         questionId: current.id,
-        rating
+        rating: normalizedRating
       }
     )
 

@@ -1,219 +1,240 @@
-// app/progress.tsx
-
 import { useEffect, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+
 import { StatsRepository } from "../../database/statsRepository"
+import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
+import { useUsers } from "../../hooks/useUsers"
 
 export default function ProgressScreen() {
 
-    const { db, loading } = useDatabase()
+  const { db, loading } = useDatabase()
+  const {
+    activeUser,
+    loading: usersLoading
+  } = useUsers(db)
 
-    const [accuracy, setAccuracy] = useState(0)
-    const [topics, setTopics] = useState<any[]>([])
-    const [subjects, setSubjects] = useState<any[]>([])
+  const [accuracy, setAccuracy] =
+    useState(0)
+  const [topics, setTopics] =
+    useState<any[]>([])
+  const [subjects, setSubjects] =
+    useState<any[]>([])
+  const [streak, setStreak] =
+    useState(0)
 
-    const statsRepo = db ? new StatsRepository(db) : null
-    const userId = 1
-
-    // ---------- load stats ----------
+  useEffect(() => {
 
     async function loadProgress() {
 
-        if (!statsRepo) return
+      if (!db || !activeUser) return
 
-        await statsRepo.debugTopics()
+      const statsRepo =
+        new StatsRepository(db)
+      const streakController =
+        new StreakController(db)
 
-        const acc =
-            await statsRepo.getAccuracy(userId)
+      const acc =
+        await statsRepo.getAccuracy(activeUser)
 
-        const topicData =
-            await statsRepo.getTopicProgress(userId)
-
-        const subjectData =
-            await statsRepo.getSubjectProgress(userId)
-
-        setAccuracy(acc)
-        setTopics(topicData)
-        setSubjects(subjectData)
-
-    }
-
-    useEffect(() => {
-
-        if (!statsRepo) return
-
-        loadProgress()
-
-    }, [statsRepo])
-
-    if (!loading || !db) {
-        return <Text>Loading database...</Text>
-    }
-
-    // ---------- header ----------
-
-    function renderHeader() {
-
-        return (
-            <Text style={styles.title}>
-                Progress
-            </Text>
+      const topicData =
+        await statsRepo.getTopicProgress(
+          activeUser
         )
 
-    }
-
-    // ---------- accuracy ----------
-
-    function renderAccuracy() {
-
-        return (
-
-            <View style={styles.card}>
-
-                <Text style={styles.cardTitle}>
-                    Overall Accuracy
-                </Text>
-
-                <Text style={styles.bigValue}>
-                    {accuracy}%
-                </Text>
-
-            </View>
-
+      const subjectData =
+        await statsRepo.getSubjectProgress(
+          activeUser
         )
 
-    }
-
-    // ---------- topic progress ----------
-
-    function renderTopicProgress() {
-
-        return (
-
-            <View style={styles.card}>
-
-                <Text style={styles.cardTitle}>
-                    Topics
-                </Text>
-
-                {topics.map(t => (
-
-                    <View
-                        key={t.topicId}
-                        style={styles.row}
-                    >
-
-                        <Text>
-                            {t.topicName}
-                        </Text>
-
-                        <Text>
-                            {t.progress}%
-                        </Text>
-
-                    </View>
-
-                ))}
-
-            </View>
-
+      const streakState =
+        await streakController.getStreak(
+          activeUser
         )
 
-    }
-
-    // ---------- subject progress ----------
-
-    function renderSubjectProgress() {
-        console.log("Subject progress:", subjects)
-        return (
-
-            <View style={styles.card}>
-
-                <Text style={styles.cardTitle}>
-                    Subjects
-                </Text>
-
-                {subjects.map(s => (
-
-                    <View
-                        key={s.subjectId}
-                        style={styles.row}
-                    >
-
-                        <Text>
-                            {s.subjectName}
-                        </Text>
-
-                        <Text>
-                            {s.progress}%
-                        </Text>
-
-                    </View>
-
-                ))}
-
-            </View>
-
-        )
+      setAccuracy(acc)
+      setTopics(topicData)
+      setSubjects(subjectData)
+      setStreak(streakState.currentStreak)
 
     }
 
+    loadProgress()
+
+  }, [db, activeUser])
+
+  if (loading || usersLoading || !db) {
     return (
-
-        <ScrollView style={styles.container}>
-
-            {renderHeader()}
-
-            {renderAccuracy()}
-
-            {renderTopicProgress()}
-
-            {renderSubjectProgress()}
-
-        </ScrollView>
-
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>
+          Loading progress...
+        </Text>
+      </SafeAreaView>
     )
+  }
+
+  if (!activeUser) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>
+          Choose a user profile first.
+        </Text>
+      </SafeAreaView>
+    )
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.container}>
+        <Text style={styles.title}>
+          Progress Map
+        </Text>
+
+        <View style={styles.heroCard}>
+          <Text style={styles.cardTitle}>
+            Overall Accuracy
+          </Text>
+
+          <Text style={styles.bigValue}>
+            {accuracy}%
+          </Text>
+
+          <Text style={styles.heroSubtext}>
+            Current streak: {streak} day{streak === 1 ? "" : "s"}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Topics
+          </Text>
+
+          {topics.map((topic) => (
+            <View
+              key={topic.topicId}
+              style={styles.row}
+            >
+              <Text style={styles.rowLabel}>
+                {topic.topicName}
+              </Text>
+
+              <Text style={styles.rowValue}>
+                {topic.progress}%
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Subjects
+          </Text>
+
+          {subjects.map((subject) => (
+            <View
+              key={subject.subjectId}
+              style={styles.row}
+            >
+              <Text style={styles.rowLabel}>
+                {subject.subjectName}
+              </Text>
+
+              <Text style={styles.rowValue}>
+                {subject.progress}%
+              </Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  )
 
 }
 
 const styles = StyleSheet.create({
 
-    container: {
-        flex: 1,
-        padding: 20
-    },
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f8fbff"
+  },
 
-    title: {
-        fontSize: 28,
-        fontWeight: "700",
-        marginBottom: 20,
-        textAlign: "center"
-    },
+  container: {
+    flex: 1,
+    padding: 20
+  },
 
-    card: {
-        backgroundColor: "#fff",
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 16
-    },
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8fbff"
+  },
 
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: "600",
-        marginBottom: 10
-    },
+  loadingText: {
+    fontSize: 18,
+    color: "#1e3a5f"
+  },
 
-    bigValue: {
-        fontSize: 36,
-        textAlign: "center",
-        fontWeight: "700"
-    },
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    marginBottom: 20,
+    textAlign: "center",
+    color: "#1e3a5f"
+  },
 
-    row: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginVertical: 4
-    }
+  heroCard: {
+    backgroundColor: "#dbeafe",
+    padding: 20,
+    borderRadius: 24,
+    marginBottom: 16
+  },
+
+  card: {
+    backgroundColor: "#ffffff",
+    padding: 18,
+    borderRadius: 22,
+    marginBottom: 16
+  },
+
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 12,
+    color: "#1e3a5f"
+  },
+
+  bigValue: {
+    fontSize: 40,
+    textAlign: "center",
+    fontWeight: "800",
+    color: "#1d4ed8"
+  },
+
+  heroSubtext: {
+    textAlign: "center",
+    marginTop: 10,
+    color: "#475569",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 6
+  },
+
+  rowLabel: {
+    fontSize: 16,
+    color: "#475569"
+  },
+
+  rowValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1e3a5f"
+  }
 
 })

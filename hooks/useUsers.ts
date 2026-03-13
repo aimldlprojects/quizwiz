@@ -2,6 +2,10 @@ import { SQLiteDatabase } from "expo-sqlite"
 import { useEffect, useState } from "react"
 
 import { UserController } from "../controllers/userController"
+import { getSyncMode } from "@/database/settingsRepository"
+import { getSyncServerUrl } from "@/services/sync/config"
+import { pullReviews } from "@/services/sync/pullReviews"
+import { pushReviews } from "@/services/sync/pushReviews"
 
 export interface User {
   id: number
@@ -89,7 +93,33 @@ export function useUsers(
     const controller =
       new UserController(db)
 
+    const previousUser = activeUser
+    const mode =
+      await getSyncMode(db)
+    const serverUrl =
+      getSyncServerUrl()
+
+    if (
+      mode === "hybrid" &&
+      serverUrl &&
+      previousUser
+    ) {
+      await pushReviews(
+        db,
+        serverUrl,
+        previousUser
+      )
+    }
+
     await controller.setActiveUser(id)
+
+    if (mode === "hybrid" && serverUrl) {
+      await pullReviews(
+        db,
+        serverUrl,
+        id
+      )
+    }
 
     setActiveUser(id)
 

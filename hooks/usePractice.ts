@@ -137,7 +137,12 @@ export function usePractice(controller: PracticeController | null) {
     result,
 
     stats,
-    accuracy: getAccuracy(),
+    accuracy:
+      stats.attempts === 0
+        ? 0
+        : Math.round(
+            (stats.correct / stats.attempts) * 100
+          ),
 
     loading,
 

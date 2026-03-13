@@ -17,8 +17,7 @@ export default function AnswerActions({
 
   answered,
   onSubmit,
-  onNext,
-  onRate
+  onNext
 
 }: Props) {
 
@@ -41,30 +40,6 @@ export default function AnswerActions({
 
     <View style={styles.container}>
 
-      <View style={styles.ratingRow}>
-
-        <Button
-          title="Again"
-          onPress={() => onRate("again")}
-        />
-
-        <Button
-          title="Hard"
-          onPress={() => onRate("hard")}
-        />
-
-        <Button
-          title="Good"
-          onPress={() => onRate("good")}
-        />
-
-        <Button
-          title="Easy"
-          onPress={() => onRate("easy")}
-        />
-
-      </View>
-
       <View style={styles.nextRow}>
 
         <Button
@@ -84,12 +59,6 @@ const styles = StyleSheet.create({
 
   container: {
     marginTop: 20
-  },
-
-  ratingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10
   },
 
   nextRow: {

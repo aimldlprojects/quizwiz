@@ -8,7 +8,7 @@ export interface LearnCard {
   id: number
 
   question: string
-  answer: number
+  answer: string | number
 
 }
 
@@ -19,6 +19,13 @@ export class LearnController {
   private index: number = 0
 
   // ---------- load cards ----------
+
+  loadCards(cards: LearnCard[]) {
+
+    this.cards = cards
+    this.index = 0
+
+  }
 
   loadTables(table: number) {
 
@@ -71,13 +78,15 @@ export class LearnController {
 
   // ---------- speak question ----------
 
-  speak() {
+  speak(text?: string) {
 
-    const card = this.getCurrentCard()
+    const spokenText =
+      text ??
+      this.getCurrentCard()?.question
 
-    if (!card) return
+    if (!spokenText) return
 
-    ttsService.speak(card.question)
+    ttsService.speak(spokenText)
 
   }
 

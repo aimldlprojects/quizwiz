@@ -8,7 +8,7 @@ import { SchedulerReviewState } from "../scheduler/types"
 export interface Question {
   id: number
   question: string
-  answer: string
+  answer: string | number
 }
 
 export interface SessionStats {
@@ -55,6 +55,14 @@ export class PracticeSession {
 
   getCurrentQuestion(): Question | null {
     return this.currentQuestion
+  }
+
+  setCurrentQuestion(
+    question: Question | null
+  ) {
+
+    this.currentQuestion = question
+
   }
 
   // ---------- load next question ----------
@@ -105,7 +113,12 @@ export class PracticeSession {
       return null
     }
 
-    const correctAnswer = this.currentQuestion.answer
+    const rawAnswer =
+      this.currentQuestion.answer
+    const correctAnswer =
+      rawAnswer == null
+        ? ""
+        : String(rawAnswer)
 
     const isCorrect =
       userAnswer.trim() === correctAnswer.trim()

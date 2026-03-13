@@ -16,6 +16,7 @@ export interface ReviewRecord {
 export class ReviewRepository {
 
   private db: SQLite.SQLiteDatabase
+  private schemaChecked = false
 
   constructor(db: SQLite.SQLiteDatabase) {
     this.db = db
@@ -91,6 +92,8 @@ export class ReviewRepository {
 
   async saveReview(review: Review): Promise<void> {
 
+    await this.ensureSchema()
+
     const incomingRev =
       (review as any).revId ??
       Date.now()
@@ -132,6 +135,41 @@ export class ReviewRepository {
         incomingRev
       ]
     )
+
+  }
+
+  private async ensureSchema() {
+
+    if (this.schemaChecked) {
+      return
+    }
+
+    const columns =
+      await this.db.getAllAsync<{ name: string }>(
+        `
+        PRAGMA table_info(reviews)
+        `
+      )
+
+    const columnNames = new Set(
+      columns.map((column) => column.name)
+    )
+
+    if (!columnNames.has("rev_id")) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        ADD COLUMN rev_id INTEGER
+      `)
+    }
+
+    if (!columnNames.has("created_at")) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        ADD COLUMN created_at INTEGER
+      `)
+    }
+
+    this.schemaChecked = true
 
   }
 

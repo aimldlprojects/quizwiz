@@ -47,7 +47,10 @@ export async function pushReviews(
   userId: number
 ): Promise<void> {
 
-  const lastSync = await getLastSyncRev(db)
+  const lastSync = await getLastSyncRev(
+    db,
+    userId
+  )
 
   const changes = await getLocalReviewChanges(
     db,
@@ -83,11 +86,11 @@ export async function pushReviews(
     await db.runAsync(
       `
       INSERT INTO sync_meta (key, value)
-      VALUES ('reviews_last_rev', ?)
+      VALUES (?, ?)
       ON CONFLICT(key)
       DO UPDATE SET value = excluded.value
       `,
-      [data.max_rev]
+      [`reviews_last_rev_${userId}`, data.max_rev]
     )
   }
 
