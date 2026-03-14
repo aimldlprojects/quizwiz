@@ -1,5 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
+import { setSyncStatus } from "@/database/syncStatusRepository"
 import { pullReviews } from "./pullReviews"
 import { pushReviews } from "./pushReviews"
 
@@ -17,23 +18,32 @@ export async function syncReviews(
 
   try {
 
-    // push local changes first
-    await pushReviews(
-      db,
-      serverUrl,
-      userId
-    )
+    await pushReviews(db, serverUrl, userId)
 
-    // then pull remote changes
-    await pullReviews(
+    await pullReviews(db, serverUrl, userId)
+
+    await setSyncStatus(
       db,
-      serverUrl,
-      userId
+      "success",
+      "Last sync completed successfully."
     )
 
   } catch (err) {
 
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Unknown error"
+
+    await setSyncStatus(
+      db,
+      "failed",
+      message
+    )
+
     console.error("Review sync failed:", err)
+
+    throw err
 
   }
 

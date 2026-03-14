@@ -171,11 +171,18 @@ export class SyncService {
       return
     }
 
-    await syncReviews(
-      this.db,
-      serverUrl,
-      this.userId
-    )
+    try {
+      await syncReviews(
+        this.db,
+        serverUrl,
+        this.userId
+      )
+    } catch (err) {
+      console.error(
+        "Background sync failed:",
+        err
+      )
+    }
 
   }
 

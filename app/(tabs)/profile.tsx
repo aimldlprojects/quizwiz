@@ -17,8 +17,16 @@ import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { getSyncServerUrl } from "@/services/sync/config"
 import { syncReviews } from "@/services/sync/syncReviews"
 import { useUsers } from "@/hooks/useUsers"
-import { useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useState
+} from "react"
 import { getThemeColors } from "@/styles/theme"
+import {
+  getSyncStatus,
+  type SyncStatusRecord
+} from "@/database/syncStatusRepository"
 
 function getAvatarLetter(name: string) {
 
@@ -73,6 +81,28 @@ export default function ProfileScreen() {
   }
   const [syncing, setSyncing] =
     useState(false)
+
+  const [syncInfo, setSyncInfo] =
+    useState<SyncStatusRecord | null>(null)
+  const syncServerUrl =
+    getSyncServerUrl()
+
+  const refreshSyncStatus =
+    useCallback(async () => {
+      if (!db) return
+
+      const info =
+        await getSyncStatus(db)
+
+      setSyncInfo(info)
+    }, [db])
+
+  useEffect(() => {
+    if (!db) return
+    if (syncing) return
+
+    refreshSyncStatus()
+  }, [db, refreshSyncStatus, syncing])
 
   if (
     dbLoading ||
@@ -135,6 +165,7 @@ export default function ProfileScreen() {
       )
     } finally {
       setSyncing(false)
+      await refreshSyncStatus()
     }
 
   }
@@ -357,6 +388,78 @@ export default function ProfileScreen() {
               </Text>
             )}
           </Pressable>
+
+          <View style={styles.syncStatusRow}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
+              Server
+            </Text>
+
+            <Text
+              style={[
+                styles.syncValue,
+                { color: colors.text }
+              ]}
+            >
+              {syncServerUrl ?? "Not configured"}
+            </Text>
+          </View>
+
+          <View style={styles.syncStatusRow}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
+              Connection
+            </Text>
+
+            <Text
+              style={[
+                styles.syncValue,
+                {
+                  color:
+                    syncInfo?.status === "failed"
+                      ? "#f87171"
+                      : colors.iconActive
+                }
+              ]}
+            >
+              {syncServerUrl
+                ? syncInfo?.status === "failed"
+                  ? "Unstable"
+                  : "Healthy"
+                : "Unavailable"}
+            </Text>
+          </View>
+
+          <Text
+            style={[
+              styles.syncTimestamp,
+              { color: colors.muted }
+            ]}
+          >
+            Last sync:{" "}
+            {formatSyncTimestamp(
+              syncInfo?.timestamp
+            )}
+          </Text>
+
+          {syncInfo?.message ? (
+            <Text
+              style={[
+                styles.syncMessage,
+                { color: colors.muted }
+              ]}
+            >
+              {syncInfo.message}
+            </Text>
+          ) : null}
         </View>
 
         <View
@@ -692,6 +795,27 @@ export default function ProfileScreen() {
 
 }
 
+function formatSyncTimestamp(
+  timestamp: number | null | undefined
+): string {
+
+  if (!timestamp) {
+    return "Never"
+  }
+
+  return new Intl.DateTimeFormat(
+    undefined,
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    }
+  ).format(new Date(timestamp))
+
+}
+
 const styles = StyleSheet.create({
 
   safeArea: {
@@ -780,10 +904,31 @@ const styles = StyleSheet.create({
     marginTop: 14
   },
 
+  syncStatusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8
+  },
+
   syncLabel: {
     fontSize: 16,
     fontWeight: "700",
     color: "#1e3a5f"
+  },
+
+  syncValue: {
+    fontSize: 14,
+    fontWeight: "700"
+  },
+
+  syncTimestamp: {
+    marginTop: 6,
+    fontSize: 12
+  },
+
+  syncMessage: {
+    fontSize: 12,
+    marginTop: 2
   },
 
   delayRow: {
