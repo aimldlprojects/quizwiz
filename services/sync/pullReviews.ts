@@ -105,18 +105,14 @@ async function replaceSettings(
     return
   }
 
-  await db.runAsync(
-    `
-    DELETE FROM settings
-    `
-  )
-
   for (const entry of entries) {
     await db.runAsync(
       `
       INSERT INTO settings
       (key, value)
       VALUES (?, ?)
+      ON CONFLICT(key)
+      DO UPDATE SET value = excluded.value
       `,
       [entry.key, entry.value]
     )

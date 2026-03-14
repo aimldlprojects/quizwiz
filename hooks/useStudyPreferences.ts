@@ -116,6 +116,10 @@ export function useStudyPreferences(
       userId == null
         ? "theme_mode"
         : `theme_mode_user_${userId}`
+    const ttsKey =
+      userId == null
+        ? "tts_enabled"
+        : `tts_enabled_user_${userId}`
     const rows =
       await db.getAllAsync<{
         key: string
@@ -136,11 +140,13 @@ export function useStudyPreferences(
         OR key = ?
         OR key = ?
         OR key = ?
+        OR key = ?
         `,
         [
           selectedSubjectKey,
           selectedTopicKey,
           "tts_enabled",
+          ttsKey,
           autoNextEnabledKey,
           autoNextCorrectDelayKey,
           autoNextWrongDelayKey,
@@ -154,6 +160,7 @@ export function useStudyPreferences(
       )
 
     const next = { ...DEFAULTS }
+    let userTtsApplied = false
 
     for (const row of rows) {
       switch (row.key) {
@@ -165,8 +172,14 @@ export function useStudyPreferences(
           next.selectedTopicId =
             row.value ? Number(row.value) : null
           break
-        case "tts_enabled":
+        case ttsKey:
           next.ttsEnabled = row.value !== "0"
+          userTtsApplied = true
+          break
+        case "tts_enabled":
+          if (!userTtsApplied) {
+            next.ttsEnabled = row.value !== "0"
+          }
           break
         case autoNextEnabledKey:
           next.autoNextEnabled =
@@ -344,8 +357,13 @@ export function useStudyPreferences(
       ttsEnabled: enabled
     }))
 
+    const ttsKey =
+      userId == null
+        ? "tts_enabled"
+        : `tts_enabled_user_${userId}`
+
     await savePreference(
-      "tts_enabled",
+      ttsKey,
       enabled ? "1" : "0"
     )
 

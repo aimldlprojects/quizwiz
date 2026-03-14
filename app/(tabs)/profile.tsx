@@ -26,13 +26,22 @@ import {
 import { getThemeColors } from "@/styles/theme"
 import {
   getSyncStatus,
-  type SyncStatusRecord
+  setSyncStatus,
+  type SyncStatusEntry,
+  type SyncStatusRecord,
+  type SyncStatusValue
 } from "@/database/syncStatusRepository"
 
 function getAvatarLetter(name: string) {
 
   return name.trim().charAt(0).toUpperCase() || "Q"
 
+}
+
+const DEFAULT_SYNC_STATUS: SyncStatusEntry = {
+  status: "unknown",
+  message: null,
+  timestamp: null
 }
 
 export default function ProfileScreen() {
@@ -106,6 +115,39 @@ export default function ProfileScreen() {
 
     refreshSyncStatus()
   }, [db, refreshSyncStatus, syncing, pulling])
+
+  const overallStatus =
+    syncInfo?.overall ?? DEFAULT_SYNC_STATUS
+  const pushStatus =
+    syncInfo?.push ?? DEFAULT_SYNC_STATUS
+  const pullStatus =
+    syncInfo?.pull ?? DEFAULT_SYNC_STATUS
+
+  const getStatusColor = (
+    status: SyncStatusValue
+  ) => {
+    switch (status) {
+      case "success":
+        return "#22c55e"
+      case "failed":
+        return "#ef4444"
+      default:
+        return colors.border
+    }
+  }
+
+  const getStatusLabel = (
+    status: SyncStatusValue
+  ) => {
+    switch (status) {
+      case "success":
+        return "Healthy"
+      case "failed":
+        return "Failed"
+      default:
+        return "Unknown"
+    }
+  }
 
   if (
     dbLoading ||
@@ -196,17 +238,45 @@ export default function ProfileScreen() {
         activeUser
       )
 
+      await setSyncStatus(
+        db,
+        "success",
+        "Pulled your profile data from the master database.",
+        Date.now(),
+        "pull"
+      )
+
+      await setSyncStatus(
+        db,
+        "success",
+        "Last sync completed successfully."
+      )
+
       Alert.alert(
         "Sync complete",
         "Your profile was refreshed from the master database."
       )
     } catch (error) {
-      Alert.alert(
-        "Sync failed",
+      const message =
         error instanceof Error
           ? error.message
           : "We could not pull your profile data right now."
+
+      await setSyncStatus(
+        db,
+        "failed",
+        message,
+        Date.now(),
+        "pull"
       )
+
+      await setSyncStatus(
+        db,
+        "failed",
+        message
+      )
+
+      Alert.alert("Sync failed", message)
     } finally {
       setPulling(false)
       await refreshSyncStatus()
@@ -374,161 +444,279 @@ export default function ProfileScreen() {
             style={[styles.card, themedCard]}
           >
             <Text
-            style={[
-              styles.cardTitle,
-              { color: colors.text }
-            ]}
-          >
-            Sync settings
-          </Text>
-
-          <View style={styles.syncRow}>
-            <Text
               style={[
-                styles.syncLabel,
-                { color: colors.muted }
-              ]}
-            >
-              Local
-            </Text>
-
-            <Switch
-              value={hybridEnabled}
-              onValueChange={(value) =>
-                updateSyncMode(
-                  value ? "hybrid" : "local"
-                )
-              }
-            />
-
-            <Text
-              style={[
-                styles.syncLabel,
-                { color: colors.muted }
-              ]}
-            >
-              Hybrid
-            </Text>
-          </View>
-
-          <Pressable
-            style={[
-              styles.secondaryButton,
-              { backgroundColor: colors.surface }
-            ]}
-            onPress={syncToMaster}
-            disabled={syncing}
-          >
-            {syncing ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text
-                style={[
-                  styles.secondaryButtonText,
-                  { color: colors.text }
-                ]}
-              >
-                Sync To Master DB
-              </Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.outlineButton,
-              {
-                borderColor: colors.iconActive
-              }
-            ]}
-            onPress={syncFromMaster}
-            disabled={pulling}
-          >
-            {pulling ? (
-              <ActivityIndicator color={colors.iconActive} />
-            ) : (
-              <Text
-                style={[
-                  styles.outlineButtonText,
-                  { color: colors.iconActive }
-                ]}
-              >
-                Sync From Master DB
-              </Text>
-            )}
-          </Pressable>
-
-          <View style={styles.syncStatusRow}>
-            <Text
-              style={[
-                styles.syncLabel,
-                { color: colors.muted }
-              ]}
-            >
-              Server
-            </Text>
-
-            <Text
-              style={[
-                styles.syncValue,
+                styles.cardTitle,
                 { color: colors.text }
               ]}
             >
-              {syncServerUrl ?? "Not configured"}
-            </Text>
-          </View>
-
-          <View style={styles.syncStatusRow}>
-            <Text
-              style={[
-                styles.syncLabel,
-                { color: colors.muted }
-              ]}
-            >
-              Connection
+              Sync settings
             </Text>
 
-            <Text
-              style={[
-                styles.syncValue,
-                {
-                  color:
-                    syncInfo?.status === "failed"
-                      ? "#f87171"
-                      : colors.iconActive
+            <View style={styles.syncRow}>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Local
+              </Text>
+
+              <Switch
+                value={hybridEnabled}
+                onValueChange={(value) =>
+                  updateSyncMode(
+                    value ? "hybrid" : "local"
+                  )
                 }
-              ]}
-            >
-              {syncServerUrl
-                ? syncInfo?.status === "failed"
-                  ? "Unstable"
-                  : "Healthy"
-                : "Unavailable"}
-            </Text>
-          </View>
+              />
 
-          <Text
-            style={[
-              styles.syncTimestamp,
-              { color: colors.muted }
-            ]}
-          >
-            Last sync:{" "}
-            {formatSyncTimestamp(
-              syncInfo?.timestamp
-            )}
-          </Text>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Hybrid
+              </Text>
+            </View>
 
-          {syncInfo?.message ? (
+            <View style={styles.syncButtonsGrid}>
+              <View
+                style={[
+                  styles.syncActionColumn,
+                  { marginRight: 8 }
+                ]}
+              >
+                <Pressable
+                  style={[
+                    styles.secondaryButton,
+                    styles.syncActionButton,
+                    {
+                      borderColor: getStatusColor(
+                        pushStatus.status
+                      ),
+                      backgroundColor: colors.surface
+                    }
+                  ]}
+                  onPress={syncToMaster}
+                  disabled={syncing}
+                >
+                  {syncing ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.secondaryButtonText,
+                        { color: colors.text }
+                      ]}
+                    >
+                      Sync To Master DB
+                    </Text>
+                  )}
+                </Pressable>
+
+                <View
+                  style={[
+                    styles.syncStatusMeta,
+                    {
+                      borderColor: getStatusColor(
+                        pushStatus.status
+                      )
+                    }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.syncStatusMetaLabel,
+                      { color: colors.muted }
+                    ]}
+                  >
+                    Sync To Master status
+                  </Text>
+                  <Text
+                    style={[
+                      styles.syncStatusMetaText,
+                      { color: colors.text }
+                    ]}
+                  >
+                    {getStatusLabel(pushStatus.status)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.syncStatusMetaTimestamp,
+                      { color: colors.muted }
+                    ]}
+                  >
+                    Last update:{" "}
+                    {formatSyncTimestamp(
+                      pushStatus.timestamp
+                    )}
+                  </Text>
+                  {pushStatus.message ? (
+                    <Text
+                      style={[
+                        styles.syncStatusMetaMessage,
+                        { color: colors.muted }
+                      ]}
+                    >
+                      {pushStatus.message}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.syncActionColumn,
+                  { marginLeft: 8 }
+                ]}
+              >
+                <Pressable
+                  style={[
+                    styles.outlineButton,
+                    styles.syncActionButton,
+                    {
+                      borderColor: getStatusColor(
+                        pullStatus.status
+                      )
+                    }
+                  ]}
+                  onPress={syncFromMaster}
+                  disabled={pulling}
+                >
+                  {pulling ? (
+                    <ActivityIndicator
+                      color={colors.iconActive}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.outlineButtonText,
+                        {
+                          color: getStatusColor(
+                            pullStatus.status
+                          )
+                        }
+                      ]}
+                    >
+                      Sync From Master DB
+                    </Text>
+                  )}
+                </Pressable>
+
+                <View
+                  style={[
+                    styles.syncStatusMeta,
+                    {
+                      borderColor: getStatusColor(
+                        pullStatus.status
+                      )
+                    }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.syncStatusMetaLabel,
+                      { color: colors.muted }
+                    ]}
+                  >
+                    Sync From Master status
+                  </Text>
+                  <Text
+                    style={[
+                      styles.syncStatusMetaText,
+                      { color: colors.text }
+                    ]}
+                  >
+                    {getStatusLabel(pullStatus.status)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.syncStatusMetaTimestamp,
+                      { color: colors.muted }
+                    ]}
+                  >
+                    Last update:{" "}
+                    {formatSyncTimestamp(
+                      pullStatus.timestamp
+                    )}
+                  </Text>
+                  {pullStatus.message ? (
+                    <Text
+                      style={[
+                        styles.syncStatusMetaMessage,
+                        { color: colors.muted }
+                      ]}
+                    >
+                      {pullStatus.message}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.syncStatusRow}>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Server
+              </Text>
+
+              <Text
+                style={[
+                  styles.syncValue,
+                  { color: colors.text }
+                ]}
+              >
+                {syncServerUrl ?? "Not configured"}
+              </Text>
+            </View>
+
+            <View style={styles.syncStatusRow}>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Connection
+              </Text>
+
+              <Text
+                style={[
+                  styles.syncValue,
+                  {
+                    color:
+                      overallStatus.status === "failed"
+                        ? "#f87171"
+                        : colors.iconActive
+                  }
+                ]}
+              >
+                {syncServerUrl
+                  ? overallStatus.status === "failed"
+                    ? "Unstable"
+                    : "Healthy"
+                  : "Unavailable"}
+              </Text>
+            </View>
+
             <Text
               style={[
-                styles.syncMessage,
+                styles.syncTimestamp,
                 { color: colors.muted }
               ]}
             >
-              {syncInfo.message}
+              Last sync:{" "}
+              {formatSyncTimestamp(
+                overallStatus.timestamp
+              )}
             </Text>
-          ) : null}
-        </View>
+          </View>
 
         <View
           style={[styles.card, themedCard]}
@@ -978,6 +1166,47 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
 
+  syncButtonsGrid: {
+    flexDirection: "row",
+    marginTop: 16
+  },
+
+  syncActionColumn: {
+    flex: 1
+  },
+
+  syncActionButton: {
+    borderWidth: 2
+  },
+
+  syncStatusMeta: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10
+  },
+
+  syncStatusMetaLabel: {
+    fontSize: 13,
+    fontWeight: "600"
+  },
+
+  syncStatusMetaText: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 4
+  },
+
+  syncStatusMetaTimestamp: {
+    fontSize: 12,
+    marginTop: 4
+  },
+
+  syncStatusMetaMessage: {
+    fontSize: 12,
+    marginTop: 2
+  },
+
   syncLabel: {
     fontSize: 16,
     fontWeight: "700",
@@ -1064,7 +1293,7 @@ const styles = StyleSheet.create({
 
   secondaryButtonText: {
     color: "#ffffff",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800"
   },
 
@@ -1077,7 +1306,7 @@ const styles = StyleSheet.create({
   },
 
   outlineButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800"
   },
 

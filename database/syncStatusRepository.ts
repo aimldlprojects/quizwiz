@@ -1,18 +1,53 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
-const STATUS_KEY = "sync_last_status"
-const MESSAGE_KEY = "sync_last_message"
-const TIMESTAMP_KEY = "sync_last_at"
+type SyncDirection = "overall" | "push" | "pull"
+
+const STATUS_KEYS: Record<
+  SyncDirection,
+  { status: string; message: string; timestamp: string }
+> = {
+  overall: {
+    status: "sync_last_status",
+    message: "sync_last_message",
+    timestamp: "sync_last_at"
+  },
+  push: {
+    status: "sync_last_status_push",
+    message: "sync_last_message_push",
+    timestamp: "sync_last_at_push"
+  },
+  pull: {
+    status: "sync_last_status_pull",
+    message: "sync_last_message_pull",
+    timestamp: "sync_last_at_pull"
+  }
+}
+
+const ALL_SYNC_KEYS = Array.from(
+  new Set(
+    Object.values(STATUS_KEYS).flatMap((entry) => [
+      entry.status,
+      entry.message,
+      entry.timestamp
+    ])
+  )
+)
 
 export type SyncStatusValue =
   | "success"
   | "failed"
   | "unknown"
 
-export interface SyncStatusRecord {
+export interface SyncStatusEntry {
   status: SyncStatusValue
   message: string | null
   timestamp: number | null
+}
+
+export interface SyncStatusRecord {
+  overall: SyncStatusEntry
+  push: SyncStatusEntry
+  pull: SyncStatusEntry
 }
 
 async function upsertSetting(
@@ -35,19 +70,46 @@ export async function setSyncStatus(
   db: SQLiteDatabase,
   status: SyncStatusValue,
   message: string | null,
-  timestamp = Date.now()
+  timestamp = Date.now(),
+  direction: SyncDirection = "overall"
 ): Promise<void> {
-  await upsertSetting(db, STATUS_KEY, status)
+  const keys = STATUS_KEYS[direction]
+
+  await upsertSetting(db, keys.status, status)
   await upsertSetting(
     db,
-    MESSAGE_KEY,
+    keys.message,
     message ?? ""
   )
   await upsertSetting(
     db,
-    TIMESTAMP_KEY,
+    keys.timestamp,
     String(timestamp)
   )
+}
+
+function parseEntry(
+  rows: Map<string, string>,
+  direction: SyncDirection
+): SyncStatusEntry {
+  const keys = STATUS_KEYS[direction]
+
+  const status =
+    (rows.get(keys.status) as SyncStatusValue) ??
+    "unknown"
+
+  const message = rows.get(keys.message) || null
+  const timestampValue = rows.get(keys.timestamp)
+  const timestamp =
+    timestampValue && !Number.isNaN(Number(timestampValue))
+      ? Number(timestampValue)
+      : null
+
+  return {
+    status,
+    message,
+    timestamp
+  }
 }
 
 export async function getSyncStatus(
@@ -61,9 +123,9 @@ export async function getSyncStatus(
       `
       SELECT key, value
       FROM settings
-      WHERE key IN (?, ?, ?)
+      WHERE key IN (${ALL_SYNC_KEYS.map(() => "?").join(", ")})
       `,
-      [STATUS_KEY, MESSAGE_KEY, TIMESTAMP_KEY]
+      ALL_SYNC_KEYS
     )
 
   const map = new Map<string, string>()
@@ -72,20 +134,9 @@ export async function getSyncStatus(
     map.set(row.key, row.value)
   }
 
-  const status =
-    (map.get(STATUS_KEY) as SyncStatusValue) ??
-    "unknown"
-  const message =
-    map.get(MESSAGE_KEY) || null
-  const timestampValue = map.get(TIMESTAMP_KEY)
-  const timestamp =
-    timestampValue && !Number.isNaN(Number(timestampValue))
-      ? Number(timestampValue)
-      : null
-
   return {
-    status,
-    message,
-    timestamp
+    overall: parseEntry(map, "overall"),
+    push: parseEntry(map, "push"),
+    pull: parseEntry(map, "pull")
   }
 }

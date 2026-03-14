@@ -16,31 +16,56 @@ sys.path.insert(
 
 from db import fetch_rows
 
-SYNC_KEYS = [
-    "sync_last_status",
-    "sync_last_message",
-    "sync_last_at",
+SYNC_SECTIONS = [
+    ("", "Overall"),
+    ("_push", "Push"),
+    ("_pull", "Pull"),
 ]
 
 
 def fetch_sync_status():
-    placeholders = ", ".join(["%s"] * len(SYNC_KEYS))
+    keys = []
+
+    for suffix, _ in SYNC_SECTIONS:
+        keys.extend(
+            [
+                f"sync_last_status{suffix}",
+                f"sync_last_message{suffix}",
+                f"sync_last_at{suffix}",
+            ]
+        )
+
+    # dedupe
+    keys = list(dict.fromkeys(keys))
+
+    placeholders = ", ".join(["%s"] * len(keys))
     rows = fetch_rows(
         f"""
         SELECT key, value
         FROM settings
         WHERE key IN ({placeholders})
         """,
-        SYNC_KEYS,
+        keys,
     )
 
     mapping = {row["key"]: row["value"] for row in rows}
 
-    status = mapping.get("sync_last_status", "unknown")
-    message = mapping.get("sync_last_message", "")
-    timestamp = mapping.get("sync_last_at")
+    result = []
 
-    return status, message, timestamp
+    for suffix, label in SYNC_SECTIONS:
+        status = mapping.get(
+            f"sync_last_status{suffix}", "unknown"
+        )
+        message = mapping.get(
+            f"sync_last_message{suffix}", ""
+        )
+        timestamp = mapping.get(
+            f"sync_last_at{suffix}"
+        )
+
+        result.append((label, status, message, timestamp))
+
+    return result
 
 
 def format_timestamp(value):
@@ -57,14 +82,18 @@ def format_timestamp(value):
 
 
 def main():
-    status, message, timestamp = fetch_sync_status()
+    statuses = fetch_sync_status()
 
     print("=" * 40)
     print("Centralized Sync Status")
     print("-" * 40)
-    print(f"Status : {status}")
-    print(f"Message: {message or 'None'}")
-    print(f"Updated: {format_timestamp(timestamp)}")
+
+    for label, status, message, timestamp in statuses:
+        print(f"{label} status : {status}")
+        print(f"{label} message: {message or 'None'}")
+        print(f"{label} updated: {format_timestamp(timestamp)}")
+        print("-" * 20)
+
     print("=" * 40)
 
 

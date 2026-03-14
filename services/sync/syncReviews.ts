@@ -16,12 +16,31 @@ export async function syncReviews(
   userId: number
 ): Promise<void> {
 
+  let stage: "push" | "pull" | "overall" = "overall"
+
   try {
 
+    stage = "push"
     await pushReviews(db, serverUrl, userId)
+    await setSyncStatus(
+      db,
+      "success",
+      "Sent updates to the global database.",
+      Date.now(),
+      "push"
+    )
 
+    stage = "pull"
     await pullReviews(db, serverUrl, userId)
+    await setSyncStatus(
+      db,
+      "success",
+      "Pulled fresh data from the global database.",
+      Date.now(),
+      "pull"
+    )
 
+    stage = "overall"
     await setSyncStatus(
       db,
       "success",
@@ -35,6 +54,13 @@ export async function syncReviews(
         ? err.message
         : "Unknown error"
 
+    await setSyncStatus(
+      db,
+      "failed",
+      message,
+      Date.now(),
+      stage
+    )
     await setSyncStatus(
       db,
       "failed",
