@@ -39,6 +39,25 @@ const DEFAULTS: Preferences = {
   themeMode: "light"
 }
 
+const preferenceListeners =
+  new Set<() => void>()
+
+function notifyPreferenceChange() {
+  for (const listener of preferenceListeners) {
+    listener()
+  }
+}
+
+function subscribeToPreferenceChanges(
+  listener: () => void
+) {
+  preferenceListeners.add(listener)
+
+  return () => {
+    preferenceListeners.delete(listener)
+  }
+}
+
 export function useStudyPreferences(
   db: SQLiteDatabase | null,
   userId: number | null = null
@@ -49,34 +68,7 @@ export function useStudyPreferences(
   const [preferences, setPreferences] =
     useState<Preferences>(DEFAULTS)
 
-  useEffect(() => {
-
-    if (!db) return
-
-    load()
-
-  }, [db, userId])
-
-  useFocusEffect(useCallback(() => {
-
-    if (!db) {
-      return
-    }
-
-    load()
-  }, [db, userId]))
-
-  useEffect(() => {
-
-    if (preferences.ttsEnabled) {
-      ttsService.enable()
-    } else {
-      ttsService.disable()
-    }
-
-  }, [preferences.ttsEnabled])
-
-  async function load() {
+  const loadPreferences = useCallback(async () => {
 
     if (!db) return
 
@@ -236,7 +228,44 @@ export function useStudyPreferences(
     setPreferences(next)
     setLoading(false)
 
-  }
+  }, [db, userId])
+
+  useEffect(() => {
+
+    loadPreferences()
+
+  }, [loadPreferences])
+
+  useFocusEffect(
+    useCallback(() => {
+
+      loadPreferences()
+
+    }, [loadPreferences])
+  )
+
+  useEffect(() => {
+
+    if (!db) return
+
+    const unsubscribe =
+      subscribeToPreferenceChanges(
+        loadPreferences
+      )
+
+    return unsubscribe
+
+  }, [db, loadPreferences])
+
+  useEffect(() => {
+
+    if (preferences.ttsEnabled) {
+      ttsService.enable()
+    } else {
+      ttsService.disable()
+    }
+
+  }, [preferences.ttsEnabled])
 
   async function savePreference(
     key: string,
@@ -254,6 +283,8 @@ export function useStudyPreferences(
       `,
       [key, value]
     )
+
+    notifyPreferenceChange()
 
   }
 

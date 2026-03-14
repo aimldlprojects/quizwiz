@@ -17,6 +17,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      key={themeMode}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.iconActive,
