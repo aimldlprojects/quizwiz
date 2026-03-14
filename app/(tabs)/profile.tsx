@@ -218,45 +218,87 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        <View
-          style={[styles.card, themedCard]}
-        >
-          <Text
-            style={[
-              styles.cardTitle,
-              { color: colors.text }
-            ]}
+          <View
+            style={[styles.card, themedCard]}
           >
-            Change player
-          </Text>
-
-          <Text
-            style={[
-              styles.cardText,
-              { color: colors.muted }
-            ]}
-          >
-            Switch profiles any time without
-            leaving the app.
-          </Text>
-
-          <Pressable
-            style={[
-              styles.primaryButton,
-              { backgroundColor: colors.iconActive }
-            ]}
-            onPress={() => router.push("/users")}
-          >
-            <Text style={styles.primaryButtonText}>
-              Change User
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: colors.text }
+              ]}
+            >
+              Change player
             </Text>
-          </Pressable>
-        </View>
 
-        <View
-          style={[styles.card, themedCard]}
-        >
-          <Text
+            <Text
+              style={[
+                styles.cardText,
+                { color: colors.muted }
+              ]}
+            >
+              Switch profiles any time without
+              leaving the app.
+            </Text>
+
+            <Pressable
+              style={[
+                styles.primaryButton,
+                { backgroundColor: colors.iconActive }
+              ]}
+              onPress={() => router.push("/users")}
+            >
+              <Text style={styles.primaryButtonText}>
+                Change User
+              </Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={[styles.card, themedCard]}
+          >
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: colors.text }
+              ]}
+            >
+              Appearance
+            </Text>
+
+            <Text
+              style={[
+                styles.cardText,
+                { color: colors.muted }
+              ]}
+            >
+              Choose a light or dark theme for the app.
+            </Text>
+
+            <View style={styles.syncRow}>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Dark theme
+              </Text>
+
+              <Switch
+                value={themeMode === "dark"}
+                onValueChange={(value) =>
+                  setThemeMode(
+                    value ? "dark" : "light"
+                  )
+                }
+              />
+            </View>
+          </View>
+
+          <View
+            style={[styles.card, themedCard]}
+          >
+            <Text
             style={[
               styles.cardTitle,
               { color: colors.text }
@@ -610,52 +652,10 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View
-          style={[styles.card, themedCard]}
-        >
-          <Text
-            style={[
-              styles.cardTitle,
-              { color: colors.text }
-            ]}
+          <View
+            style={[styles.card, themedCard]}
           >
-            Appearance
-          </Text>
-
-          <Text
-            style={[
-              styles.cardText,
-              { color: colors.muted }
-            ]}
-          >
-            Choose a light or dark theme for the app.
-          </Text>
-
-          <View style={styles.syncRow}>
             <Text
-              style={[
-                styles.syncLabel,
-                { color: colors.muted }
-              ]}
-            >
-              Dark theme
-            </Text>
-
-            <Switch
-              value={themeMode === "dark"}
-              onValueChange={(value) =>
-                setThemeMode(
-                  value ? "dark" : "light"
-                )
-              }
-            />
-          </View>
-        </View>
-
-        <View
-          style={[styles.card, themedCard]}
-        >
-          <Text
             style={[
               styles.cardTitle,
               { color: colors.text }

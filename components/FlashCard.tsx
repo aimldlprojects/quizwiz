@@ -2,24 +2,30 @@
 
 import { useEffect, useState } from "react"
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type ViewStyle,
+  type TextStyle
 } from "react-native"
+
+import type { ThemeColors } from "../styles/theme"
 
 interface Props {
   question: string
   answer: string
   revealed?: boolean
   onToggle?: (revealed: boolean) => void
+  colors?: ThemeColors
 }
 
 export default function FlashCard({
   question,
   answer,
   revealed,
-  onToggle
+  onToggle,
+  colors
 }: Props) {
 
   const [internalRevealed, setInternalRevealed] =
@@ -48,10 +54,37 @@ export default function FlashCard({
     onToggle?.(nextValue)
   }
 
+  const cardStyle: ViewStyle[] = [
+    styles.card,
+    colors
+      ? {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderWidth: 1
+        }
+      : {}
+  ]
+
+  const labelStyle: TextStyle = {
+    color: colors?.muted ?? "#666"
+  }
+
+  const questionStyle: TextStyle = {
+    color: colors?.text ?? "#000"
+  }
+
+  const answerStyle: TextStyle = {
+    color: colors?.iconActive ?? "#2e7d32"
+  }
+
+  const hintStyle: TextStyle = {
+    color: colors?.muted ?? "#888"
+  }
+
   return (
 
     <TouchableOpacity
-      style={styles.card}
+      style={cardStyle}
       activeOpacity={0.9}
       onPress={toggleCard}
     >
@@ -59,15 +92,25 @@ export default function FlashCard({
       {!isRevealed ? (
 
         <View style={styles.content}>
-          <Text style={styles.label}>
+          <Text style={[styles.label, labelStyle]}>
             Question
           </Text>
 
-          <Text style={styles.question}>
+          <Text
+            style={[
+              styles.question,
+              questionStyle
+            ]}
+          >
             {question}
           </Text>
 
-          <Text style={styles.tapHint}>
+          <Text
+            style={[
+              styles.tapHint,
+              hintStyle
+            ]}
+          >
             Tap to reveal answer
           </Text>
         </View>
@@ -76,15 +119,25 @@ export default function FlashCard({
 
         <View style={styles.content}>
 
-          <Text style={styles.label}>
+          <Text style={[styles.label, labelStyle]}>
             Answer
           </Text>
 
-          <Text style={styles.answer}>
+          <Text
+            style={[
+              styles.answer,
+              answerStyle
+            ]}
+          >
             {answer}
           </Text>
 
-          <Text style={styles.tapHint}>
+          <Text
+            style={[
+              styles.tapHint,
+              hintStyle
+            ]}
+          >
             Tap to hide
           </Text>
 

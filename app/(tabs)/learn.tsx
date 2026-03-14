@@ -359,7 +359,10 @@ export default function LearnScreen() {
           >
             <View style={styles.heroCopy}>
               <Text
-                style={[styles.kicker, { color: colors.muted }]}
+                style={[
+                  styles.kicker,
+                  { color: colors.iconActive }
+                ]}
               >
                 Learn mode
               </Text>
@@ -452,19 +455,23 @@ export default function LearnScreen() {
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.cardShell,
-            { backgroundColor: colors.card }
-          ]}
-        >
-          {card ? (
-            <FlashCard
-              question={card.question}
-              answer={String(card.answer)}
-              revealed={revealed}
-              onToggle={setRevealed}
-            />
+            <View
+              style={[
+                styles.cardShell,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border
+                }
+              ]}
+            >
+              {card ? (
+                <FlashCard
+                  question={card.question}
+                  answer={String(card.answer)}
+                  revealed={revealed}
+                  onToggle={setRevealed}
+                  colors={colors}
+                />
           ) : (
             <Text
               style={[styles.placeholder, { color: colors.muted }]}
@@ -482,7 +489,11 @@ export default function LearnScreen() {
               <Pressable
                 style={[
                   styles.controlButton,
-                  { backgroundColor: colors.surface }
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1
+                  }
                 ]}
                 onPress={prevCard}
               >
@@ -499,7 +510,11 @@ export default function LearnScreen() {
               <Pressable
                 style={[
                   styles.controlButton,
-                  { backgroundColor: colors.surface }
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1
+                  }
                 ]}
                 onPress={nextCard}
               >
@@ -725,14 +740,13 @@ const styles = StyleSheet.create({
 
   controlButton: {
     flex: 1,
-    backgroundColor: "#1d4ed8",
     borderRadius: 18,
     paddingVertical: 14,
     alignItems: "center"
   },
 
   controlText: {
-    color: "#ffffff",
+    color: "#0f172a",
     fontWeight: "700"
   },
 
