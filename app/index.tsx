@@ -12,7 +12,9 @@ import { StatsRepository } from "../database/statsRepository"
 import { useBackupManager } from "../hooks/useBackupManager"
 
 import { useDatabase } from "@/hooks/useDatabase"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useUsers } from "@/hooks/useUsers"
+import { getThemeColors } from "@/styles/theme"
 
 export default function HomeScreen() {
 
@@ -21,6 +23,9 @@ export default function HomeScreen() {
   const { db, loading } = useDatabase()
 
   const { activeUser } = useUsers(db)
+  const { themeMode } =
+    useStudyPreferences(db, activeUser)
+  const colors = getThemeColors(themeMode)
 
   const backupManager =
     useBackupManager(db ?? null)
@@ -89,7 +94,9 @@ export default function HomeScreen() {
   function renderTitle() {
 
     return (
-      <Text style={styles.title}>
+      <Text
+        style={[styles.title, { color: colors.text }]}
+      >
         QuizWiz
       </Text>
     )
@@ -111,7 +118,8 @@ export default function HomeScreen() {
           style={{
             textAlign: "center",
             fontSize: 18,
-            marginTop: 10
+            marginTop: 10,
+            color: colors.muted
           }}
         >
           🔥 Streak: {streak} days
@@ -130,28 +138,52 @@ export default function HomeScreen() {
       <View style={styles.actions}>
 
         <Pressable
-          style={styles.button}
+          style={[
+            styles.button,
+            { backgroundColor: colors.iconActive }
+          ]}
           onPress={goPractice}
         >
-          <Text style={styles.buttonText}>
+          <Text
+            style={[
+              styles.buttonText,
+              { color: "#fff" }
+            ]}
+          >
             Start Practice
           </Text>
         </Pressable>
 
         <Pressable
-          style={styles.button}
+          style={[
+            styles.button,
+            { backgroundColor: colors.iconActive }
+          ]}
           onPress={goLearn}
         >
-          <Text style={styles.buttonText}>
+          <Text
+            style={[
+              styles.buttonText,
+              { color: "#fff" }
+            ]}
+          >
             Learn
           </Text>
         </Pressable>
 
         <Pressable
-          style={styles.button}
+          style={[
+            styles.button,
+            { backgroundColor: colors.iconActive }
+          ]}
           onPress={goProgress}
         >
-          <Text style={styles.buttonText}>
+          <Text
+            style={[
+              styles.buttonText,
+              { color: "#fff" }
+            ]}
+          >
             Progress
           </Text>
         </Pressable>

@@ -1,15 +1,28 @@
-import { StyleSheet, Text, View } from "react-native"
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle
+} from "react-native"
 
 interface Props {
   attempts: number
   correct: number
   accuracy?: number
+  containerStyle?: StyleProp<ViewStyle>
+  labelStyle?: StyleProp<TextStyle>
+  valueStyle?: StyleProp<TextStyle>
 }
 
 export default function ScoreHeader({
   attempts,
   correct,
-  accuracy
+  accuracy,
+  containerStyle,
+  labelStyle,
+  valueStyle
 }: Props) {
 
   const acc =
@@ -21,18 +34,18 @@ export default function ScoreHeader({
 
   return (
 
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
 
       <View style={styles.scoreBlock}>
-        <Text style={styles.label}>Score</Text>
-        <Text style={styles.value}>
+        <Text style={[styles.label, labelStyle]}>Score</Text>
+        <Text style={[styles.value, valueStyle]}>
           {correct} / {attempts}
         </Text>
       </View>
 
       <View style={styles.scoreBlock}>
-        <Text style={styles.label}>Accuracy</Text>
-        <Text style={styles.value}>
+        <Text style={[styles.label, labelStyle]}>Accuracy</Text>
+        <Text style={[styles.value, valueStyle]}>
           {acc}%
         </Text>
       </View>

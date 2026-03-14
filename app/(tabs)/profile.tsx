@@ -18,6 +18,7 @@ import { getSyncServerUrl } from "@/services/sync/config"
 import { syncReviews } from "@/services/sync/syncReviews"
 import { useUsers } from "@/hooks/useUsers"
 import { useState } from "react"
+import { getThemeColors } from "@/styles/theme"
 
 function getAvatarLetter(name: string) {
 
@@ -58,11 +59,18 @@ export default function ProfileScreen() {
     setLearnFrontDelaySeconds,
     learnBackDelaySeconds,
     setLearnBackDelaySeconds,
+    themeMode,
+    setThemeMode,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
     activeUser
   )
+  const colors = getThemeColors(themeMode)
+  const themedCard = {
+    backgroundColor: colors.card,
+    borderColor: colors.border
+  }
   const [syncing, setSyncing] =
     useState(false)
 
@@ -167,13 +175,29 @@ export default function ProfileScreen() {
 
   }
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
+    return (
+      <SafeAreaView
+        style={[
+          styles.safeArea,
+          { backgroundColor: colors.background }
+        ]}
+      >
       <ScrollView
         contentContainerStyle={styles.container}
+        style={{ backgroundColor: colors.background }}
       >
-        <View style={styles.hero}>
-          <View style={styles.avatar}>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: colors.card }
+          ]}
+        >
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: colors.iconActive }
+            ]}
+          >
             <Text style={styles.avatarText}>
               {getAvatarLetter(
                 currentUser?.name ?? "QuizWiz"
@@ -181,27 +205,46 @@ export default function ProfileScreen() {
             </Text>
           </View>
 
-          <Text style={styles.heroLabel}>
+          <Text
+            style={[styles.heroLabel, { color: colors.muted }]}
+          >
             Active Profile
           </Text>
 
-          <Text style={styles.heroName}>
+          <Text
+            style={[styles.heroName, { color: colors.text }]}
+          >
             {currentUser?.name ?? "No profile selected"}
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Change player
           </Text>
 
-          <Text style={styles.cardText}>
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
             Switch profiles any time without
             leaving the app.
           </Text>
 
           <Pressable
-            style={styles.primaryButton}
+            style={[
+              styles.primaryButton,
+              { backgroundColor: colors.iconActive }
+            ]}
             onPress={() => router.push("/users")}
           >
             <Text style={styles.primaryButtonText}>
@@ -210,13 +253,25 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Sync settings
           </Text>
 
           <View style={styles.syncRow}>
-            <Text style={styles.syncLabel}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
               Local
             </Text>
 
@@ -229,33 +284,58 @@ export default function ProfileScreen() {
               }
             />
 
-            <Text style={styles.syncLabel}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
               Hybrid
             </Text>
           </View>
 
           <Pressable
-            style={styles.secondaryButton}
+            style={[
+              styles.secondaryButton,
+              { backgroundColor: colors.surface }
+            ]}
             onPress={syncProfileData}
             disabled={syncing}
           >
             {syncing ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.secondaryButtonText}>
+              <Text
+                style={[
+                  styles.secondaryButtonText,
+                  { color: colors.text }
+                ]}
+              >
                 Sync To Global DB
               </Text>
             )}
           </Pressable>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Voice settings
           </Text>
 
           <View style={styles.syncRow}>
-            <Text style={styles.syncLabel}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
               Read questions aloud
             </Text>
 
@@ -266,17 +346,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Practice navigation
           </Text>
 
-          <Text style={styles.cardText}>
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
             Move to the next question automatically after each answer.
           </Text>
 
           <View style={styles.syncRow}>
-            <Text style={styles.syncLabel}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
               Auto next
             </Text>
 
@@ -287,7 +384,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.delayRow}>
-            <Text style={styles.delayLabel}>
+            <Text
+              style={[
+                styles.delayLabel,
+                { color: colors.text }
+              ]}
+            >
               Correct answer delay
             </Text>
 
@@ -303,7 +405,12 @@ export default function ProfileScreen() {
                 </Text>
               </Pressable>
 
-              <Text style={styles.delayValue}>
+              <Text
+                style={[
+                  styles.delayValue,
+                  { color: colors.text }
+                ]}
+              >
                 {autoNextCorrectDelaySeconds}s
               </Text>
 
@@ -321,7 +428,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.delayRow}>
-            <Text style={styles.delayLabel}>
+            <Text
+              style={[
+                styles.delayLabel,
+                { color: colors.text }
+              ]}
+            >
               Wrong answer delay
             </Text>
 
@@ -337,7 +449,12 @@ export default function ProfileScreen() {
                 </Text>
               </Pressable>
 
-              <Text style={styles.delayValue}>
+              <Text
+                style={[
+                  styles.delayValue,
+                  { color: colors.text }
+                ]}
+              >
                 {autoNextWrongDelaySeconds}s
               </Text>
 
@@ -355,17 +472,34 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Learn navigation
           </Text>
 
-          <Text style={styles.cardText}>
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
             Auto flip flash cards and move to the next card after the answer side is shown.
           </Text>
 
           <View style={styles.syncRow}>
-            <Text style={styles.syncLabel}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
               Auto play learn cards
             </Text>
 
@@ -376,7 +510,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.delayRow}>
-            <Text style={styles.delayLabel}>
+            <Text
+              style={[
+                styles.delayLabel,
+                { color: colors.text }
+              ]}
+            >
               Front side delay
             </Text>
 
@@ -395,7 +534,12 @@ export default function ProfileScreen() {
                 </Text>
               </Pressable>
 
-              <Text style={styles.delayValue}>
+              <Text
+                style={[
+                  styles.delayValue,
+                  { color: colors.text }
+                ]}
+              >
                 {learnFrontDelaySeconds}s
               </Text>
 
@@ -416,7 +560,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.delayRow}>
-            <Text style={styles.delayLabel}>
+            <Text
+              style={[
+                styles.delayLabel,
+                { color: colors.text }
+              ]}
+            >
               Back side delay
             </Text>
 
@@ -435,7 +584,12 @@ export default function ProfileScreen() {
                 </Text>
               </Pressable>
 
-              <Text style={styles.delayValue}>
+              <Text
+                style={[
+                  styles.delayValue,
+                  { color: colors.text }
+                ]}
+              >
                 {learnBackDelaySeconds}s
               </Text>
 
@@ -456,18 +610,75 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
+            Appearance
+          </Text>
+
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
+            Choose a light or dark theme for the app.
+          </Text>
+
+          <View style={styles.syncRow}>
+            <Text
+              style={[
+                styles.syncLabel,
+                { color: colors.muted }
+              ]}
+            >
+              Dark theme
+            </Text>
+
+            <Switch
+              value={themeMode === "dark"}
+              onValueChange={(value) =>
+                setThemeMode(
+                  value ? "dark" : "light"
+                )
+              }
+            />
+          </View>
+        </View>
+
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Admin tools
           </Text>
 
-          <Text style={styles.cardText}>
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
             Add or remove learner profiles with
             the admin password.
           </Text>
 
           <Pressable
-            style={styles.adminButton}
+            style={[
+              styles.adminButton,
+              { backgroundColor: colors.iconActive }
+            ]}
             onPress={() => router.push("/admin")}
           >
             <Text style={styles.adminButtonText}>

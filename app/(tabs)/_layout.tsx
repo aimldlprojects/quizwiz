@@ -1,20 +1,32 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import { Tabs } from "expo-router"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useUsers } from "@/hooks/useUsers"
+import { getThemeColors } from "@/styles/theme"
 
 export default function TabLayout() {
+
+  const { db } = useDatabase()
+  const { activeUser } = useUsers(db)
+  const { themeMode } = useStudyPreferences(
+    db,
+    activeUser
+  )
+  const colors = getThemeColors(themeMode)
 
   return (
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#1d4ed8",
-        tabBarInactiveTintColor: "#64748b",
+        tabBarActiveTintColor: colors.iconActive,
+        tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
           height: 74,
           paddingTop: 10,
           paddingBottom: 10,
-          backgroundColor: "#ffffff",
-          borderTopColor: "#bfdbfe"
+          backgroundColor: colors.card,
+          borderTopColor: colors.border
         },
         tabBarLabelStyle: {
           fontSize: 12,

@@ -1,56 +1,47 @@
 // components/AnswerActions.tsx
 
-import { Button, StyleSheet, View } from "react-native"
-import { ReviewRating } from "../engine/scheduler/spacedRepetition"
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View
+} from "react-native"
+import type { ThemeColors } from "../styles/theme"
 
 interface Props {
-
   answered: boolean
-
   onSubmit: () => void
   onNext: () => void
-
-  onRate: (rating: ReviewRating) => void
+  colors: ThemeColors
 }
 
 export default function AnswerActions({
-
   answered,
   onSubmit,
-  onNext
-
+  onNext,
+  colors
 }: Props) {
 
-  if (!answered) {
-
-    return (
-      <View style={styles.container}>
-
-        <Button
-          title="Submit"
-          onPress={onSubmit}
-        />
-
-      </View>
-    )
-
-  }
-
   return (
-
     <View style={styles.container}>
-
-      <View style={styles.nextRow}>
-
-        <Button
-          title="Next Question"
-          onPress={onNext}
-        />
-
-      </View>
-
+      <Pressable
+        style={[
+          styles.button,
+          {
+            backgroundColor:
+              colors.iconActive,
+            borderColor: colors.border
+          }
+        ]}
+        onPress={answered ? onNext : onSubmit}
+      >
+        <Text style={styles.buttonText}>
+          {answered
+            ? "Next Question"
+            : "Submit Answer"}
+        </Text>
+      </Pressable>
     </View>
-
   )
 
 }
@@ -61,8 +52,18 @@ const styles = StyleSheet.create({
     marginTop: 20
   },
 
-  nextRow: {
-    alignItems: "center"
+  button: {
+    width: "100%",
+    paddingVertical: 14,
+    alignItems: "center",
+    borderRadius: 16,
+    borderWidth: 2
+  },
+
+  buttonText: {
+    color: "#ffffff",
+    fontWeight: "800",
+    fontSize: 16
   }
 
 })

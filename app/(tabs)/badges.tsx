@@ -12,6 +12,8 @@ import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useUsers } from "../../hooks/useUsers"
+import { useStudyPreferences } from "../../hooks/useStudyPreferences"
+import { getThemeColors } from "../../styles/theme"
 
 type BadgeLevel = "locked" | "bronze" | "silver" | "gold"
 
@@ -67,6 +69,8 @@ export default function BadgesScreen() {
     activeUser,
     loading: usersLoading
   } = useUsers(db)
+  const { themeMode } = useStudyPreferences(db, activeUser)
+  const colors = getThemeColors(themeMode)
 
   const [badgeCards, setBadgeCards] =
     useState<BadgeCard[]>([])
@@ -207,15 +211,25 @@ export default function BadgesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.background }
+      ]}
+    >
       <ScrollView
         contentContainerStyle={styles.container}
+        style={{ backgroundColor: colors.background }}
       >
-        <Text style={styles.title}>
+        <Text
+          style={[styles.title, { color: colors.text }]}
+        >
           Level Badges
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text
+          style={[styles.subtitle, { color: colors.muted }]}
+        >
           Bronze, silver, and gold badges rise
           with your performance.
         </Text>
@@ -223,7 +237,13 @@ export default function BadgesScreen() {
         {badgeCards.map((badge) => (
           <View
             key={badge.id}
-            style={styles.badgeCard}
+            style={[
+              styles.badgeCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border
+              }
+            ]}
           >
             <View
               style={[
@@ -242,16 +262,31 @@ export default function BadgesScreen() {
             </View>
 
             <View style={styles.badgeBody}>
-              <Text style={styles.badgeTitle}>
+              <Text
+                style={[
+                  styles.badgeTitle,
+                  { color: colors.text }
+                ]}
+              >
                 {badge.title}
               </Text>
 
-              <Text style={styles.badgeText}>
+              <Text
+                style={[
+                  styles.badgeText,
+                  { color: colors.muted }
+                ]}
+              >
                 {badge.description}
               </Text>
 
               <View style={styles.badgeFooter}>
-                <Text style={styles.badgeValue}>
+                <Text
+                  style={[
+                    styles.badgeValue,
+                    { color: colors.text }
+                  ]}
+                >
                   {badge.value}
                 </Text>
 
@@ -271,14 +306,25 @@ export default function BadgesScreen() {
           </View>
         ))}
 
-        <Text style={styles.sectionTitle}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            { color: colors.text }
+          ]}
+        >
           Achievement Stickers
         </Text>
 
         {achievementBadges.map((badge) => (
           <View
             key={badge.id}
-            style={styles.achievementCard}
+            style={[
+              styles.achievementCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border
+              }
+            ]}
           >
             <MaterialIcons
               name={
@@ -295,13 +341,23 @@ export default function BadgesScreen() {
             />
 
             <View style={styles.achievementBody}>
-              <Text style={styles.achievementTitle}>
-                {badge.title}
-              </Text>
+            <Text
+              style={[
+                styles.achievementTitle,
+                { color: colors.text }
+              ]}
+            >
+              {badge.title}
+            </Text>
 
-              <Text style={styles.achievementText}>
-                {badge.description}
-              </Text>
+            <Text
+              style={[
+                styles.achievementText,
+                { color: colors.muted }
+              ]}
+            >
+              {badge.description}
+            </Text>
             </View>
           </View>
         ))}

@@ -9,7 +9,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../hooks/useDatabase"
+import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
+import { getThemeColors } from "../styles/theme"
 
 function getAvatarColor(index: number) {
 
@@ -37,6 +39,13 @@ export default function UsersScreen() {
     selectUser,
     loading
   } = useUsers(db)
+  const { themeMode } =
+    useStudyPreferences(db, activeUser)
+  const colors = getThemeColors(themeMode)
+  const cardBaseStyle = {
+    backgroundColor: colors.card,
+    borderColor: colors.border
+  }
 
   if (dbLoading || loading) {
     return (
@@ -51,18 +60,38 @@ export default function UsersScreen() {
   const hasUsers = users.length > 0
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
 
-      <View style={styles.hero}>
+      <View
+        style={[
+          styles.hero,
+          { backgroundColor: colors.card }
+        ]}
+      >
         <Text style={styles.eyebrow}>
           Pick your player
         </Text>
 
-        <Text style={styles.title}>
+        <Text
+          style={[
+            styles.title,
+            { color: colors.text }
+          ]}
+        >
           Who is learning today?
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text
+          style={[
+            styles.subtitle,
+            { color: colors.muted }
+          ]}
+        >
           Choose a profile to jump into
           practice and track progress.
         </Text>
@@ -88,11 +117,20 @@ export default function UsersScreen() {
               <Pressable
                 style={[
                   styles.card,
+                  cardBaseStyle,
                   isActive && styles.activeCard
                 ]}
                 onPress={async () => {
-                  await selectUser(item.id)
-                  router.replace("/topics")
+                  try {
+                    await selectUser(item.id)
+                  } catch (error) {
+                    console.error(
+                      "Failed to change active user:",
+                      error
+                    )
+                  } finally {
+                    router.replace("/topics")
+                  }
                 }}
               >
                 <View
@@ -112,11 +150,21 @@ export default function UsersScreen() {
                   </Text>
                 </View>
 
-                <Text style={styles.cardName}>
+                <Text
+                  style={[
+                    styles.cardName,
+                    { color: colors.text }
+                  ]}
+                >
                   {item.name}
                 </Text>
 
-                <Text style={styles.cardHint}>
+                <Text
+                  style={[
+                    styles.cardHint,
+                    { color: colors.muted }
+                  ]}
+                >
                   {isActive
                     ? "Current profile"
                     : "Tap to continue"}

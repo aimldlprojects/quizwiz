@@ -29,6 +29,7 @@ import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
 import { usePractice } from "../../hooks/usePractice"
+import { getThemeColors } from "../../styles/theme"
 
 function getKeyboardType(answer: unknown) {
 
@@ -60,6 +61,7 @@ export default function PracticeScreen() {
     autoNextWrongDelaySeconds,
     practiceRandomOrderEnabled,
     setPracticeRandomOrderEnabled,
+    themeMode,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
@@ -204,6 +206,12 @@ export default function PracticeScreen() {
     practice.answered
   const autoNextQuestion =
     practice.autoNext
+  const colors = getThemeColors(themeMode)
+  const iconButtonStyle = (active: boolean) => ({
+    backgroundColor: active
+      ? colors.iconActive
+      : colors.iconInactive
+  })
 
   useEffect(() => {
 
@@ -302,19 +310,39 @@ export default function PracticeScreen() {
     if (!practiceQuestion) {
       return (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>
+          <Text
+            style={[
+              styles.emptyTitle,
+              { color: colors.text }
+            ]}
+          >
             No question ready yet
           </Text>
 
-          <Text style={styles.emptyText}>
+          <Text
+            style={[
+              styles.emptyText,
+              { color: colors.muted }
+            ]}
+          >
             This topic has no playable content yet.
           </Text>
 
           <Pressable
-            style={styles.retryButton}
+            style={[
+              styles.retryButton,
+              {
+                backgroundColor: colors.iconActive
+              }
+            ]}
             onPress={practice.startPractice}
           >
-            <Text style={styles.retryButtonText}>
+            <Text
+              style={[
+                styles.retryButtonText,
+                { color: "#ffffff" }
+              ]}
+            >
               Try Again
             </Text>
           </Pressable>
@@ -323,7 +351,9 @@ export default function PracticeScreen() {
     }
 
     return (
-        <Text style={styles.question}>
+      <Text
+        style={[styles.question, { color: colors.text }]}
+      >
         {practiceQuestion.question}
       </Text>
     )
@@ -336,14 +366,24 @@ export default function PracticeScreen() {
 
     if (practiceResult.correct) {
       return (
-        <Text style={styles.correct}>
+        <Text
+          style={[
+            styles.correct,
+            { color: colors.iconActive }
+          ]}
+        >
           Correct answer. Great job.
         </Text>
       )
     }
 
     return (
-      <Text style={styles.wrong}>
+      <Text
+        style={[
+          styles.wrong,
+          { color: "#f87171" }
+        ]}
+      >
         Try again next time. Correct answer:{" "}
         {practiceResult.correctAnswer}
       </Text>
@@ -352,16 +392,41 @@ export default function PracticeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.headerCard}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <View
+          style={[
+            styles.headerCard,
+            { backgroundColor: colors.card }
+          ]}
+        >
           <View style={styles.headerRow}>
             <View style={styles.headerTitleWrap}>
-              <Text style={styles.screenTitle}>
+              <Text
+                style={[
+                  styles.screenTitle,
+                  { color: colors.text }
+                ]}
+              >
                 Practice Arena
               </Text>
 
-              <Text style={styles.topicLabel}>
+              <Text
+                style={[
+                  styles.topicLabel,
+                  { color: colors.muted }
+                ]}
+              >
                 {selectedTopic?.name ??
                   "Selected topic"}
               </Text>
@@ -371,8 +436,7 @@ export default function PracticeScreen() {
               <Pressable
                 style={[
                   styles.iconButton,
-                  practiceRandomOrderEnabled &&
-                    styles.activeIconButton
+                  iconButtonStyle(practiceRandomOrderEnabled)
                 ]}
                 onPress={() =>
                   setPracticeRandomOrderEnabled(
@@ -390,8 +454,7 @@ export default function PracticeScreen() {
               <Pressable
                 style={[
                   styles.iconButton,
-                  autoNextEnabled &&
-                    styles.activeIconButton
+                  iconButtonStyle(autoNextEnabled)
                 ]}
                 onPress={() =>
                   setAutoNextEnabled(!autoNextEnabled)
@@ -407,8 +470,7 @@ export default function PracticeScreen() {
               <Pressable
                 style={[
                   styles.iconButton,
-                  ttsEnabled &&
-                    styles.activeIconButton
+                  iconButtonStyle(ttsEnabled)
                 ]}
                 onPress={() =>
                   setTtsEnabled(!ttsEnabled)
@@ -425,10 +487,13 @@ export default function PracticeScreen() {
                 />
               </Pressable>
 
-              <Pressable
-                style={styles.iconButton}
-                onPress={replayQuestion}
-              >
+            <Pressable
+              style={[
+                styles.iconButton,
+                iconButtonStyle(false)
+              ]}
+              onPress={replayQuestion}
+            >
                 <MaterialIcons
                   name="play-arrow"
                   size={20}
@@ -442,14 +507,34 @@ export default function PracticeScreen() {
             attempts={practice.stats.attempts}
             correct={practice.stats.correct}
             accuracy={practice.accuracy}
+            containerStyle={{
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border
+            }}
+            labelStyle={{ color: colors.muted }}
+            valueStyle={{ color: colors.text }}
           />
 
-          <Text style={styles.scoreText}>
+          <Text
+            style={[
+              styles.scoreText,
+              { color: colors.text }
+            ]}
+          >
             Score: {practice.score}
           </Text>
         </View>
 
-        <View style={styles.questionCard}>
+        <View
+          style={[
+            styles.questionCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
           {renderQuestion()}
 
           {practiceQuestion ? (
@@ -458,7 +543,14 @@ export default function PracticeScreen() {
                 style={[
                   styles.input,
                   practiceAnswered &&
-                    styles.inputDisabled
+                    styles.inputDisabled,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: practiceAnswered
+                      ? colors.surface
+                      : colors.background,
+                    color: colors.text
+                  }
                 ]}
                 value={practice.answer}
                 onChangeText={practice.setAnswer}
@@ -472,7 +564,9 @@ export default function PracticeScreen() {
                   practice.submitAnswer("good")
                 }
                 placeholder="Type your answer"
-                placeholderTextColor="#8d99ae"
+                placeholderTextColor={
+                  colors.muted
+                }
               />
 
               {renderResult()}
@@ -481,7 +575,15 @@ export default function PracticeScreen() {
         </View>
 
         {practiceQuestion ? (
-          <View style={styles.actionsCard}>
+          <View
+            style={[
+              styles.actionsCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border
+              }
+            ]}
+          >
             <AnswerActions
               answered={practiceAnswered}
               onSubmit={() =>
@@ -490,7 +592,7 @@ export default function PracticeScreen() {
               onNext={() =>
                 practice.nextQuestion()
               }
-              onRate={() => {}}
+              colors={colors}
             />
           </View>
         ) : null}
@@ -556,13 +658,8 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center"
-  },
-
-  activeIconButton: {
-    backgroundColor: "#0f766e"
   },
 
   screenTitle: {

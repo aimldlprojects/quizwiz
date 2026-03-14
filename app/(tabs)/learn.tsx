@@ -31,6 +31,7 @@ import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { generateLearnCardsForTopic } from "../../engine/questions/questionFactory"
+import { getThemeColors } from "../../styles/theme"
 
 type Card = {
   id: number
@@ -81,6 +82,7 @@ export default function LearnScreen() {
     learnBackDelaySeconds,
     learnRandomOrderEnabled,
     setLearnRandomOrderEnabled,
+    themeMode,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
@@ -105,6 +107,12 @@ export default function LearnScreen() {
     useRef<ReturnType<typeof setTimeout> | null>(
       null
     )
+  const colors = getThemeColors(themeMode)
+  const iconButtonStyle = (active: boolean) => ({
+    backgroundColor: active
+      ? colors.iconActive
+      : colors.iconInactive
+  })
 
   function clearLearnTimers() {
 
@@ -327,37 +335,55 @@ export default function LearnScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.background }
+      ]}
+    >
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.hero}>
-          <View style={styles.heroHeader}>
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: colors.card }
+          ]}
+        >
+          <View
+            style={[
+              styles.heroHeader,
+              { borderColor: colors.border }
+            ]}
+          >
             <View style={styles.heroCopy}>
-              <Text style={styles.kicker}>
+              <Text
+                style={[styles.kicker, { color: colors.muted }]}
+              >
                 Learn mode
               </Text>
 
-              <Text style={styles.title}>
+              <Text
+                style={[styles.title, { color: colors.text }]}
+              >
                 {topic?.name ??
                   "Choose a topic first"}
               </Text>
             </View>
 
             <View style={styles.headerActions}>
-              <Pressable
-                style={[
-                  styles.iconButton,
-                  learnRandomOrderEnabled &&
-                    styles.activeIconButton
-                ]}
-                onPress={() =>
-                  setLearnRandomOrderEnabled(
-                    !learnRandomOrderEnabled
-                  )
-                }
-              >
+            <Pressable
+              style={[
+                styles.iconButton,
+                iconButtonStyle(learnRandomOrderEnabled)
+              ]}
+              onPress={() =>
+                setLearnRandomOrderEnabled(
+                  !learnRandomOrderEnabled
+                )
+              }
+            >
                 <MaterialIcons
                   name="shuffle"
                   size={20}
@@ -365,18 +391,17 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-              <Pressable
-                style={[
-                  styles.iconButton,
-                  learnAutoPlayEnabled &&
-                    styles.activeIconButton
-                ]}
-                onPress={() =>
-                  setLearnAutoPlayEnabled(
-                    !learnAutoPlayEnabled
-                  )
-                }
-              >
+            <Pressable
+              style={[
+                styles.iconButton,
+                iconButtonStyle(learnAutoPlayEnabled)
+              ]}
+              onPress={() =>
+                setLearnAutoPlayEnabled(
+                  !learnAutoPlayEnabled
+                )
+              }
+            >
                 <MaterialIcons
                   name="skip-next"
                   size={20}
@@ -384,16 +409,15 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-              <Pressable
-                style={[
-                  styles.iconButton,
-                  ttsEnabled &&
-                    styles.activeIconButton
-                ]}
-                onPress={() =>
-                  setTtsEnabled(!ttsEnabled)
-                }
-              >
+            <Pressable
+              style={[
+                styles.iconButton,
+                iconButtonStyle(ttsEnabled)
+              ]}
+              onPress={() =>
+                setTtsEnabled(!ttsEnabled)
+              }
+            >
                 <MaterialIcons
                   name={
                     ttsEnabled
@@ -405,10 +429,13 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-              <Pressable
-                style={styles.iconButton}
-                onPress={replayQuestion}
-              >
+            <Pressable
+              style={[
+                styles.iconButton,
+                iconButtonStyle(false)
+              ]}
+              onPress={replayQuestion}
+            >
                 <MaterialIcons
                   name="play-arrow"
                   size={20}
@@ -418,12 +445,19 @@ export default function LearnScreen() {
             </View>
           </View>
 
-          <Text style={styles.subtitle}>
+          <Text
+            style={[styles.subtitle, { color: colors.muted }]}
+          >
             {getTopicDescription(topic)}
           </Text>
         </View>
 
-        <View style={styles.cardShell}>
+        <View
+          style={[
+            styles.cardShell,
+            { backgroundColor: colors.card }
+          ]}
+        >
           {card ? (
             <FlashCard
               question={card.question}
@@ -432,7 +466,9 @@ export default function LearnScreen() {
               onToggle={setRevealed}
             />
           ) : (
-            <Text style={styles.placeholder}>
+            <Text
+              style={[styles.placeholder, { color: colors.muted }]}
+            >
               {selectedTopicId
                 ? "No cards are ready for this topic yet."
                 : "Choose a topic before learning."}
@@ -444,19 +480,35 @@ export default function LearnScreen() {
           <>
             <View style={styles.controls}>
               <Pressable
-                style={styles.controlButton}
+                style={[
+                  styles.controlButton,
+                  { backgroundColor: colors.surface }
+                ]}
                 onPress={prevCard}
               >
-                <Text style={styles.controlText}>
+                <Text
+                  style={[
+                    styles.controlText,
+                    { color: colors.text }
+                  ]}
+                >
                   Previous
                 </Text>
               </Pressable>
 
               <Pressable
-                style={styles.controlButton}
+                style={[
+                  styles.controlButton,
+                  { backgroundColor: colors.surface }
+                ]}
                 onPress={nextCard}
               >
-                <Text style={styles.controlText}>
+                <Text
+                  style={[
+                    styles.controlText,
+                    { color: colors.text }
+                  ]}
+                >
                   Next
                 </Text>
               </Pressable>
@@ -516,7 +568,12 @@ export default function LearnScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.progress}>
+            <Text
+              style={[
+                styles.progress,
+                { color: colors.text }
+              ]}
+            >
               Card {progress.current} of{" "}
               {progress.total}
             </Text>
@@ -603,13 +660,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center"
-  },
-
-  activeIconButton: {
-    backgroundColor: "#0f766e"
   },
 
   cardShell: {

@@ -183,21 +183,35 @@ export function useUsers(
       serverUrl &&
       previousUser
     ) {
-      await pushReviews(
-        db,
-        serverUrl,
-        previousUser
-      )
+      try {
+        await pushReviews(
+          db,
+          serverUrl,
+          previousUser
+        )
+      } catch (error) {
+        console.error(
+          "Failed to push reviews before switching user:",
+          error
+        )
+      }
     }
 
     await controller.setActiveUser(id)
 
     if (mode === "hybrid" && serverUrl) {
-      await pullReviews(
-        db,
-        serverUrl,
-        id
-      )
+      try {
+        await pullReviews(
+          db,
+          serverUrl,
+          id
+        )
+      } catch (error) {
+        console.error(
+          "Failed to pull reviews after switching user:",
+          error
+        )
+      }
     }
 
     setActiveUser(id)

@@ -16,6 +16,7 @@ import {
 } from "../../database/contentRepository"
 import { useUsers } from "../../hooks/useUsers"
 import { UserSubjectRepository } from "../../database/userSubjectRepository"
+import { getThemeColors } from "../../styles/theme"
 
 type Subject = {
   id: number
@@ -44,11 +45,13 @@ export default function TopicsScreen() {
     selectedTopicId,
     setSelectedSubjectId,
     setSelectedTopicId,
+    themeMode,
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
     activeUser
   )
+  const colors = getThemeColors(themeMode)
 
   const [subjects, setSubjects] =
     useState<Subject[]>([])
@@ -246,20 +249,32 @@ export default function TopicsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.background }
+      ]}
+    >
       <ScrollView
         contentContainerStyle={styles.container}
+        style={{ backgroundColor: colors.background }}
       >
-        <Text style={styles.title}>
+        <Text
+          style={[styles.title, { color: colors.text }]}
+        >
           Choose Subject and Topic
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text
+          style={[styles.subtitle, { color: colors.muted }]}
+        >
           Pick what to study before opening
           Learn or Practice.
         </Text>
 
-        <Text style={styles.helperText}>
+        <Text
+          style={[styles.helperText, { color: colors.muted }]}
+        >
           Green means allowed, white means off, yellow means some child topics are off, and the blue border shows your current path.
         </Text>
 
@@ -275,8 +290,21 @@ export default function TopicsScreen() {
           </View>
         ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.text }
+            ]}
+          >
             Subjects
           </Text>
 
@@ -343,13 +371,31 @@ export default function TopicsScreen() {
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.text }
+            ]}
+          >
             Topics
           </Text>
 
           {selectedSubjectId == null ? (
-            <Text style={styles.helperText}>
+            <Text
+              style={[
+                styles.helperText,
+                { color: colors.muted }
+              ]}
+            >
               Select a subject first.
             </Text>
           ) : (
@@ -444,12 +490,30 @@ export default function TopicsScreen() {
           )}
         </View>
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.sectionTitle}>
+        <View
+          style={[
+            styles.summaryCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.text }
+            ]}
+          >
             Current selection
           </Text>
 
-          <Text style={styles.summaryText}>
+          <Text
+            style={[
+              styles.summaryText,
+              { color: colors.text }
+            ]}
+          >
             Subject:{" "}
             {visibleSubjects.find(
               (subject) =>
@@ -457,12 +521,22 @@ export default function TopicsScreen() {
             )?.name ?? "Not selected"}
           </Text>
 
-          <Text style={styles.summaryText}>
+          <Text
+            style={[
+              styles.summaryText,
+              { color: colors.text }
+            ]}
+          >
             Topic:{" "}
             {selectedTopic?.name ?? "Not selected"}
           </Text>
 
-          <Text style={styles.helperText}>
+          <Text
+            style={[
+              styles.helperText,
+              { color: colors.muted }
+            ]}
+          >
             Path:{" "}
             {lineage.length === 0
               ? "Choose a topic"

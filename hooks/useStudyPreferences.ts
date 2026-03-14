@@ -7,6 +7,7 @@ import {
 } from "react"
 
 import { ttsService } from "@/services/ttsService"
+import type { ThemeMode } from "@/styles/theme"
 
 type Preferences = {
   selectedSubjectId: number | null
@@ -20,6 +21,7 @@ type Preferences = {
   learnBackDelaySeconds: number
   learnRandomOrderEnabled: boolean
   practiceRandomOrderEnabled: boolean
+  themeMode: ThemeMode
 }
 
 const DEFAULTS: Preferences = {
@@ -33,7 +35,8 @@ const DEFAULTS: Preferences = {
   learnFrontDelaySeconds: 5,
   learnBackDelaySeconds: 5,
   learnRandomOrderEnabled: false,
-  practiceRandomOrderEnabled: false
+  practiceRandomOrderEnabled: false,
+  themeMode: "light"
 }
 
 export function useStudyPreferences(
@@ -117,6 +120,10 @@ export function useStudyPreferences(
       userId == null
         ? "practice_random_order_enabled"
         : `practice_random_order_enabled_user_${userId}`
+    const themeModeKey =
+      userId == null
+        ? "theme_mode"
+        : `theme_mode_user_${userId}`
     const rows =
       await db.getAllAsync<{
         key: string
@@ -126,6 +133,7 @@ export function useStudyPreferences(
         SELECT key, value
         FROM settings
         WHERE key = ?
+        OR key = ?
         OR key = ?
         OR key = ?
         OR key = ?
@@ -148,7 +156,8 @@ export function useStudyPreferences(
           learnFrontDelayKey,
           learnBackDelayKey,
           learnRandomOrderKey,
-          practiceRandomOrderKey
+          practiceRandomOrderKey,
+          themeModeKey
         ]
       )
 
@@ -214,6 +223,12 @@ export function useStudyPreferences(
         case practiceRandomOrderKey:
           next.practiceRandomOrderEnabled =
             row.value === "1"
+          break
+        case themeModeKey:
+          next.themeMode =
+            row.value === "dark"
+              ? "dark"
+              : "light"
           break
       }
     }
@@ -457,6 +472,24 @@ export function useStudyPreferences(
 
   }
 
+  async function setThemeMode(
+    mode: ThemeMode
+  ) {
+
+    setPreferences((current) => ({
+      ...current,
+      themeMode: mode
+    }))
+
+    await savePreference(
+      userId == null
+        ? "theme_mode"
+        : `theme_mode_user_${userId}`,
+      mode
+    )
+
+  }
+
   return {
     ...preferences,
     loading,
@@ -470,7 +503,8 @@ export function useStudyPreferences(
     setLearnFrontDelaySeconds,
     setLearnBackDelaySeconds,
     setLearnRandomOrderEnabled,
-    setPracticeRandomOrderEnabled
+    setPracticeRandomOrderEnabled,
+    setThemeMode
   }
 
 }

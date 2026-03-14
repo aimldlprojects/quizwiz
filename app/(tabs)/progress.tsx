@@ -5,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
+import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
+import { getThemeColors } from "../../styles/theme"
 
 export default function ProgressScreen() {
 
@@ -14,6 +16,8 @@ export default function ProgressScreen() {
     activeUser,
     loading: usersLoading
   } = useUsers(db)
+  const { themeMode } = useStudyPreferences(db, activeUser)
+  const colors = getThemeColors(themeMode)
 
   const [accuracy, setAccuracy] =
     useState(0)
@@ -85,14 +89,36 @@ export default function ProgressScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView style={styles.container}>
-        <Text style={styles.title}>
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: colors.background }
+      ]}
+    >
+      <ScrollView
+        style={[
+          styles.container,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <Text
+          style={[styles.title, { color: colors.text }]}
+        >
           Progress Map
         </Text>
 
-        <View style={styles.heroCard}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[
+            styles.heroCard,
+            { backgroundColor: colors.card }
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Overall Accuracy
           </Text>
 
@@ -100,13 +126,31 @@ export default function ProgressScreen() {
             {accuracy}%
           </Text>
 
-          <Text style={styles.heroSubtext}>
+          <Text
+            style={[
+              styles.heroSubtext,
+              { color: colors.muted }
+            ]}
+          >
             Current streak: {streak} day{streak === 1 ? "" : "s"}
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Topics
           </Text>
 
@@ -126,13 +170,19 @@ export default function ProgressScreen() {
                   style={[
                     styles.rowLabel,
                     topic.level > 0 &&
-                      styles.childRowLabel
+                      styles.childRowLabel,
+                    { color: colors.text }
                   ]}
                 >
                   {topic.indexLabel} {topic.topicName}
                 </Text>
 
-                <Text style={styles.rowValue}>
+                <Text
+                  style={[
+                    styles.rowValue,
+                    { color: colors.text }
+                  ]}
+                >
                   {topic.progress}%
                 </Text>
               </View>
@@ -141,7 +191,8 @@ export default function ProgressScreen() {
                 style={[
                   styles.detailText,
                   topic.level > 0 &&
-                    styles.indentedDetailText
+                    styles.indentedDetailText,
+                  { color: colors.muted }
                 ]}
               >
                 {topic.correct}/{topic.practiced} correct
@@ -152,8 +203,21 @@ export default function ProgressScreen() {
           ))}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Subjects
           </Text>
 
@@ -163,16 +227,28 @@ export default function ProgressScreen() {
               style={styles.progressItem}
             >
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>
+                <Text
+                  style={[
+                    styles.rowLabel,
+                    { color: colors.text }
+                  ]}
+                >
                   {subject.subjectName}
                 </Text>
 
-                <Text style={styles.rowValue}>
+                <Text
+                  style={[
+                    styles.rowValue,
+                    { color: colors.text }
+                  ]}
+                >
                   {subject.progress}%
                 </Text>
               </View>
 
-              <Text style={styles.detailText}>
+              <Text
+                style={[styles.detailText, { color: colors.muted }]}
+              >
                 {subject.correct}/{subject.practiced} correct
                 {"  "}•{"  "}
                 {subject.practiced}/{subject.totalQuestions} seen
