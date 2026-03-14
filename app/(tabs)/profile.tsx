@@ -505,14 +505,18 @@ export default function ProfileScreen() {
                   {syncing ? (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <Text
-                      style={[
-                        styles.secondaryButtonText,
-                        { color: colors.text }
-                      ]}
-                    >
-                      Sync To Master DB
-                    </Text>
+                  <Text
+                    style={[
+                      styles.secondaryButtonText,
+                      {
+                        color: getStatusColor(
+                          pushStatus.status
+                        )
+                      }
+                    ]}
+                  >
+                    Sync To Master DB
+                  </Text>
                   )}
                 </Pressable>
 
