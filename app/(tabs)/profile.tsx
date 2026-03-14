@@ -15,6 +15,7 @@ import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { getSyncServerUrl } from "@/services/sync/config"
+import { pullReviews } from "@/services/sync/pullReviews"
 import { syncReviews } from "@/services/sync/syncReviews"
 import { useUsers } from "@/hooks/useUsers"
 import {
@@ -81,6 +82,8 @@ export default function ProfileScreen() {
   }
   const [syncing, setSyncing] =
     useState(false)
+  const [pulling, setPulling] =
+    useState(false)
 
   const [syncInfo, setSyncInfo] =
     useState<SyncStatusRecord | null>(null)
@@ -99,10 +102,10 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!db) return
-    if (syncing) return
+    if (syncing || pulling) return
 
     refreshSyncStatus()
-  }, [db, refreshSyncStatus, syncing])
+  }, [db, refreshSyncStatus, syncing, pulling])
 
   if (
     dbLoading ||
@@ -128,7 +131,7 @@ export default function ProfileScreen() {
   const hybridEnabled =
     syncMode === "hybrid"
 
-  async function syncProfileData() {
+  async function syncToMaster() {
 
     if (!db || !activeUser) return
 
@@ -165,6 +168,47 @@ export default function ProfileScreen() {
       )
     } finally {
       setSyncing(false)
+      await refreshSyncStatus()
+    }
+  }
+
+  async function syncFromMaster() {
+
+    if (!db || !activeUser) return
+
+    const serverUrl =
+      getSyncServerUrl()
+
+    if (!serverUrl) {
+      Alert.alert(
+        "Sync unavailable",
+        "Global sync is not configured yet on this device."
+      )
+      return
+    }
+
+    setPulling(true)
+
+    try {
+      await pullReviews(
+        db,
+        serverUrl,
+        activeUser
+      )
+
+      Alert.alert(
+        "Sync complete",
+        "Your profile was refreshed from the master database."
+      )
+    } catch (error) {
+      Alert.alert(
+        "Sync failed",
+        error instanceof Error
+          ? error.message
+          : "We could not pull your profile data right now."
+      )
+    } finally {
+      setPulling(false)
       await refreshSyncStatus()
     }
 
@@ -372,7 +416,7 @@ export default function ProfileScreen() {
               styles.secondaryButton,
               { backgroundColor: colors.surface }
             ]}
-            onPress={syncProfileData}
+            onPress={syncToMaster}
             disabled={syncing}
           >
             {syncing ? (
@@ -384,7 +428,31 @@ export default function ProfileScreen() {
                   { color: colors.text }
                 ]}
               >
-                Sync To Global DB
+                Sync To Master DB
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.outlineButton,
+              {
+                borderColor: colors.iconActive
+              }
+            ]}
+            onPress={syncFromMaster}
+            disabled={pulling}
+          >
+            {pulling ? (
+              <ActivityIndicator color={colors.iconActive} />
+            ) : (
+              <Text
+                style={[
+                  styles.outlineButtonText,
+                  { color: colors.iconActive }
+                ]}
+              >
+                Sync From Master DB
               </Text>
             )}
           </Pressable>
@@ -996,6 +1064,19 @@ const styles = StyleSheet.create({
 
   secondaryButtonText: {
     color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "800"
+  },
+
+  outlineButton: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    paddingVertical: 14,
+    alignItems: "center"
+  },
+
+  outlineButtonText: {
     fontSize: 16,
     fontWeight: "800"
   },

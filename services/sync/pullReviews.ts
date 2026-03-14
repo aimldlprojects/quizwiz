@@ -14,6 +14,116 @@ Pull Reviews From Server
 --------------------------------------------------
 */
 
+async function replaceStats(
+  db: SQLiteDatabase,
+  userId: number,
+  stats: Array<{
+    id?: number
+    user_id: number
+    correct: number
+    wrong: number
+    practiced_at?: number | string | null
+  }>
+) {
+  if (stats == null) {
+    return
+  }
+
+  await db.runAsync(
+    `
+    DELETE FROM stats
+    WHERE user_id = ?
+    `,
+    [userId]
+  )
+
+  for (const row of stats) {
+    await db.runAsync(
+      `
+      INSERT INTO stats
+      (id, user_id, correct, wrong, practiced_at)
+      VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        row.id ?? null,
+        row.user_id,
+        row.correct,
+        row.wrong,
+        row.practiced_at ?? Date.now()
+      ]
+    )
+  }
+
+}
+
+async function replaceUserBadges(
+  db: SQLiteDatabase,
+  userId: number,
+  badges: Array<{
+    user_id: number
+    badge_id: string
+    unlocked_at?: number | string | null
+  }>
+) {
+  if (badges == null) {
+    return
+  }
+
+  await db.runAsync(
+    `
+    DELETE FROM user_badges
+    WHERE user_id = ?
+    `,
+    [userId]
+  )
+
+  for (const row of badges) {
+    await db.runAsync(
+      `
+      INSERT INTO user_badges
+      (user_id, badge_id, unlocked_at)
+      VALUES (?, ?, ?)
+      `,
+      [
+        row.user_id,
+        row.badge_id,
+        row.unlocked_at ?? Date.now()
+      ]
+    )
+  }
+
+}
+
+async function replaceSettings(
+  db: SQLiteDatabase,
+  entries: Array<{
+    key: string
+    value: string
+  }>
+) {
+  if (entries == null) {
+    return
+  }
+
+  await db.runAsync(
+    `
+    DELETE FROM settings
+    `
+  )
+
+  for (const entry of entries) {
+    await db.runAsync(
+      `
+      INSERT INTO settings
+      (key, value)
+      VALUES (?, ?)
+      `,
+      [entry.key, entry.value]
+    )
+  }
+
+}
+
 export async function pullReviews(
   db: SQLiteDatabase,
   serverUrl: string,
@@ -33,28 +143,16 @@ export async function pullReviews(
     throw new Error(`Failed to pull reviews: ${res.status}`)
   }
 
-  const data: {
-    changes: Array<{
-      user_id: number
-      question_id: number
-      repetition: number
-      interval: number
-      ease_factor: number
-      next_review: number
-      last_result: string
-      rev_id: number
-    }>
-  } = await res.json()
+  const data = await res.json()
 
-  if (!data?.changes?.length) {
-    return
-  }
+  const reviews =
+    data?.reviews ?? data?.changes ?? []
 
   const repo = new ReviewRepository(db)
 
   let maxRev = lastSync
 
-  for (const r of data.changes) {
+  for (const r of reviews) {
 
     const review = new Review({
       userId: r.user_id,
@@ -83,5 +181,13 @@ export async function pullReviews(
       maxRev
     )
   }
+
+  await replaceStats(db, userId, data?.stats ?? [])
+  await replaceUserBadges(
+    db,
+    userId,
+    data?.user_badges ?? []
+  )
+  await replaceSettings(db, data?.settings ?? [])
 
 }

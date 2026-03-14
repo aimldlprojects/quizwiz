@@ -71,6 +71,58 @@ Push Reviews To Server
 --------------------------------------------------
 */
 
+async function getStats(
+  db: SQLiteDatabase,
+  userId: number
+) {
+  return await db.getAllAsync<{
+    id: number
+    user_id: number
+    correct: number
+    wrong: number
+    practiced_at: number | string | null
+  }>(
+    `
+    SELECT *
+    FROM stats
+    WHERE user_id = ?
+    `,
+    [userId]
+  )
+}
+
+async function getUserBadges(
+  db: SQLiteDatabase,
+  userId: number
+) {
+  return await db.getAllAsync<{
+    user_id: number
+    badge_id: string
+    unlocked_at: number | string | null
+  }>(
+    `
+    SELECT *
+    FROM user_badges
+    WHERE user_id = ?
+    `,
+    [userId]
+  )
+}
+
+async function getSettings(
+  db: SQLiteDatabase
+) {
+  return await db.getAllAsync<{
+    key: string
+    value: string
+  }>(
+    `
+    SELECT key, value
+    FROM settings
+    `
+  )
+}
+
 export async function pushReviews(
   db: SQLiteDatabase,
   serverUrl: string,
@@ -88,7 +140,16 @@ export async function pushReviews(
     lastSync
   )
 
-  if (!changes || changes.length === 0) {
+  const stats = await getStats(db, userId)
+  const settings = await getSettings(db)
+  const badges = await getUserBadges(db, userId)
+
+  if (
+    (!changes || changes.length === 0) &&
+    stats.length === 0 &&
+    settings.length === 0 &&
+    badges.length === 0
+  ) {
     return
   }
 
@@ -101,7 +162,10 @@ export async function pushReviews(
       },
       body: JSON.stringify({
         user_id: userId,
-        changes
+        reviews: changes,
+        stats,
+        settings,
+        user_badges: badges
       })
     }
   )

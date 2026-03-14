@@ -36,6 +36,7 @@ export async function initDB(db: SQLiteDatabase) {
   await createUserStreakTable(db)
 
   await createStatsTable(db)
+  await migrateStatsTable(db)
 
   await createUserBadgesTable(db)
 
@@ -444,9 +445,37 @@ async function createStatsTable(db: SQLiteDatabase) {
       user_id INTEGER NOT NULL,
       correct INTEGER DEFAULT 0,
       wrong INTEGER DEFAULT 0,
-      created_at INTEGER DEFAULT (strftime('%s','now')*1000)
+      practiced_at INTEGER DEFAULT (strftime('%s','now')*1000)
 
     )
   `)
+
+}
+
+async function migrateStatsTable(
+  db: SQLiteDatabase
+) {
+
+  const columns =
+    await db.getAllAsync<{ name: string }>(`
+      PRAGMA table_info(stats)
+      `
+    )
+
+  const columnNames = new Set(
+    columns.map((column) => column.name)
+  )
+
+  if (!columnNames.has("practiced_at")) {
+    await db.execAsync(`
+      ALTER TABLE stats
+      ADD COLUMN practiced_at INTEGER
+    `)
+
+    await db.execAsync(`
+      UPDATE stats
+      SET practiced_at = COALESCE(practiced_at, created_at, (strftime('%s','now')*1000))
+    `)
+  }
 
 }
