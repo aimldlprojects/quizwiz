@@ -1,29 +1,16 @@
 import { useRouter } from "expo-router"
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  ActivityIndicator,
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { useDatabase } from "@/hooks/useDatabase"
-import { useSettings } from "@/hooks/useSettings"
-import { useStudyPreferences } from "@/hooks/useStudyPreferences"
-import { getSyncServerUrl } from "@/services/sync/config"
-import { pullReviews } from "@/services/sync/pullReviews"
-import { syncReviews } from "@/services/sync/syncReviews"
-import { useUsers } from "@/hooks/useUsers"
-import {
-  useCallback,
-  useEffect,
-  useState
-} from "react"
-import { getThemeColors } from "@/styles/theme"
 import {
   getSyncStatus,
   setSyncStatus,
@@ -31,6 +18,19 @@ import {
   type SyncStatusRecord,
   type SyncStatusValue
 } from "@/database/syncStatusRepository"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useSettings } from "@/hooks/useSettings"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useUsers } from "@/hooks/useUsers"
+import { getSyncServerUrl } from "@/services/sync/config"
+import { pullReviews } from "@/services/sync/pullReviews"
+import { syncReviews } from "@/services/sync/syncReviews"
+import { getThemeColors } from "@/styles/theme"
+import {
+  useCallback,
+  useEffect,
+  useState
+} from "react"
 
 function getAvatarLetter(name: string) {
 
@@ -1293,12 +1293,12 @@ const styles = StyleSheet.create({
 
   secondaryButtonText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800"
   },
 
   outlineButton: {
-    marginTop: 12,
+    marginTop: 16,
     borderRadius: 16,
     borderWidth: 2,
     paddingVertical: 14,
@@ -1306,7 +1306,7 @@ const styles = StyleSheet.create({
   },
 
   outlineButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800"
   },
 
