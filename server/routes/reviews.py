@@ -2,44 +2,61 @@ from datetime import datetime
 from typing import Any, Iterable, Mapping, Optional
 
 import psycopg2
-from psycopg2 import extensions
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from psycopg2.extras import RealDictCursor
+
+import traceback
 
 from db import get_db, get_db_config
 from repositories.review_repository import (
     get_review_changes,
+    get_changes_since_rev,
+    get_settings_changes,
+    get_stats_changes,
+    get_user_badges_changes,
     upsert_reviews,
+    upsert_settings,
+    upsert_stats,
+    upsert_user_badges,
 )
 from repositories.sync_status_repository import (
+    current_millis,
     set_sync_status,
+    update_sync_meta,
 )
 
 router = APIRouter(prefix="/reviews")
 
 
-def to_datetime(value: Optional[Any]) -> Optional[datetime]:
+def _millis(value: Optional[Any]) -> Optional[int]:
 
     if value is None:
         return None
 
+    if isinstance(value, (int, float)):
+        return int(value)
+
     if isinstance(value, datetime):
-        return value
+        return int(value.timestamp() * 1000)
 
     try:
-        return datetime.fromtimestamp(
-            float(value) / 1000
-        )
+        numeric = float(value)
+        if numeric.is_integer():
+            return int(numeric)
+        return int(numeric)
     except Exception:
-        try:
-            return datetime.fromisoformat(str(value))
-        except Exception:
-            return None
+        return None
 
 
 def serialize_settings(rows: Iterable[Mapping[str, Any]]):
     return [
-        {"key": row["key"], "value": row["value"]}
+        {
+            "user_id": row["user_id"],
+            "key": row["key"],
+            "value": row["value"],
+            "updated_at": _millis(row.get("updated_at")),
+        }
         for row in rows
     ]
 
@@ -49,13 +66,11 @@ def serialize_stats(rows: Iterable[Mapping[str, Any]]):
         {
             "id": row["id"],
             "user_id": row["user_id"],
+            "question_id": row.get("question_id"),
             "correct": row["correct"],
             "wrong": row["wrong"],
-            "practiced_at": (
-                int(row["practiced_at"].timestamp() * 1000)
-                if isinstance(row["practiced_at"], datetime)
-                else row["practiced_at"]
-            ),
+            "practiced_at": _millis(row.get("practiced_at")),
+            "updated_at": _millis(row.get("updated_at")),
         }
         for row in rows
     ]
@@ -66,11 +81,8 @@ def serialize_user_badges(rows: Iterable[Mapping[str, Any]]):
         {
             "user_id": row["user_id"],
             "badge_id": row["badge_id"],
-            "unlocked_at": (
-                int(row["unlocked_at"].timestamp() * 1000)
-                if isinstance(row["unlocked_at"], datetime)
-                else row["unlocked_at"]
-            ),
+            "unlocked_at": _millis(row.get("unlocked_at")),
+            "updated_at": _millis(row.get("updated_at")),
         }
         for row in rows
     ]
@@ -85,14 +97,16 @@ def reviews_changes(
     conn = get_db()
 
     try:
-        reviews = get_review_changes(
-            conn,
-            user_id,
-            since,
+        reviews = get_review_changes(conn, user_id, since)
+        stats = serialize_stats(
+            get_stats_changes(conn, user_id, since)
         )
-        stats = get_user_stats(conn, user_id)
-        settings = get_settings(conn)
-        badges = get_user_badges(conn, user_id)
+        settings = serialize_settings(
+            get_settings_changes(conn, user_id, since)
+        )
+        badges = serialize_user_badges(
+            get_user_badges_changes(conn, user_id, since)
+        )
 
         return {
             "reviews": reviews,
@@ -110,8 +124,14 @@ def push_reviews(payload: dict[str, Any]):
     conn = get_db()
 
     try:
-        changes = payload.get("reviews")
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="user_id is required for sync",
+            )
 
+        changes = payload.get("reviews")
         if changes is None:
             changes = payload.get("changes", [])
 
@@ -119,34 +139,173 @@ def push_reviews(payload: dict[str, Any]):
         settings_payload = payload.get("settings", [])
         badges_payload = payload.get("user_badges", [])
 
-        max_rev = upsert_reviews(
-            conn,
-            changes,
-        )
-
+        max_rev = upsert_reviews(conn, changes)
         upsert_stats(conn, stats_payload)
         upsert_user_badges(conn, badges_payload)
         upsert_settings(conn, settings_payload)
 
         conn.commit()
 
-        set_sync_status(
+        now_ts = current_millis()
+        now_dt = datetime.utcnow()
+
+        update_sync_meta(
             conn,
-            "success",
-            f"Synced reviews={len(changes)}, stats={len(stats_payload)}, badges={len(badges_payload)}",
+            user_id,
+            {
+                "last_push_rev_id": max_rev,
+                "last_sync_time": now_ts,
+                "sync_status": "success",
+                "last_push": now_dt,
+                "last_error": None,
+            },
         )
+
+        set_sync_status(conn, user_id, "success", None, now_ts)
 
         return {
             "status": "ok",
             "max_rev": max_rev,
         }
     except Exception as exc:
+        timestamp = current_millis()
+        update_sync_meta(
+            conn,
+            payload.get("user_id") or 0,
+            {
+                "sync_status": "failed",
+                "last_sync_time": timestamp,
+                "last_error": str(exc),
+            },
+        )
         set_sync_status(
             conn,
+            payload.get("user_id") or 0,
             "failed",
             str(exc),
+            timestamp,
+        )
+        print("Error while pushing reviews:", exc)
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(exc)},
+        )
+    finally:
+        conn.close()
+
+
+@router.get("/pull")
+def pull_reviews(
+    user_id: int = Query(...),
+    since_rev_id: int = Query(0),
+):
+
+    conn = get_db()
+
+    try:
+        reviews = get_changes_since_rev(
+            conn,
+            user_id,
+            since_rev_id,
+        )
+        stats = serialize_stats(
+            get_stats_changes(conn, user_id, since_rev_id)
+        )
+        settings = serialize_settings(
+            get_settings_changes(conn, user_id, since_rev_id)
+        )
+        badges = serialize_user_badges(
+            get_user_badges_changes(conn, user_id, since_rev_id)
+        )
+
+        max_rev = since_rev_id
+        for row in reviews:
+            rev_value = row.get("rev_id") or 0
+            if rev_value > max_rev:
+                max_rev = rev_value
+
+        now_ts = current_millis()
+        now_dt = datetime.utcnow()
+
+        update_sync_meta(
+            conn,
+            user_id,
+            {
+                "last_pull_rev_id": max_rev,
+                "last_sync_time": now_ts,
+                "sync_status": "success",
+                "last_pull": now_dt,
+                "last_error": None,
+            },
+        )
+
+        set_sync_status(conn, user_id, "success", None, now_ts)
+
+        return {
+            "reviews": reviews,
+            "stats": stats,
+            "settings": settings,
+            "user_badges": badges,
+            "max_rev": max_rev,
+        }
+    except Exception as exc:
+        timestamp = current_millis()
+        update_sync_meta(
+            conn,
+            user_id,
+            {"sync_status": "failed", "last_sync_time": timestamp},
+        )
+        set_sync_status(
+            conn,
+            user_id,
+            "failed",
+            str(exc),
+            timestamp,
         )
         raise
+    finally:
+        conn.close()
+
+
+@router.get("/status")
+def sync_status(user_id: int = Query(...)):
+    conn = get_db()
+
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    last_push,
+                    last_pull,
+                    last_error,
+                    sync_status,
+                    last_sync_time
+                FROM sync_meta
+                WHERE user_id = %s
+                LIMIT 1
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        if not row:
+            return {
+                "status": "unknown",
+                "last_push": None,
+                "last_pull": None,
+                "last_error": None,
+                "last_sync_time": None,
+            }
+
+        return {
+            "status": row["sync_status"] or "unknown",
+            "last_push": row["last_push"].isoformat() if row["last_push"] else None,
+            "last_pull": row["last_pull"].isoformat() if row["last_pull"] else None,
+            "last_error": row["last_error"],
+            "last_sync_time": row["last_sync_time"],
+        }
     finally:
         conn.close()
 
@@ -235,180 +394,3 @@ def update_review(data: dict[str, Any]):
         return {"status": "ok"}
     finally:
         conn.close()
-
-
-def get_user_stats(conn, user_id: int):
-
-    cur = conn.cursor()
-
-    try:
-        cur.execute(
-            """
-            SELECT id, user_id, correct, wrong, practiced_at
-            FROM stats
-            WHERE user_id = %s
-            """,
-            (user_id,),
-        )
-
-        rows = cur.fetchall()
-        columns = [desc[0] for desc in cur.description]
-
-        return serialize_stats(
-            [dict(zip(columns, row)) for row in rows]
-        )
-    finally:
-        cur.close()
-
-
-def get_settings(conn):
-
-    cur = conn.cursor()
-
-    try:
-        cur.execute(
-            """
-            SELECT key, value
-            FROM settings
-            """
-        )
-
-        rows = cur.fetchall()
-        columns = [desc[0] for desc in cur.description]
-
-        return serialize_settings(
-            [dict(zip(columns, row)) for row in rows]
-        )
-    finally:
-        cur.close()
-
-
-def get_user_badges(conn, user_id: int):
-
-    cur = conn.cursor()
-
-    try:
-        cur.execute(
-            """
-            SELECT user_id, badge_id, unlocked_at
-            FROM user_badges
-            WHERE user_id = %s
-            """,
-            (user_id,),
-        )
-
-        rows = cur.fetchall()
-        columns = [desc[0] for desc in cur.description]
-
-        return serialize_user_badges(
-            [dict(zip(columns, row)) for row in rows]
-        )
-    finally:
-        cur.close()
-
-
-def upsert_stats(
-    conn: extensions.connection,
-    stats: list[Mapping[str, Any]],
-):
-
-    if not stats:
-        return
-
-    with conn.cursor() as cur:
-        for row in stats:
-            practiced_at = to_datetime(
-                row.get("practiced_at")
-            )
-
-            cur.execute(
-                """
-                INSERT INTO stats
-                (id, user_id, correct, wrong, practiced_at)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (id)
-                DO UPDATE SET
-                    user_id = EXCLUDED.user_id,
-                    correct = EXCLUDED.correct,
-                    wrong = EXCLUDED.wrong,
-                    practiced_at = EXCLUDED.practiced_at
-                """,
-                (
-                    row.get("id"),
-                    row["user_id"],
-                    row["correct"],
-                    row["wrong"],
-                    practiced_at,
-                ),
-            )
-
-
-def upsert_settings(
-    conn: extensions.connection,
-    settings: list[Mapping[str, Any]],
-):
-
-    if not settings:
-        return
-
-    with conn.cursor() as cur:
-        for row in settings:
-            cur.execute(
-                """
-                INSERT INTO settings
-                (key, value)
-                VALUES (%s, %s)
-                ON CONFLICT (key)
-                DO UPDATE SET value = excluded.value
-                """,
-                (row["key"], row["value"]),
-            )
-
-
-def upsert_user_badges(
-    conn: extensions.connection,
-    badges: list[Mapping[str, Any]],
-):
-
-    if not badges:
-        return
-
-    with conn.cursor() as cur:
-        for row in badges:
-            if not isinstance(row, Mapping):
-                continue
-
-            user_id = (
-                row.get("user_id")
-                or row.get("userId")
-                or row.get("user")
-            )
-            badge_id = (
-                row.get("badge_id")
-                or row.get("badgeId")
-                or row.get("badge")
-            )
-
-            if user_id is None or badge_id is None:
-                continue
-
-            unlocked_at = to_datetime(
-                row.get("unlocked_at")
-                or row.get("unlockedAt")
-            )
-
-            cur.execute(
-                """
-                INSERT INTO user_badges
-                (user_id, badge_id, unlocked_at)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (user_id, badge_id)
-                DO UPDATE SET
-                    unlocked_at = EXCLUDED.unlocked_at
-                """,
-                (
-                    user_id,
-                    badge_id,
-                    unlocked_at,
-                ),
-            )

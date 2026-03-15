@@ -162,23 +162,23 @@ export default function BadgesScreen() {
 
       setBadgeCards(cards)
 
-      const earned =
-        await db.getAllAsync<AchievementBadge>(
-          `
-          SELECT
-            b.id,
-            b.title,
-            b.description,
-            CASE
-              WHEN ub.id IS NULL THEN 0
-              ELSE 1
-            END as unlocked
-          FROM badges b
-          LEFT JOIN user_badges ub
-            ON ub.id = b.id
-            AND ub.user_id = ?
-          ORDER BY b.title
-          `,
+          const earned =
+            await db.getAllAsync<AchievementBadge>(
+              `
+              SELECT
+                b.id,
+                b.title,
+                b.description,
+                CASE
+                  WHEN ub.badge_id IS NULL THEN 0
+                  ELSE 1
+                END as unlocked
+              FROM badges b
+              LEFT JOIN user_badges ub
+                ON ub.badge_id = b.id
+                AND ub.user_id = ?
+              ORDER BY b.title
+              `,
           [activeUser]
         )
 

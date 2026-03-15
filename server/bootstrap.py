@@ -414,6 +414,10 @@ def apply_schema(config):
             cur.execute(schema_sql)
             migrate_reviews_table(cur)
             migrate_topics_table(cur)
+            migrate_stats_table(cur)
+            migrate_settings_table(cur)
+            migrate_user_badges_table(cur)
+            ensure_sync_meta_table(cur)
             seed_demo_content(cur)
 
         conn.commit()
@@ -455,6 +459,192 @@ def migrate_topics_table(cur):
         """
         ALTER TABLE questions
         ADD COLUMN IF NOT EXISTS type TEXT
+        """
+    )
+
+
+def migrate_stats_table(cur):
+
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'stats'
+                AND column_name = 'created_at'
+            ) THEN
+                ALTER TABLE stats
+                RENAME COLUMN created_at TO practiced_at;
+            END IF;
+        END
+        $$;
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE stats
+        ADD COLUMN IF NOT EXISTS question_id TEXT
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE stats
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE stats
+        ALTER COLUMN practiced_at SET DEFAULT NOW()
+        """
+    )
+
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'stats_user_question_practiced_unique'
+            ) THEN
+                ALTER TABLE stats
+                ADD CONSTRAINT stats_user_question_practiced_unique
+                UNIQUE (user_id, question_id, practiced_at);
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
+def migrate_settings_table(cur):
+
+    cur.execute(
+        """
+        ALTER TABLE settings
+        ADD COLUMN IF NOT EXISTS user_id BIGINT NOT NULL DEFAULT 0
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE settings
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE settings
+        ADD COLUMN IF NOT EXISTS sync_version BIGINT DEFAULT 1
+        """
+    )
+
+    cur.execute(
+        """
+        UPDATE settings
+        SET sync_version = 1
+        WHERE sync_version IS NULL
+        """
+    )
+
+    cur.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conrelid = 'public.settings'::regclass
+                AND contype = 'p'
+            ) THEN
+                ALTER TABLE settings
+                ADD CONSTRAINT settings_user_key_pk
+                PRIMARY KEY (user_id, key);
+            END IF;
+        END
+        $$;
+        """
+    )
+
+
+def migrate_user_badges_table(cur):
+
+    cur.execute(
+        """
+        ALTER TABLE user_badges
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE user_badges
+        ADD COLUMN IF NOT EXISTS sync_version BIGINT DEFAULT 1
+        """
+    )
+
+    cur.execute(
+        """
+        UPDATE user_badges
+        SET sync_version = 1
+        WHERE sync_version IS NULL
+        """
+    )
+
+
+def ensure_sync_meta_table(cur):
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sync_meta (
+
+            user_id BIGINT PRIMARY KEY,
+            last_push_rev_id BIGINT,
+            last_pull_rev_id BIGINT,
+            last_sync_time BIGINT,
+            sync_status TEXT,
+            error_message TEXT,
+            last_push TIMESTAMP,
+            last_pull TIMESTAMP,
+            last_error TEXT,
+            updated_at TIMESTAMP DEFAULT NOW()
+
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE sync_meta
+        ADD COLUMN IF NOT EXISTS last_push TIMESTAMP
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE sync_meta
+        ADD COLUMN IF NOT EXISTS last_pull TIMESTAMP
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE sync_meta
+        ADD COLUMN IF NOT EXISTS last_error TEXT
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE sync_meta
+        ADD COLUMN IF NOT EXISTS error_message TEXT
         """
     )
 

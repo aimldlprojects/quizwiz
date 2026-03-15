@@ -571,9 +571,9 @@ export default function AdminScreen() {
 
     await db.runAsync(
       `
-      INSERT INTO settings (key, value)
-      VALUES (?, ?)
-      ON CONFLICT(key)
+      INSERT INTO settings (user_id, key, value)
+      VALUES (0, ?, ?)
+      ON CONFLICT(user_id, key)
       DO UPDATE SET value = excluded.value
       `,
       [

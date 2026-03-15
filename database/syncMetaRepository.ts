@@ -1,5 +1,16 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
+const KEY_LAST_PUSH_REV = (userId: number) =>
+  `sync_last_push_rev_${userId}`
+const KEY_LAST_PULL_REV = (userId: number) =>
+  `sync_last_pull_rev_${userId}`
+const KEY_LAST_STATUS = (userId: number) =>
+  `sync_last_status_${userId}`
+const KEY_LAST_TIMESTAMP = (userId: number) =>
+  `sync_last_time_${userId}`
+const KEY_LAST_ERROR = (userId: number) =>
+  `sync_last_error_${userId}`
+
 /*
 --------------------------------------------------
 Init Sync Meta Table
@@ -12,51 +23,37 @@ async function ensureTable(
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS sync_meta (
-
       key TEXT PRIMARY KEY,
-      value INTEGER
-
+      value TEXT
     )
   `)
 
 }
 
-/*
---------------------------------------------------
-Get Last Sync Revision
---------------------------------------------------
-*/
-
-export async function getLastSyncRev(
+async function readValue(
   db: SQLiteDatabase,
-  userId: number
+  key: string
 ): Promise<number> {
 
   await ensureTable(db)
 
-  const row = await db.getFirstAsync<{ value: number }>(
+  const row = await db.getFirstAsync<{ value: string }>(
     `
     SELECT value
     FROM sync_meta
     WHERE key = ?
     `,
-    [`reviews_last_rev_${userId}`]
+    [key]
   )
 
-  return row?.value ?? 0
+  return row ? Number(row.value) : 0
 
 }
 
-/*
---------------------------------------------------
-Set Last Sync Revision
---------------------------------------------------
-*/
-
-export async function setLastSyncRev(
+async function writeValue(
   db: SQLiteDatabase,
-  userId: number,
-  rev: number
+  key: string,
+  value: string | number
 ): Promise<void> {
 
   await ensureTable(db)
@@ -69,7 +66,116 @@ export async function setLastSyncRev(
     ON CONFLICT(key)
     DO UPDATE SET value = excluded.value
     `,
-    [`reviews_last_rev_${userId}`, rev]
+    [key, String(value)]
   )
+
+}
+
+export async function getLastPushRev(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<number> {
+  return readValue(db, KEY_LAST_PUSH_REV(userId))
+}
+
+export async function setLastPushRev(
+  db: SQLiteDatabase,
+  userId: number,
+  rev: number
+): Promise<void> {
+  await writeValue(db, KEY_LAST_PUSH_REV(userId), rev)
+}
+
+export async function getLastPullRev(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<number> {
+  return readValue(db, KEY_LAST_PULL_REV(userId))
+}
+
+export async function setLastPullRev(
+  db: SQLiteDatabase,
+  userId: number,
+  rev: number
+): Promise<void> {
+  await writeValue(db, KEY_LAST_PULL_REV(userId), rev)
+}
+
+export async function setSyncStatus(
+  db: SQLiteDatabase,
+  userId: number,
+  status: string,
+  timestamp: number,
+  error?: string
+): Promise<void> {
+
+  await writeValue(
+    db,
+    KEY_LAST_STATUS(userId),
+    status
+  )
+  await writeValue(
+    db,
+    KEY_LAST_TIMESTAMP(userId),
+    timestamp
+  )
+
+  if (error) {
+    await writeValue(
+      db,
+      KEY_LAST_ERROR(userId),
+      error
+    )
+  }
+
+}
+
+export async function getSyncMeta(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<{
+  lastPushRev: number
+  lastPullRev: number
+  lastStatus: number
+  lastTimestamp: number
+  lastError: string | null
+}> {
+
+  await ensureTable(db)
+
+  const rows = await db.getAllAsync<{
+    key: string
+    value: string
+  }>(
+    `
+    SELECT key, value
+    FROM sync_meta
+    WHERE key IN (?, ?, ?, ?, ?)
+    `,
+    [
+      KEY_LAST_PUSH_REV(userId),
+      KEY_LAST_PULL_REV(userId),
+      KEY_LAST_STATUS(userId),
+      KEY_LAST_TIMESTAMP(userId),
+      KEY_LAST_ERROR(userId),
+    ]
+  )
+
+  const map = new Map<string, string>()
+
+  for (const row of rows) {
+    map.set(row.key, row.value)
+  }
+
+  return {
+    lastPushRev:
+      Number(map.get(KEY_LAST_PUSH_REV(userId))) || 0,
+    lastPullRev:
+      Number(map.get(KEY_LAST_PULL_REV(userId))) || 0,
+    lastStatus: map.get(KEY_LAST_STATUS(userId)) || null,
+    lastTimestamp:
+      Number(map.get(KEY_LAST_TIMESTAMP(userId))) || 0,
+    lastError: map.get(KEY_LAST_ERROR(userId)) || null,
+  }
 
 }

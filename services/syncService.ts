@@ -11,8 +11,12 @@ export class SyncService {
   private db: SQLite.SQLiteDatabase
   private userId = 1
 
-  constructor(db: SQLite.SQLiteDatabase) {
+  constructor(
+    db: SQLite.SQLiteDatabase,
+    initialUserId: number = 1
+  ) {
     this.db = db
+    this.userId = initialUserId
   }
 
   /*
@@ -184,6 +188,10 @@ export class SyncService {
       )
     }
 
+  }
+
+  setUserId(userId: number) {
+    this.userId = userId
   }
 
 }

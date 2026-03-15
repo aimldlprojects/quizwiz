@@ -18,6 +18,7 @@ import {
   type SyncStatusRecord,
   type SyncStatusValue
 } from "@/database/syncStatusRepository"
+import { getSyncMeta } from "@/database/syncMetaRepository"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
@@ -54,6 +55,10 @@ export default function ProfileScreen() {
   const {
     syncMode,
     updateSyncMode,
+    syncIntervalMs,
+    syncMinGapMs,
+    updateSyncIntervalMs,
+    updateSyncMinGapMs,
     loading: settingsLoading
   } = useSettings(db)
 
@@ -96,6 +101,10 @@ export default function ProfileScreen() {
 
   const [syncInfo, setSyncInfo] =
     useState<SyncStatusRecord | null>(null)
+  const [syncMetaInfo, setSyncMetaInfo] =
+    useState<Awaited<
+      ReturnType<typeof getSyncMeta>
+    > | null>(null)
   const syncServerUrl =
     getSyncServerUrl()
 
@@ -109,12 +118,29 @@ export default function ProfileScreen() {
       setSyncInfo(info)
     }, [db])
 
+  const refreshSyncMeta =
+    useCallback(async () => {
+      if (!db || !activeUser) return
+
+      const meta =
+        await getSyncMeta(db, activeUser)
+
+      setSyncMetaInfo(meta)
+    }, [db, activeUser])
+
   useEffect(() => {
     if (!db) return
     if (syncing || pulling) return
 
     refreshSyncStatus()
-  }, [db, refreshSyncStatus, syncing, pulling])
+    refreshSyncMeta()
+  }, [
+    db,
+    refreshSyncStatus,
+    refreshSyncMeta,
+    syncing,
+    pulling
+  ])
 
   const overallStatus =
     syncInfo?.overall ?? DEFAULT_SYNC_STATUS
@@ -210,7 +236,10 @@ export default function ProfileScreen() {
       )
     } finally {
       setSyncing(false)
-      await refreshSyncStatus()
+      await Promise.all([
+        refreshSyncStatus(),
+        refreshSyncMeta()
+      ])
     }
   }
 
@@ -279,7 +308,10 @@ export default function ProfileScreen() {
       Alert.alert("Sync failed", message)
     } finally {
       setPulling(false)
-      await refreshSyncStatus()
+      await Promise.all([
+        refreshSyncStatus(),
+        refreshSyncMeta()
+      ])
     }
 
   }
@@ -720,6 +752,184 @@ export default function ProfileScreen() {
                 overallStatus.timestamp
               )}
             </Text>
+          </View>
+
+          <View
+            style={[styles.card, themedCard]}
+          >
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: colors.text }
+              ]}
+            >
+              Sync metadata
+            </Text>
+            <View style={styles.metaRow}>
+              <Text
+                style={[
+                  styles.metaLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Last push rev
+              </Text>
+              <Text
+                style={[
+                  styles.metaValue,
+                  { color: colors.text }
+                ]}
+              >
+                {syncMetaInfo?.lastPushRev ?? "—"}
+              </Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text
+                style={[
+                  styles.metaLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Last pull rev
+              </Text>
+              <Text
+                style={[
+                  styles.metaValue,
+                  { color: colors.text }
+                ]}
+              >
+                {syncMetaInfo?.lastPullRev ?? "—"}
+              </Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text
+                style={[
+                  styles.metaLabel,
+                  { color: colors.muted }
+                ]}
+              >
+                Last error
+              </Text>
+              <Text
+                style={[
+                  styles.metaValue,
+                  { color: colors.text }
+                ]}
+              >
+                {syncMetaInfo?.lastError ?? "None"}
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={[styles.card, themedCard]}
+          >
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: colors.text }
+              ]}
+            >
+              Scheduler tuning
+            </Text>
+            <Text
+              style={[
+                styles.cardText,
+                { color: colors.muted }
+              ]}
+            >
+              Control how often background syncs trigger.
+            </Text>
+            <View style={styles.tunerRow}>
+              <View style={styles.tunerColumn}>
+                <Text
+                  style={[
+                    styles.metaLabel,
+                    { color: colors.muted }
+                  ]}
+                >
+                  Interval
+                </Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    { color: colors.text }
+                  ]}
+                >
+                  {(syncIntervalMs / 1000).toFixed(0)}s
+                </Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    style={styles.stepButton}
+                    onPress={() =>
+                      updateSyncIntervalMs(
+                        syncIntervalMs - 15_000
+                      )
+                    }
+                  >
+                    <Text style={styles.stepButtonText}>
+                      -
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.stepButton}
+                    onPress={() =>
+                      updateSyncIntervalMs(
+                        syncIntervalMs + 15_000
+                      )
+                    }
+                  >
+                    <Text style={styles.stepButtonText}>
+                      +
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.tunerColumn}>
+                <Text
+                  style={[
+                    styles.metaLabel,
+                    { color: colors.muted }
+                  ]}
+                >
+                  Min gap
+                </Text>
+                <Text
+                  style={[
+                    styles.metaValue,
+                    { color: colors.text }
+                  ]}
+                >
+                  {(syncMinGapMs / 1000).toFixed(0)}s
+                </Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    style={styles.stepButton}
+                    onPress={() =>
+                      updateSyncMinGapMs(
+                        syncMinGapMs - 5_000
+                      )
+                    }
+                  >
+                    <Text style={styles.stepButtonText}>
+                      -
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.stepButton}
+                    onPress={() =>
+                      updateSyncMinGapMs(
+                        syncMinGapMs + 5_000
+                      )
+                    }
+                  >
+                    <Text style={styles.stepButtonText}>
+                      +
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           </View>
 
         <View

@@ -81,6 +81,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   last_result TEXT,
 
   rev_id BIGINT,
+  last_modified_rev BIGINT,
+  sync_version INT DEFAULT 1,
+  updated_at TIMESTAMP DEFAULT NOW(),
 
   PRIMARY KEY(user_id, question_id)
 
@@ -99,11 +102,15 @@ CREATE TABLE IF NOT EXISTS stats (
   id BIGSERIAL PRIMARY KEY,
 
   user_id BIGINT NOT NULL,
+  question_id TEXT,
 
   correct INT DEFAULT 0,
   wrong INT DEFAULT 0,
 
-  practiced_at TIMESTAMP DEFAULT NOW()
+  practiced_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+
+  UNIQUE(user_id, question_id, practiced_at)
 
 );
 
@@ -129,10 +136,12 @@ CREATE TABLE IF NOT EXISTS user_badges (
   badge_id TEXT NOT NULL,
 
   unlocked_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW(),
+  sync_version BIGINT DEFAULT 1,
 
   PRIMARY KEY(user_id, badge_id)
 
-);
+  );
 
 -- --------------------------------------------------
 -- Settings
@@ -140,7 +149,32 @@ CREATE TABLE IF NOT EXISTS user_badges (
 
 CREATE TABLE IF NOT EXISTS settings (
 
-  key TEXT PRIMARY KEY,
-  value TEXT
+  user_id BIGINT NOT NULL DEFAULT 0,
+  key TEXT NOT NULL,
+  value TEXT,
+  updated_at TIMESTAMP DEFAULT NOW(),
+  sync_version BIGINT DEFAULT 1,
 
-);
+  CONSTRAINT settings_user_key_pk
+    PRIMARY KEY(user_id, key)
+
+  );
+
+-- --------------------------------------------------
+-- Sync Meta
+-- --------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS sync_meta (
+
+  user_id BIGINT PRIMARY KEY,
+  last_push_rev_id BIGINT,
+  last_pull_rev_id BIGINT,
+  last_sync_time BIGINT,
+  sync_status TEXT,
+  error_message TEXT,
+  last_push TIMESTAMP,
+  last_pull TIMESTAMP,
+  last_error TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+
+  );

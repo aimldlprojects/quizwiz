@@ -11,6 +11,9 @@ export interface ReviewRecord {
   next_review: number
   last_result: string
   rev_id: number | null
+  last_modified_rev: number | null
+  sync_version: number | null
+  updated_at: number | null
 }
 
 export interface StoredQuestionRecord {
@@ -83,7 +86,10 @@ export class ReviewRepository {
         ease_factor,
         next_review,
         last_result,
-        rev_id
+        rev_id,
+        last_modified_rev,
+        sync_version,
+        updated_at
       FROM reviews
       WHERE user_id = ?
       AND question_id = ?
@@ -104,6 +110,7 @@ export class ReviewRepository {
     const incomingRev =
       (review as any).revId ??
       Date.now()
+    const now = Date.now()
 
     await this.db.runAsync(
       `
@@ -115,9 +122,12 @@ export class ReviewRepository {
         ease_factor,
         next_review,
         last_result,
-        rev_id
+        rev_id,
+        last_modified_rev,
+        sync_version,
+        updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
       ON CONFLICT(user_id, question_id)
       DO UPDATE SET
@@ -126,7 +136,18 @@ export class ReviewRepository {
         ease_factor = excluded.ease_factor,
         next_review = excluded.next_review,
         last_result = excluded.last_result,
-        rev_id = excluded.rev_id
+        rev_id = excluded.rev_id,
+        last_modified_rev = CASE
+          WHEN COALESCE(reviews.last_modified_rev, 0) > excluded.last_modified_rev
+          THEN reviews.last_modified_rev
+          ELSE excluded.last_modified_rev
+        END,
+        sync_version = CASE
+          WHEN COALESCE(reviews.sync_version, 0) + 1 > excluded.sync_version
+          THEN COALESCE(reviews.sync_version, 0) + 1
+          ELSE excluded.sync_version
+        END,
+        updated_at = excluded.updated_at
 
       WHERE reviews.rev_id IS NULL
          OR reviews.rev_id < excluded.rev_id
@@ -139,7 +160,10 @@ export class ReviewRepository {
         review.easeFactor,
         review.nextReview,
         review.lastResult,
-        incomingRev
+        incomingRev,
+        incomingRev,
+        1,
+        now
       ]
     )
 
@@ -207,6 +231,38 @@ export class ReviewRepository {
       await this.db.execAsync(`
         ALTER TABLE reviews
         ADD COLUMN created_at INTEGER
+      `)
+    }
+
+    if (
+      columnNames.has("created_at") &&
+      !columnNames.has("updated_at")
+    ) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        RENAME COLUMN created_at TO updated_at
+      `)
+      columnNames.add("updated_at")
+    }
+
+    if (!columnNames.has("updated_at")) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        ADD COLUMN updated_at INTEGER DEFAULT (strftime('%s','now')*1000)
+      `)
+    }
+
+    if (!columnNames.has("last_modified_rev")) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        ADD COLUMN last_modified_rev INTEGER
+      `)
+    }
+
+    if (!columnNames.has("sync_version")) {
+      await this.db.execAsync(`
+        ALTER TABLE reviews
+        ADD COLUMN sync_version INTEGER DEFAULT 1
       `)
     }
 
@@ -314,6 +370,37 @@ export class ReviewRepository {
     )
 
     return row?.max_rev ?? 0
+
+  }
+
+  async getPendingReviews(
+    userId: number,
+    lastRev: number
+  ) {
+
+    const rows = await this.db.getAllAsync(
+      `
+      SELECT
+        user_id,
+        question_id,
+        repetition,
+        interval,
+        ease_factor,
+        next_review,
+        last_result,
+        rev_id,
+        last_modified_rev,
+        sync_version,
+        updated_at
+      FROM reviews
+      WHERE user_id = ?
+        AND rev_id > ?
+      ORDER BY rev_id ASC
+      `,
+      [userId, lastRev]
+    )
+
+    return rows
 
   }
 

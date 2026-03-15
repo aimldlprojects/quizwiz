@@ -1,7 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import { Tabs } from "expo-router"
 import { useDatabase } from "@/hooks/useDatabase"
+import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useSyncLifecycle } from "@/hooks/useSyncLifecycle"
 import { useUsers } from "@/hooks/useUsers"
 import { getThemeColors } from "@/styles/theme"
 
@@ -9,9 +11,19 @@ export default function TabLayout() {
 
   const { db } = useDatabase()
   const { activeUser } = useUsers(db)
+  const {
+    syncIntervalMs,
+    syncMinGapMs
+  } = useSettings(db)
   const { themeMode } = useStudyPreferences(
     db,
     activeUser
+  )
+  useSyncLifecycle(
+    db,
+    activeUser,
+    syncIntervalMs,
+    syncMinGapMs
   )
   const colors = getThemeColors(themeMode)
 

@@ -1,6 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
-import { setSyncStatus } from "@/database/syncStatusRepository"
+import { setSyncStatus } from "../../database/syncMetaRepository"
 import { pullReviews } from "./pullReviews"
 import { pushReviews } from "./pushReviews"
 
@@ -24,27 +24,26 @@ export async function syncReviews(
     await pushReviews(db, serverUrl, userId)
     await setSyncStatus(
       db,
+      userId,
       "success",
-      "Sent updates to the global database.",
-      Date.now(),
-      "push"
+      Date.now()
     )
 
     stage = "pull"
     await pullReviews(db, serverUrl, userId)
     await setSyncStatus(
       db,
+      userId,
       "success",
-      "Pulled fresh data from the global database.",
-      Date.now(),
-      "pull"
+      Date.now()
     )
 
     stage = "overall"
     await setSyncStatus(
       db,
+      userId,
       "success",
-      "Last sync completed successfully."
+      Date.now()
     )
 
   } catch (err) {
@@ -54,17 +53,17 @@ export async function syncReviews(
         ? err.message
         : "Unknown error"
 
+    const stageMessage =
+      stage !== "overall"
+        ? `[${stage}] ${message}`
+        : message
+
     await setSyncStatus(
       db,
+      userId,
       "failed",
-      message,
       Date.now(),
-      stage
-    )
-    await setSyncStatus(
-      db,
-      "failed",
-      message
+      stageMessage
     )
 
     console.error("Review sync failed:", err)

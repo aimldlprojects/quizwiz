@@ -120,6 +120,25 @@ export function useStudyPreferences(
       userId == null
         ? "tts_enabled"
         : `tts_enabled_user_${userId}`
+    const keys = [
+      selectedSubjectKey,
+      selectedTopicKey,
+      "tts_enabled",
+      ttsKey,
+      autoNextEnabledKey,
+      autoNextCorrectDelayKey,
+      autoNextWrongDelayKey,
+      learnAutoPlayKey,
+      learnFrontDelayKey,
+      learnBackDelayKey,
+      learnRandomOrderKey,
+      practiceRandomOrderKey,
+      themeModeKey
+    ]
+
+    const targetUserId =
+      userId == null ? 0 : userId
+
     const rows =
       await db.getAllAsync<{
         key: string
@@ -128,35 +147,12 @@ export function useStudyPreferences(
         `
         SELECT key, value
         FROM settings
-        WHERE key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
-        OR key = ?
+        WHERE user_id = ?
+          AND key IN (${keys
+            .map(() => "?")
+            .join(", ")})
         `,
-        [
-          selectedSubjectKey,
-          selectedTopicKey,
-          "tts_enabled",
-          ttsKey,
-          autoNextEnabledKey,
-          autoNextCorrectDelayKey,
-          autoNextWrongDelayKey,
-          learnAutoPlayKey,
-          learnFrontDelayKey,
-          learnBackDelayKey,
-          learnRandomOrderKey,
-          practiceRandomOrderKey,
-          themeModeKey
-        ]
+        [targetUserId, ...keys]
       )
 
     const next = { ...DEFAULTS }
@@ -287,14 +283,17 @@ export function useStudyPreferences(
 
     if (!db) return
 
+    const targetUserId =
+      userId == null ? 0 : userId
+
     await db.runAsync(
       `
-      INSERT INTO settings (key, value)
-      VALUES (?, ?)
-      ON CONFLICT(key)
+      INSERT INTO settings (user_id, key, value)
+      VALUES (?, ?, ?)
+      ON CONFLICT(user_id, key)
       DO UPDATE SET value = excluded.value
       `,
-      [key, value]
+      [targetUserId, key, value]
     )
 
     notifyPreferenceChange()

@@ -21,7 +21,8 @@ export class UserSettingsRepository {
         `
         SELECT value
         FROM settings
-        WHERE key = 'active_user'
+        WHERE user_id = 0
+          AND key = 'active_user'
         `
       )
 
@@ -43,10 +44,10 @@ export class UserSettingsRepository {
 
     await this.db.runAsync(
       `
-      INSERT INTO settings(key,value)
-      VALUES('active_user',?)
+      INSERT INTO settings(user_id,key,value)
+      VALUES(0,'active_user',?)
 
-      ON CONFLICT(key)
+      ON CONFLICT(user_id,key)
       DO UPDATE SET
       value = excluded.value
       `,

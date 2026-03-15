@@ -42,7 +42,10 @@ export class PracticeController {
       repo.getDB()
     )
 
-    this.syncService = new SyncService(repo.getDB())
+    this.syncService = new SyncService(
+      repo.getDB(),
+      this.userId
+    )
 
     this.session = new PracticeSession(
       this.userId,
@@ -189,7 +192,8 @@ export class PracticeController {
     await this.statsRepo.recordAnswer(
       this.userId,
       result.correct ? 1 : 0,
-      result.correct ? 0 : 1
+      result.correct ? 0 : 1,
+      current.id ?? null
     )
 
     this.eventBus.emit(

@@ -29,7 +29,7 @@ export class BadgeController {
       await this.db.getAllAsync<Badge>(
         `
         SELECT
-          id,
+          badge_id AS id,
           title,
           description,
           unlocked,
@@ -74,19 +74,21 @@ export class BadgeController {
         INSERT INTO user_badges
         (
           user_id,
-          id,
+          badge_id,
           title,
           description,
           unlocked,
-          unlockedAt
+          unlockedAt,
+          updated_at
         )
-        VALUES (?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?)
 
-        ON CONFLICT(user_id,id)
+        ON CONFLICT(user_id,badge_id)
         DO UPDATE SET
 
           unlocked = excluded.unlocked,
-          unlockedAt = excluded.unlockedAt
+          unlockedAt = excluded.unlockedAt,
+          updated_at = excluded.updated_at
         `,
         [
           userId,
@@ -94,7 +96,8 @@ export class BadgeController {
           b.title,
           b.description,
           b.unlocked ? 1 : 0,
-          b.unlockedAt ?? null
+          b.unlockedAt ?? null,
+          Date.now()
         ]
       )
 
@@ -141,18 +144,20 @@ export class BadgeController {
         INSERT INTO user_badges
         (
           user_id,
-          id,
+          badge_id,
           title,
           description,
           unlocked,
-          unlockedAt
+          unlockedAt,
+          updated_at
         )
-        VALUES (?,?,?,?,?,?)
+        VALUES (?,?,?,?,?,?,?)
 
-        ON CONFLICT(user_id,id)
+        ON CONFLICT(user_id,badge_id)
         DO UPDATE SET
           unlocked = excluded.unlocked,
-          unlockedAt = excluded.unlockedAt
+          unlockedAt = excluded.unlockedAt,
+          updated_at = excluded.updated_at
         `,
         [
           userId,
@@ -160,7 +165,8 @@ export class BadgeController {
           badge.title,
           badge.description,
           badge.unlocked ? 1 : 0,
-          badge.unlockedAt ?? null
+          badge.unlockedAt ?? null,
+          Date.now()
         ]
       )
 

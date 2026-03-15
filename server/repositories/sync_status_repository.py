@@ -1,49 +1,82 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import psycopg2
-
-STATUS_KEYS = {
-    "status": "sync_last_status",
-    "message": "sync_last_message",
-    "timestamp": "sync_last_at",
-}
+from psycopg2 import extensions
 
 
-def upsert_setting(
-    conn: psycopg2.extensions.connection,
-    key: str,
-    value: str,
+def current_millis(timestamp: Optional[int] = None) -> int:
+    if timestamp is not None:
+        return timestamp
+
+    return int(datetime.utcnow().timestamp() * 1000)
+
+
+def update_sync_meta(
+    conn: extensions.connection,
+    user_id: int,
+    fields: Dict[str, Any],
 ) -> None:
+
+    if not fields:
+        return
+
+    columns = []
+    values = []
+
+    for key, value in fields.items():
+        columns.append(key)
+        values.append(value)
+
+    placeholders = ", ".join(["%s"] * len(values))
+    column_list = ", ".join(columns)
+    update_list = ", ".join(
+        f"{col} = EXCLUDED.{col}" for col in columns
+    )
 
     with conn.cursor() as cur:
         cur.execute(
-            """
-            INSERT INTO settings (key, value)
-            VALUES (%s, %s)
-            ON CONFLICT (key)
-            DO UPDATE SET value = excluded.value
+            f"""
+            INSERT INTO sync_meta (
+                user_id,
+                {column_list},
+                updated_at
+            )
+            VALUES (
+                %s,
+                {placeholders},
+                NOW()
+            )
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                {update_list},
+                updated_at = NOW()
             """,
-            (key, value),
+            [user_id, *values],
         )
 
 
 def set_sync_status(
-    conn: psycopg2.extensions.connection,
+    conn: extensions.connection,
+    user_id: int,
     status: str,
     message: Optional[str],
     timestamp: Optional[int] = None,
 ) -> None:
-    timestamp = timestamp or int(datetime.utcnow().timestamp() * 1000)
+    millis = current_millis(timestamp)
 
-    upsert_setting(conn, STATUS_KEYS["status"], status)
-    upsert_setting(
+    update_sync_meta(
         conn,
-        STATUS_KEYS["message"],
-        message or "",
+        user_id,
+        {
+            "sync_status": status,
+            "last_sync_time": millis,
+        },
     )
-    upsert_setting(
-        conn,
-        STATUS_KEYS["timestamp"],
-        str(timestamp),
-    )
+
+    if message:
+        update_sync_meta(
+            conn,
+            user_id,
+            {"error_message": message},
+        )

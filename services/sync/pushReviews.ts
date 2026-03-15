@@ -1,5 +1,9 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { getLastSyncRev } from "../../database/syncMetaRepository"
+import {
+  getLastPushRev,
+  setLastPushRev,
+  setSyncStatus,
+} from "../../database/syncMetaRepository"
 
 /*
 --------------------------------------------------
@@ -23,7 +27,10 @@ async function getLocalReviewChanges(
       ease_factor,
       next_review,
       last_result,
-      rev_id
+      rev_id,
+      last_modified_rev,
+      sync_version,
+      updated_at
     FROM reviews
     WHERE user_id = ?
       AND rev_id > ?
@@ -78,12 +85,21 @@ async function getStats(
   return await db.getAllAsync<{
     id: number
     user_id: number
+    question_id: number | null
     correct: number
     wrong: number
     practiced_at: number | string | null
+    updated_at: number | string | null
   }>(
     `
-    SELECT *
+    SELECT
+      id,
+      user_id,
+      question_id,
+      correct,
+      wrong,
+      practiced_at,
+      updated_at
     FROM stats
     WHERE user_id = ?
     `,
@@ -99,9 +115,14 @@ async function getUserBadges(
     user_id: number
     badge_id: string
     unlocked_at: number | string | null
+    updated_at: number | string | null
   }>(
     `
-    SELECT *
+    SELECT
+      user_id,
+      badge_id,
+      unlockedAt AS unlocked_at,
+      updated_at
     FROM user_badges
     WHERE user_id = ?
     `,
@@ -110,17 +131,35 @@ async function getUserBadges(
 }
 
 async function getSettings(
-  db: SQLiteDatabase
+  db: SQLiteDatabase,
+  userId: number
 ) {
   return await db.getAllAsync<{
+    user_id: number
     key: string
     value: string
+    updated_at: number | string | null
   }>(
     `
-    SELECT key, value
+    SELECT
+      user_id,
+      key,
+      value,
+      updated_at
     FROM settings
-    `
+    WHERE user_id = ?
+    `,
+    [userId]
   )
+}
+
+async function getSettingsForSync(
+  db: SQLiteDatabase,
+  userId: number
+) {
+  const rows = await getSettings(db, userId)
+
+  return rows.filter((row) => row.user_id === userId)
 }
 
 export async function pushReviews(
@@ -129,10 +168,7 @@ export async function pushReviews(
   userId: number
 ): Promise<void> {
 
-  const lastSync = await getLastSyncRev(
-    db,
-    userId
-  )
+  const lastSync = await getLastPushRev(db, userId)
 
   const changes = await getLocalReviewChanges(
     db,
@@ -141,7 +177,7 @@ export async function pushReviews(
   )
 
   const stats = await getStats(db, userId)
-  const settings = await getSettings(db)
+  const settings = await getSettingsForSync(db, userId)
   const badges = await getUserBadges(db, userId)
 
   if (
@@ -153,42 +189,51 @@ export async function pushReviews(
     return
   }
 
-  const res = await fetch(
-    `${serverUrl}/reviews/push`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        reviews: changes,
-        stats,
-        settings,
-        user_badges: badges
-      })
-    }
-  )
+  let data
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(
-      `Push reviews failed: ${res.status} ${body}`
+  try {
+    const res = await fetch(
+      `${serverUrl}/reviews/push`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          reviews: changes,
+          stats,
+          settings,
+          user_badges: badges
+        })
+      }
     )
-  }
 
-  const data = await res.json()
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(
+        `Push reviews failed: ${res.status} ${body}`
+      )
+    }
+
+    data = await res.json()
+  } catch (err) {
+    await setSyncStatus(
+      db,
+      userId,
+      "failed",
+      Date.now(),
+      err instanceof Error ? err.message : String(err)
+    )
+    throw err
+  }
 
   if (data?.max_rev) {
-    await db.runAsync(
-      `
-      INSERT INTO sync_meta (key, value)
-      VALUES (?, ?)
-      ON CONFLICT(key)
-      DO UPDATE SET value = excluded.value
-      `,
-      [`reviews_last_rev_${userId}`, data.max_rev]
-    )
+    await setLastPushRev(db, userId, data.max_rev)
+  } else {
+    await setLastPushRev(db, userId, lastSync)
   }
+
+  await setSyncStatus(db, userId, "success", Date.now())
 
 }

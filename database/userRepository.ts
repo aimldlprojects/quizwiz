@@ -282,7 +282,8 @@ export class UserRepository {
     await this.db.runAsync(
       `
       DELETE FROM settings
-      WHERE key IN (?, ?)
+      WHERE user_id = 0
+        AND key IN (?, ?)
       `,
       [
         `selected_subject_id_user_${userId}`,
@@ -297,7 +298,8 @@ export class UserRepository {
         `
         SELECT key
         FROM settings
-        WHERE key LIKE ?
+        WHERE user_id = 0
+          AND key LIKE ?
         `,
         [`admin_selected_topic_path_${userId}:%`]
       )
@@ -306,7 +308,8 @@ export class UserRepository {
       await this.db.runAsync(
         `
         DELETE FROM settings
-        WHERE key = ?
+        WHERE user_id = 0
+          AND key = ?
         `,
         [row.key]
       )
@@ -319,7 +322,8 @@ export class UserRepository {
         `
         SELECT value
         FROM settings
-        WHERE key = 'active_user'
+        WHERE user_id = 0
+          AND key = 'active_user'
         `
       )
 
@@ -328,7 +332,8 @@ export class UserRepository {
         `
         UPDATE settings
         SET value = NULL
-        WHERE key = 'active_user'
+        WHERE user_id = 0
+          AND key = 'active_user'
         `,
         []
       )
@@ -423,8 +428,9 @@ export class UserRepository {
           `
           UPDATE settings
           SET value = NULL
-          WHERE key = 'active_user'
-          AND value = ?
+          WHERE user_id = 0
+            AND key = 'active_user'
+            AND value = ?
           `,
           [String(currentUserId)]
         )

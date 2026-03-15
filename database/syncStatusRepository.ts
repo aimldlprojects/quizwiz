@@ -50,6 +50,8 @@ export interface SyncStatusRecord {
   pull: SyncStatusEntry
 }
 
+const GLOBAL_USER_ID = 0
+
 async function upsertSetting(
   db: SQLiteDatabase,
   key: string,
@@ -57,12 +59,12 @@ async function upsertSetting(
 ) {
   await db.runAsync(
     `
-    INSERT INTO settings (key, value)
-    VALUES (?, ?)
-    ON CONFLICT(key)
+    INSERT INTO settings (user_id, key, value)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id, key)
     DO UPDATE SET value = excluded.value
     `,
-    [key, value]
+    [GLOBAL_USER_ID, key, value]
   )
 }
 
@@ -120,12 +122,13 @@ export async function getSyncStatus(
       key: string
       value: string
     }>(
-      `
+    `
       SELECT key, value
       FROM settings
-      WHERE key IN (${ALL_SYNC_KEYS.map(() => "?").join(", ")})
+      WHERE user_id = ?
+        AND key IN (${ALL_SYNC_KEYS.map(() => "?").join(", ")})
       `,
-      ALL_SYNC_KEYS
+      [GLOBAL_USER_ID, ...ALL_SYNC_KEYS]
     )
 
   const map = new Map<string, string>()

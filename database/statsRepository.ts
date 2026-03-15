@@ -11,19 +11,22 @@ export class StatsRepository {
   async recordAnswer(
     userId: number,
     correct: number,
-    wrong: number
+    wrong: number,
+    questionId: number | null = null
   ) {
 
     await this.db.runAsync(
       `
       INSERT INTO stats
-      (user_id, correct, wrong, practiced_at)
-      VALUES (?, ?, ?, ?)
+      (user_id, question_id, correct, wrong, practiced_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         userId,
+        questionId,
         correct,
         wrong,
+        Date.now(),
         Date.now()
       ]
     )
