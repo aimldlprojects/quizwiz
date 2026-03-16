@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useMemo,
+  useState
+} from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useFocusEffect } from "@react-navigation/native"
 
 import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
@@ -33,45 +38,45 @@ export default function ProgressScreen() {
   const [streak, setStreak] =
     useState(0)
 
-  useEffect(() => {
+  const loadProgress = useCallback(async () => {
 
-    async function loadProgress() {
+    if (!db || !activeUser) return
 
-      if (!db || !activeUser) return
+    const statsRepo =
+      new StatsRepository(db)
+    const streakController =
+      new StreakController(db)
 
-      const statsRepo =
-        new StatsRepository(db)
-      const streakController =
-        new StreakController(db)
+    const acc =
+      await statsRepo.getAccuracy(activeUser)
 
-      const acc =
-        await statsRepo.getAccuracy(activeUser)
+    const topicData =
+      await statsRepo.getTopicProgress(
+        activeUser
+      )
 
-      const topicData =
-        await statsRepo.getTopicProgress(
-          activeUser
-        )
+    const subjectData =
+      await statsRepo.getSubjectProgress(
+        activeUser
+      )
 
-      const subjectData =
-        await statsRepo.getSubjectProgress(
-          activeUser
-        )
+    const streakState =
+      await streakController.getStreak(
+        activeUser
+      )
 
-      const streakState =
-        await streakController.getStreak(
-          activeUser
-        )
-
-      setAccuracy(acc)
-      setTopics(topicData)
-      setSubjects(subjectData)
-      setStreak(streakState.currentStreak)
-
-    }
-
-    loadProgress()
+    setAccuracy(acc)
+    setTopics(topicData)
+    setSubjects(subjectData)
+    setStreak(streakState.currentStreak)
 
   }, [db, activeUser])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProgress()
+    }, [loadProgress])
+  )
 
   if (loading || usersLoading || !db) {
     return (

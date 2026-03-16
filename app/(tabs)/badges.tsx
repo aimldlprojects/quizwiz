@@ -1,5 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
-import { useEffect, useState } from "react"
+import {
+  useCallback,
+  useState
+} from "react"
 import {
   ScrollView,
   StyleSheet,
@@ -7,6 +10,7 @@ import {
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useFocusEffect } from "@react-navigation/native"
 
 import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
@@ -77,118 +81,118 @@ export default function BadgesScreen() {
   const [achievementBadges, setAchievementBadges] =
     useState<AchievementBadge[]>([])
 
-  useEffect(() => {
+  const loadBadges = useCallback(async () => {
 
-    async function loadBadges() {
+    if (!db || !activeUser) return
 
-      if (!db || !activeUser) return
+    const statsRepo =
+      new StatsRepository(db)
+    const streakController =
+      new StreakController(db)
 
-      const statsRepo =
-        new StatsRepository(db)
-      const streakController =
-        new StreakController(db)
+    const accuracy =
+      await statsRepo.getAccuracy(activeUser)
+    const totalCorrect =
+      await statsRepo.getTotalCorrect(activeUser)
+    const cardsLearned =
+      await statsRepo.getCardsLearned(activeUser)
+    const streakState =
+      await streakController.getStreak(activeUser)
 
-      const accuracy =
-        await statsRepo.getAccuracy(activeUser)
-      const totalCorrect =
-        await statsRepo.getTotalCorrect(activeUser)
-      const cardsLearned =
-        await statsRepo.getCardsLearned(activeUser)
-      const streakState =
-        await streakController.getStreak(activeUser)
-
-      const cards: BadgeCard[] = [
-        {
-          id: "accuracy",
-          title: "Accuracy Medal",
-          description:
-            "Keep answers correct to level this badge up.",
-          value: `${accuracy}%`,
-          level:
-            accuracy >= 90
-              ? "gold"
-              : accuracy >= 70
-              ? "silver"
-              : accuracy >= 40
+    const cards: BadgeCard[] = [
+      {
+        id: "accuracy",
+        title: "Accuracy Medal",
+        description:
+          "Keep answers correct to level this badge up.",
+        value: `${accuracy}%`,
+        level:
+          accuracy >= 90
+            ? "gold"
+            : accuracy >= 70
+            ? "silver"
+            : accuracy >= 40
+            ? "bronze"
+            : "locked"
+      },
+      {
+        id: "streak",
+        title: "Streak Medal",
+        description:
+          "Practice regularly to climb from bronze to gold.",
+        value: `${streakState.currentStreak} days`,
+        level:
+          streakState.currentStreak >= 14
+            ? "gold"
+            : streakState.currentStreak >= 7
+            ? "silver"
+            : streakState.currentStreak >= 1
+            ? "bronze"
+            : "locked"
+      },
+      {
+        id: "mastery",
+        title: "Mastery Medal",
+        description:
+          "The more correct answers you collect, the higher your level.",
+        value: `${totalCorrect} correct`,
+        level:
+          totalCorrect >= 100
+            ? "gold"
+            : totalCorrect >= 25
+            ? "silver"
+            : totalCorrect >= 5
+            ? "bronze"
+            : "locked"
+      },
+      {
+        id: "learner",
+        title: "Learner Medal",
+        description:
+          "Unlock higher ranks by reviewing more cards.",
+        value: `${cardsLearned} cards`,
+        level:
+          cardsLearned >= 75
+            ? "gold"
+            : cardsLearned >= 30
+            ? "silver"
+            : cardsLearned >= 10
               ? "bronze"
               : "locked"
-        },
-        {
-          id: "streak",
-          title: "Streak Medal",
-          description:
-            "Practice regularly to climb from bronze to gold.",
-          value: `${streakState.currentStreak} days`,
-          level:
-            streakState.currentStreak >= 14
-              ? "gold"
-              : streakState.currentStreak >= 7
-              ? "silver"
-              : streakState.currentStreak >= 1
-              ? "bronze"
-              : "locked"
-        },
-        {
-          id: "mastery",
-          title: "Mastery Medal",
-          description:
-            "The more correct answers you collect, the higher your level.",
-          value: `${totalCorrect} correct`,
-          level:
-            totalCorrect >= 100
-              ? "gold"
-              : totalCorrect >= 25
-              ? "silver"
-              : totalCorrect >= 5
-              ? "bronze"
-              : "locked"
-        },
-        {
-          id: "learner",
-          title: "Learner Medal",
-          description:
-            "Unlock higher ranks by reviewing more cards.",
-          value: `${cardsLearned} cards`,
-          level:
-            cardsLearned >= 75
-              ? "gold"
-              : cardsLearned >= 30
-              ? "silver"
-              : cardsLearned >= 10
-              ? "bronze"
-              : "locked"
-        }
-      ]
+      }
+    ]
 
-      setBadgeCards(cards)
+    setBadgeCards(cards)
 
-          const earned =
-            await db.getAllAsync<AchievementBadge>(
-              `
-              SELECT
-                b.id,
-                b.title,
-                b.description,
-                CASE
-                  WHEN ub.badge_id IS NULL THEN 0
-                  ELSE 1
-                END as unlocked
-              FROM badges b
-              LEFT JOIN user_badges ub
-                ON ub.badge_id = b.id
-                AND ub.user_id = ?
-              ORDER BY b.title
-              `,
-          [activeUser]
-        )
+    const earned =
+      await db.getAllAsync<AchievementBadge>(
+        `
+        SELECT
+          b.id,
+          b.title,
+          b.description,
+          CASE
+            WHEN ub.badge_id IS NULL THEN 0
+            ELSE 1
+          END as unlocked
+        FROM badges b
+        LEFT JOIN user_badges ub
+          ON ub.badge_id = b.id
+          AND ub.user_id = ?
+        ORDER BY b.title
+        `,
+        [activeUser]
+      )
 
-      setAchievementBadges(earned)
-
-    }
-
-    loadBadges()
+    setAchievementBadges(earned)
 
   }, [db, activeUser])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBadges()
+    }, [loadBadges])
+  )
 
   if (loading || usersLoading || !db) {
     return (
