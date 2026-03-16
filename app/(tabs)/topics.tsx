@@ -681,29 +681,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 2,
-    borderColor: "#dbe4f0"
+    borderColor: "#ffffff"
   },
 
   allowedChip: {
-    backgroundColor: "#16a34a"
+    backgroundColor: "#16a34a",
+    borderColor: "#ffffff"
   },
 
   pendingChip: {
-    borderColor: "#0ea5e9",
-    borderWidth: 3
+    borderColor: "#93c5fd",
+    borderWidth: 3,
+    backgroundColor: "#e0f2fe"
   },
 
   partialChip: {
-    backgroundColor: "#fde68a"
+    backgroundColor: "#fde68a",
+    borderColor: "#f59e0b",
+    borderWidth: 3
   },
 
   selectedChipPath: {
-    borderColor: "#0ea5e9",
+    borderColor: "#93c5fd",
     borderWidth: 3
   },
 
   chipText: {
-    color: "#1e3a5f",
+    color: "#0f172a",
     fontWeight: "700"
   },
 

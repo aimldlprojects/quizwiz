@@ -22,6 +22,7 @@ import { useUsers } from "../hooks/useUsers"
 import { getThemeColors, type ThemeColors } from "../styles/theme"
 
 const ADMIN_PASSWORD = "0000"
+const SELECTION_BORDER_COLOR = "#38bdf8"
 
 export default function AdminScreen() {
 
@@ -80,6 +81,12 @@ export default function AdminScreen() {
     >({})
   const [selectedTopicPaths, setSelectedTopicPaths] =
     useState<Record<string, number>>({})
+  const [pendingSubjectToggle, setPendingSubjectToggle] =
+    useState<number | null>(null)
+  const [pendingTopicToggle, setPendingTopicToggle] =
+    useState<number | null>(null)
+  const [permissionRefreshCounter, setPermissionRefreshCounter] =
+    useState(0)
 
   const {
     themeMode,
@@ -180,42 +187,27 @@ export default function AdminScreen() {
           Object.fromEntries(entries)
         )
 
-        const topicEntries = await Promise.all(
-          entries.flatMap(
-            async ([userId, permissions]) =>
-              Promise.all(
-                permissions.map(
-                  async (subject) => [
-                    userId,
-                    subject.id,
-                    await loadTopicsForSubject(
-                      userId,
-                      subject.id
-                    )
-                  ] as const
-                )
-              )
-          )
-        )
-
         const nextTopicPermissions: Record<
           number,
           Record<number, any[]>
         > = {}
 
-        for (const group of topicEntries) {
-          for (const [
-            userId,
-            subjectId,
-            topics
-          ] of group) {
-            if (!nextTopicPermissions[userId]) {
-              nextTopicPermissions[userId] = {}
-            }
+        for (const [userId, permissions] of entries) {
+          const subjectBuckets: Record<number, any[]> = {}
 
-            nextTopicPermissions[userId][subjectId] =
+          for (const subject of permissions) {
+            const topics =
+              await loadTopicsForSubject(
+                userId,
+                subject.id
+              )
+
+            subjectBuckets[subject.id] =
               topics
           }
+
+          nextTopicPermissions[userId] =
+            subjectBuckets
         }
 
         setTopicPermissions(nextTopicPermissions)
@@ -265,7 +257,8 @@ export default function AdminScreen() {
     db,
     loadTopicsForSubject,
     unlocked,
-    users
+    users,
+    permissionRefreshCounter
   ])
 
   useEffect(() => {
@@ -319,6 +312,9 @@ export default function AdminScreen() {
       )
     } finally {
       setBusyAction(null)
+      setPermissionRefreshCounter(
+        (current) => current + 1
+      )
     }
 
   }
@@ -485,18 +481,41 @@ export default function AdminScreen() {
   async function toggleSubjectPermission(
     userId: number,
     subjectId: number,
-    enabled: boolean
+    enabled: boolean,
+    aliasIds: number[]
   ) {
+
+    console.log(
+      "[admin-debug] toggleSubjectPermission start",
+      { userId, subjectId, enabled }
+    )
 
     setBusyAction(
       `subject-${userId}-${subjectId}`
     )
 
     try {
-      await setSubjectEnabled(
-        userId,
-        subjectId,
-        enabled
+      const targets =
+        aliasIds.length > 0
+          ? aliasIds
+          : [subjectId]
+
+      console.log(
+        "[admin-debug] toggleSubjectPermission targets",
+        { targets }
+      )
+
+      for (const targetId of targets) {
+        await setSubjectEnabled(
+          userId,
+          targetId,
+          enabled
+        )
+      }
+
+      console.log(
+        "[admin-debug] toggleSubjectPermission setSubjectEnabled done",
+        { userId, subjectId, enabled }
       )
 
       const nextPermissions =
@@ -521,6 +540,10 @@ export default function AdminScreen() {
           `,
           [userId]
         )
+      console.log(
+        "[admin-debug] toggleSubjectPermission nextPermissions",
+        { userId, subjectId, nextPermissions }
+      )
 
       setSubjectPermissions((current) => ({
         ...current,
@@ -544,8 +567,15 @@ export default function AdminScreen() {
         ...current,
         [userId]: nextTopicsBySubject
       }))
+      console.log(
+        "[admin-debug] toggleSubjectPermission nextTopicsBySubject",
+        { userId, subjectId, nextTopicsBySubject }
+      )
     } finally {
       setBusyAction(null)
+      setPermissionRefreshCounter(
+        (current) => current + 1
+      )
     }
 
   }
@@ -554,8 +584,14 @@ export default function AdminScreen() {
     userId: number,
     subjectId: number,
     topicId: number,
-    enabled: boolean
+    enabled: boolean,
+    aliasIds: number[]
   ) {
+
+    console.log(
+      "[admin-debug] toggleTopicPermission start",
+      { userId, subjectId, topicId, enabled }
+    )
 
     setBusyAction(
       `topic-${userId}-${topicId}`
@@ -568,21 +604,46 @@ export default function AdminScreen() {
         enabled
       )
 
-      const nextTopics =
-        await loadTopicsForSubject(
+      console.log(
+        "[admin-debug] toggleTopicPermission setTopicEnabled done",
+        { userId, subjectId, topicId, enabled }
+      )
+
+      const reloadIds =
+        aliasIds.length > 0
+          ? aliasIds
+          : [subjectId]
+
+      const nextTopicsBySubject: Record<
+        number,
+        TopicPermissionRow[]
+      > = {}
+
+      for (const reloadId of reloadIds) {
+        const topics = await loadTopicsForSubject(
           userId,
-          subjectId
+          reloadId
         )
+        nextTopicsBySubject[reloadId] = topics
+      }
 
       setTopicPermissions((current) => ({
         ...current,
         [userId]: {
           ...(current[userId] ?? {}),
-          [subjectId]: nextTopics
+          ...nextTopicsBySubject
         }
       }))
+
+      console.log(
+        "[admin-debug] toggleTopicPermission nextTopicsBySubject",
+        { userId, subjectId, nextTopicsBySubject }
+      )
     } finally {
       setBusyAction(null)
+      setPermissionRefreshCounter(
+        (current) => current + 1
+      )
     }
 
   }
@@ -872,54 +933,75 @@ export default function AdminScreen() {
                   </Text>
 
                   <View style={styles.subjectChips}>
-                    {(subjectPermissions[item.id] ?? []).map(
-                      (subject) => {
-                        const subjectTopics =
-                          topicPermissions[item.id]?.[
-                            subject.id
-                          ] ?? []
-                        const subjectStatus =
-                          getSubjectPermissionStatus(
-                            subjectTopics,
-                            subject.enabled === 1
-                          )
+                    {uniqueSubjectsByName(
+                      subjectPermissions[item.id] ?? []
+                    ).map((subject) => {
+                      const combinedTopics =
+                        subject.aliasIds.flatMap(
+                          (subjectId) =>
+                            topicPermissions[item.id]?.[
+                              subjectId
+                            ] ?? []
+                        )
+                      const dedupedTopics =
+                        uniqueById(combinedTopics)
+                      const subjectStatus =
+                        getSubjectPermissionStatus(
+                          dedupedTopics,
+                          subject.enabled === 1
+                        )
+                      const isPendingSubject =
+                        pendingSubjectToggle === subject.id
+                      const subjectChipStyles = [
+                        styles.subjectChip,
+                        subjectStatus === "all" &&
+                          styles.subjectChipAll,
+                        subjectStatus === "partial" &&
+                          styles.subjectChipPartial,
+                        isPendingSubject && styles.pendingChip
+                      ]
 
-                        return (
-                          <View
-                            key={subject.id}
-                            style={styles.permissionGroup}
-                          >
+                      const subjectTextColor =
+                        subjectStatus === "all"
+                          ? "#ffffff"
+                          : "#0f172a"
+
+                      return (
+                        <View
+                          key={`${subject.id}-${subject.name}`}
+                          style={styles.permissionGroup}
+                        >
                             <Pressable
-                              style={[
-                                styles.subjectChip,
-                                {
-                                  backgroundColor: colors.surface,
-                                  borderColor: colors.border
-                                },
-                                subjectStatus === "all" &&
-                                  styles.subjectChipEnabled,
-                                subjectStatus === "partial" &&
-                                  styles.subjectChipPartial
-                              ]}
-                            onPress={() =>
+                              style={subjectChipStyles}
+                            onPress={() => {
+                              if (!isPendingSubject) {
+                                setPendingSubjectToggle(
+                                  subject.id
+                                )
+                                setPendingTopicToggle(null)
+                                return
+                              }
+
+                              setPendingSubjectToggle(null)
+                              setPendingTopicToggle(null)
+
                               toggleSubjectPermission(
                                 item.id,
                                 subject.id,
-                                subjectStatus !== "all"
+                                subjectStatus !== "all",
+                                subject.aliasIds
                               )
-                            }
+                            }}
                             disabled={
                               busyAction != null
                             }
                           >
-                            <Text
-                              style={[
-                                styles.subjectChipText,
-                                { color: colors.text },
-                                subjectStatus === "all" &&
-                                  styles.subjectChipTextEnabled
-                              ]}
-                            >
+                             <Text
+                               style={[
+                                 styles.subjectChipText,
+                                  { color: subjectTextColor }
+                               ]}
+                             >
                               {busyAction ===
                               `subject-${item.id}-${subject.id}`
                                 ? "Saving..."
@@ -930,19 +1012,21 @@ export default function AdminScreen() {
                           {renderTopicLevels(
                             item.id,
                             subject.id,
-                            subjectTopics,
+                            subject.aliasIds,
+                            dedupedTopics,
                             selectedTopicPaths[
                               `${item.id}:${subject.id}`
                             ] ?? null,
                             busyAction,
                             selectTopicBranch,
                             toggleTopicPermission,
-                            colors
+                            colors,
+                            pendingTopicToggle,
+                            setPendingTopicToggle
                           )}
                         </View>
-                        )
-                      }
-                    )}
+                      )
+                    })}
                   </View>
                 </View>
               </View>
@@ -1213,27 +1297,27 @@ const styles = StyleSheet.create({
   },
 
   subjectChip: {
-    backgroundColor: "#e2e8f0",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: "#ffffff"
   },
 
-  subjectChipEnabled: {
-    backgroundColor: "#16a34a"
+  subjectChipAll: {
+    backgroundColor: "#16a34a",
+    borderColor: "#ffffff"
   },
 
   subjectChipPartial: {
-    backgroundColor: "#fde68a"
+    backgroundColor: "#fde68a",
+    borderColor: "#f59e0b",
+    borderWidth: 3
   },
 
   subjectChipText: {
-    color: "#334155",
     fontWeight: "700"
-  },
-
-  subjectChipTextEnabled: {
-    color: "#ffffff"
   },
 
   topicChipWrap: {
@@ -1258,31 +1342,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderWidth: 2,
-    borderColor: "#dbe4f0"
+    borderColor: "#ffffff"
   },
 
-  topicChipEnabled: {
+  topicChipAll: {
     backgroundColor: "#16a34a",
-    borderColor: "#dbe4f0"
+    borderColor: "#ffffff"
   },
 
   topicChipPartial: {
     backgroundColor: "#fde68a",
-    borderColor: "#dbe4f0"
+    borderColor: "#f59e0b",
+    borderWidth: 3
   },
 
   topicChipPathSelected: {
-    borderColor: "#1d4ed8"
+    borderColor: "#93c5fd",
+    borderWidth: 3
+  },
+
+  pendingChip: {
+    borderColor: "#93c5fd",
+    borderWidth: 3,
+    backgroundColor: "#e0f2fe"
   },
 
   topicChipText: {
     color: "#0f172a",
     fontWeight: "700",
     fontSize: 13
-  },
-
-  topicChipTextEnabled: {
-    color: "#ffffff"
   },
 
   userActions: {
@@ -1346,6 +1434,7 @@ type TopicPermissionRow = {
 function renderTopicLevels(
   userId: number,
   subjectId: number,
+  subjectAliasIds: number[],
   topics: TopicPermissionRow[],
   selectedTopicId: number | null,
   busyAction: string | null,
@@ -1359,9 +1448,13 @@ function renderTopicLevels(
     subjectId: number,
     topicId: number,
     enabled: boolean
-    ) => Promise<void>,
-    colors: ThemeColors
-  ) {
+  ) => Promise<void>,
+  colors: ThemeColors,
+  pendingTopicToggle: number | null,
+  setPendingTopicToggle: (
+    value: number | null
+  ) => void
+) {
 
   const byId = new Map(
     topics.map((topic) => [topic.id, topic])
@@ -1492,64 +1585,57 @@ function renderTopicLevels(
             lineageIds.has(topic.id)
           const subtreeStatus =
             getSubtreeStatus(topic.id)
-          const useLightText =
+          const isPending =
+            pendingTopicToggle === topic.id
+
+          const topicTextColor =
             subtreeStatus === "all"
+              ? "#ffffff"
+              : "#0f172a"
 
           return (
             <Pressable
               key={topic.id}
               style={[
                 styles.topicChip,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border
-                },
                 subtreeStatus === "all" &&
-                  styles.topicChipEnabled,
+                  styles.topicChipAll,
                 subtreeStatus === "partial" &&
                   styles.topicChipPartial,
                 isSelected &&
-                  styles.topicChipPathSelected
+                  styles.topicChipPathSelected,
+                isPending && styles.pendingChip
               ]}
-              onPress={async () => {
-                const shouldToggle =
-                  selectedTopicId === topic.id
+                          onPress={async () => {
+                            onSelectBranch(
+                              userId,
+                              subjectId,
+                              topic.id
+                            )
 
-                onSelectBranch(
-                  userId,
-                  subjectId,
-                  topic.id
-                )
-
-                if (shouldToggle) {
-                  await onToggleTopic(
-                    userId,
-                    subjectId,
-                    topic.id,
-                    topic.enabled !== 1
-                  )
+                if (!isPending) {
+                  setPendingTopicToggle(topic.id)
                   return
                 }
 
-                if (topic.enabled !== 1) {
-                  await onToggleTopic(
-                    userId,
-                    subjectId,
-                    topic.id,
-                    true
-                  )
-                }
+                setPendingTopicToggle(null)
+
+                              await onToggleTopic(
+                                userId,
+                                subjectId,
+                                topic.id,
+                                topic.enabled !== 1,
+                                subjectAliasIds
+                              )
               }}
               disabled={busyAction != null}
               >
-              <Text
-                style={[
-                  styles.topicChipText,
-                  { color: colors.text },
-                  useLightText &&
-                    styles.topicChipTextEnabled
-                ]}
-              >
+                <Text
+                  style={[
+                    styles.topicChipText,
+                    { color: topicTextColor }
+                  ]}
+                >
                 {busyAction ===
                 `topic-${userId}-${topic.id}`
                   ? "Saving..."
@@ -1587,5 +1673,105 @@ function getSubjectPermissionStatus(
   }
 
   return "off"
+
+}
+
+function uniqueById<T extends { id: number }>(
+  items: T[]
+) {
+
+  const map = new Map<number, T>()
+
+  for (const item of items) {
+    if (!map.has(item.id)) {
+      map.set(item.id, item)
+    }
+  }
+
+  return Array.from(map.values())
+
+}
+
+type SubjectDisplay = {
+  id: number
+  name: string
+  enabled: number
+  aliasIds: number[]
+}
+
+function uniqueSubjectsByName(
+  subjects: {
+    id: number
+    name: string
+    enabled: number
+  }[]
+): SubjectDisplay[] {
+
+  console.log(
+    "[admin-debug] uniqueSubjectsByName input",
+    subjects.map((subject) => ({
+      id: subject.id,
+      name: subject.name,
+      enabled: subject.enabled
+    }))
+  )
+
+  const buckets = new Map<
+    string,
+    {
+      name: string
+      rows: { id: number; enabled: number }[]
+    }
+  >()
+
+  for (const subject of subjects) {
+    const key = normalizeSubjectLabel(subject.name)
+    const bucket = buckets.get(key)
+
+    if (!bucket) {
+      buckets.set(key, {
+        name: subject.name,
+        rows: [
+          {
+            id: subject.id,
+            enabled: subject.enabled
+          }
+        ]
+      })
+      continue
+    }
+
+    bucket.rows.push({
+      id: subject.id,
+      enabled: subject.enabled
+    })
+  }
+
+  const result: SubjectDisplay[] = []
+
+  for (const bucket of buckets.values()) {
+    const enabledId =
+      bucket.rows.find((row) => row.enabled === 1)
+    const primaryId =
+      enabledId?.id ?? bucket.rows[0]?.id ?? 0
+    const enabledFlag = bucket.rows.some(
+      (row) => row.enabled === 1
+    )
+
+    result.push({
+      id: primaryId,
+      name: bucket.name,
+      enabled: enabledFlag ? 1 : 0,
+      aliasIds: bucket.rows.map((row) => row.id)
+    })
+  }
+
+  return result
+
+}
+
+function normalizeSubjectLabel(value: string) {
+
+  return value.trim().toLowerCase()
 
 }

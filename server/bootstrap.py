@@ -7,6 +7,10 @@ from psycopg2.extensions import (
     ISOLATION_LEVEL_AUTOCOMMIT,
 )
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from db import get_db_config
 from server.config.app_config import (
     SYNC_DROP_BEFORE_BOOTSTRAP,

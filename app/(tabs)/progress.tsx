@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -25,6 +25,11 @@ export default function ProgressScreen() {
     useState<any[]>([])
   const [subjects, setSubjects] =
     useState<any[]>([])
+
+  const aggregatedSubjects = useMemo(
+    () => aggregateSubjects(subjects),
+    [subjects]
+  )
   const [streak, setStreak] =
     useState(0)
 
@@ -221,7 +226,7 @@ export default function ProgressScreen() {
             Subjects
           </Text>
 
-          {subjects.map((subject) => (
+        {aggregatedSubjects.map((subject) => (
             <View
               key={subject.subjectId}
               style={styles.progressItem}
@@ -442,5 +447,83 @@ function buildTopicRows(
   visit(null, 0, "")
 
   return rows
+
+}
+
+function aggregateSubjects(
+  subjects: {
+    subjectId: number
+    subjectName: string
+    totalQuestions: number
+    practiced: number
+    correct: number
+    progress: number
+  }[]
+) {
+
+  const byName = new Map<
+    string,
+    {
+      subjectId: number
+      subjectName: string
+      totalQuestions: number
+      practiced: number
+      correct: number
+    }
+  >()
+
+  for (const subject of subjects) {
+    const key = normalizeSubjectName(subject.subjectName)
+    const current = byName.get(key)
+
+    if (current) {
+      current.totalQuestions += subject.totalQuestions
+      current.practiced += subject.practiced
+      current.correct += subject.correct
+      current.subjectId = Math.min(
+        current.subjectId,
+        subject.subjectId
+      )
+    } else {
+      byName.set(key, {
+        subjectId: subject.subjectId,
+        subjectName: subject.subjectName,
+        totalQuestions: subject.totalQuestions,
+        practiced: subject.practiced,
+        correct: subject.correct
+      })
+    }
+  }
+
+  return (
+    Array.from(byName.values())
+      .map((entry) => {
+        const progress =
+          entry.practiced === 0
+            ? 0
+            : Math.round(
+                (entry.correct / entry.practiced) *
+                  100
+              )
+
+        return {
+          ...entry,
+          progress
+        }
+      })
+      .sort((left, right) =>
+        left.subjectName.localeCompare(
+          right.subjectName
+        )
+      )
+  )
+
+}
+
+function normalizeSubjectName(
+  value: string
+) {
+
+  return value.trim().toLowerCase()
 
 }
