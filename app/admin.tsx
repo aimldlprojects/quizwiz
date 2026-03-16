@@ -485,25 +485,19 @@ export default function AdminScreen() {
     aliasIds: number[]
   ) {
 
-    console.log(
-      "[admin-debug] toggleSubjectPermission start",
-      { userId, subjectId, enabled }
-    )
-
     setBusyAction(
       `subject-${userId}-${subjectId}`
     )
 
     try {
+      if (!db) {
+        return
+      }
+
       const targets =
         aliasIds.length > 0
           ? aliasIds
           : [subjectId]
-
-      console.log(
-        "[admin-debug] toggleSubjectPermission targets",
-        { targets }
-      )
 
       for (const targetId of targets) {
         await setSubjectEnabled(
@@ -512,11 +506,6 @@ export default function AdminScreen() {
           enabled
         )
       }
-
-      console.log(
-        "[admin-debug] toggleSubjectPermission setSubjectEnabled done",
-        { userId, subjectId, enabled }
-      )
 
       const nextPermissions =
         await db.getAllAsync<{
@@ -540,11 +529,6 @@ export default function AdminScreen() {
           `,
           [userId]
         )
-      console.log(
-        "[admin-debug] toggleSubjectPermission nextPermissions",
-        { userId, subjectId, nextPermissions }
-      )
-
       setSubjectPermissions((current) => ({
         ...current,
         [userId]: nextPermissions
@@ -567,10 +551,6 @@ export default function AdminScreen() {
         ...current,
         [userId]: nextTopicsBySubject
       }))
-      console.log(
-        "[admin-debug] toggleSubjectPermission nextTopicsBySubject",
-        { userId, subjectId, nextTopicsBySubject }
-      )
     } finally {
       setBusyAction(null)
       setPermissionRefreshCounter(
@@ -588,11 +568,6 @@ export default function AdminScreen() {
     aliasIds: number[]
   ) {
 
-    console.log(
-      "[admin-debug] toggleTopicPermission start",
-      { userId, subjectId, topicId, enabled }
-    )
-
     setBusyAction(
       `topic-${userId}-${topicId}`
     )
@@ -602,11 +577,6 @@ export default function AdminScreen() {
         userId,
         topicId,
         enabled
-      )
-
-      console.log(
-        "[admin-debug] toggleTopicPermission setTopicEnabled done",
-        { userId, subjectId, topicId, enabled }
       )
 
       const reloadIds =
@@ -635,10 +605,6 @@ export default function AdminScreen() {
         }
       }))
 
-      console.log(
-        "[admin-debug] toggleTopicPermission nextTopicsBySubject",
-        { userId, subjectId, nextTopicsBySubject }
-      )
     } finally {
       setBusyAction(null)
       setPermissionRefreshCounter(
@@ -1447,7 +1413,8 @@ function renderTopicLevels(
     userId: number,
     subjectId: number,
     topicId: number,
-    enabled: boolean
+    enabled: boolean,
+    aliasIds: number[]
   ) => Promise<void>,
   colors: ThemeColors,
   pendingTopicToggle: number | null,
@@ -1620,13 +1587,13 @@ function renderTopicLevels(
 
                 setPendingTopicToggle(null)
 
-                              await onToggleTopic(
-                                userId,
-                                subjectId,
-                                topic.id,
-                                topic.enabled !== 1,
-                                subjectAliasIds
-                              )
+                await onToggleTopic(
+                  userId,
+                  subjectId,
+                  topic.id,
+                  topic.enabled !== 1,
+                  subjectAliasIds
+                )
               }}
               disabled={busyAction != null}
               >
@@ -1706,16 +1673,6 @@ function uniqueSubjectsByName(
     enabled: number
   }[]
 ): SubjectDisplay[] {
-
-  console.log(
-    "[admin-debug] uniqueSubjectsByName input",
-    subjects.map((subject) => ({
-      id: subject.id,
-      name: subject.name,
-      enabled: subject.enabled
-    }))
-  )
-
   const buckets = new Map<
     string,
     {
