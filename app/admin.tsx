@@ -19,7 +19,7 @@ import { resetMasterDatabase, resetUserData } from "../database/resetDatabase"
 import { useDatabase } from "../hooks/useDatabase"
 import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
-import { getThemeColors } from "../styles/theme"
+import { getThemeColors, type ThemeColors } from "../styles/theme"
 
 const ADMIN_PASSWORD = "0000"
 
@@ -30,6 +30,7 @@ export default function AdminScreen() {
 
   const {
     users,
+    activeUser,
     createUser,
     deleteUser,
     setUserDisabled,
@@ -83,7 +84,7 @@ export default function AdminScreen() {
   const {
     themeMode,
     loading: preferencesLoading
-  } = useStudyPreferences(db)
+  } = useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
   const cardStyle = {
     backgroundColor: colors.surface,
@@ -655,11 +656,15 @@ export default function AdminScreen() {
             value={password}
             onChangeText={setPassword}
             placeholder="Enter password"
+            placeholderTextColor={colors.muted}
             keyboardType="number-pad"
             secureTextEntry
             style={[
               styles.passwordInput,
-              { backgroundColor: colors.surface }
+              {
+                backgroundColor: colors.surface,
+                color: colors.text
+              }
             ]}
           />
 
@@ -691,15 +696,30 @@ export default function AdminScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: colors.background }
+      ]}
+    >
       <ScrollView
         contentContainerStyle={styles.content}
       >
-        <Text style={styles.heading}>
+        <Text
+          style={[
+            styles.heading,
+            { color: colors.text }
+          ]}
+        >
           Manage Profiles
         </Text>
 
-        <Text style={styles.subheading}>
+        <Text
+          style={[
+            styles.subheading,
+            { color: colors.muted }
+          ]}
+        >
           Add learners, remove profiles, reset one child, or clear progress data for everyone.
         </Text>
 
@@ -720,9 +740,16 @@ export default function AdminScreen() {
 
           <TextInput
             placeholder="New learner name"
+            placeholderTextColor={colors.muted}
             value={name}
             onChangeText={setName}
-            style={styles.nameInput}
+            style={[
+              styles.nameInput,
+              {
+                backgroundColor: colors.surface,
+                color: colors.text
+              }
+            ]}
           />
 
           <Pressable
@@ -803,7 +830,15 @@ export default function AdminScreen() {
                 </Text>
 
                 {item.disabled === 1 ? (
-                  <Text style={styles.disabledTag}>
+                  <Text
+                    style={[
+                      styles.disabledTag,
+                      {
+                        backgroundColor: colors.surface,
+                        color: colors.muted
+                      }
+                    ]}
+                  >
                     Disabled profile
                   </Text>
                 ) : null}
@@ -818,11 +853,21 @@ export default function AdminScreen() {
                 </Text>
 
                 <View style={styles.subjectSection}>
-                  <Text style={styles.subjectTitle}>
+                  <Text
+                    style={[
+                      styles.subjectTitle,
+                      { color: colors.text }
+                    ]}
+                  >
                     Allowed subjects
                   </Text>
 
-                  <Text style={styles.subjectHint}>
+                  <Text
+                    style={[
+                      styles.subjectHint,
+                      { color: colors.muted }
+                    ]}
+                  >
                     Tap a subject to turn all its topics on or off. Green means all topics are allowed, white means all are off, and yellow means only some child topics are allowed.
                   </Text>
 
@@ -840,18 +885,22 @@ export default function AdminScreen() {
                           )
 
                         return (
-                        <View
-                          key={subject.id}
-                          style={styles.permissionGroup}
-                        >
-                          <Pressable
-                            style={[
-                              styles.subjectChip,
-                              subjectStatus === "all" &&
-                                styles.subjectChipEnabled,
-                              subjectStatus === "partial" &&
-                                styles.subjectChipPartial
-                            ]}
+                          <View
+                            key={subject.id}
+                            style={styles.permissionGroup}
+                          >
+                            <Pressable
+                              style={[
+                                styles.subjectChip,
+                                {
+                                  backgroundColor: colors.surface,
+                                  borderColor: colors.border
+                                },
+                                subjectStatus === "all" &&
+                                  styles.subjectChipEnabled,
+                                subjectStatus === "partial" &&
+                                  styles.subjectChipPartial
+                              ]}
                             onPress={() =>
                               toggleSubjectPermission(
                                 item.id,
@@ -866,6 +915,7 @@ export default function AdminScreen() {
                             <Text
                               style={[
                                 styles.subjectChipText,
+                                { color: colors.text },
                                 subjectStatus === "all" &&
                                   styles.subjectChipTextEnabled
                               ]}
@@ -886,7 +936,8 @@ export default function AdminScreen() {
                             ] ?? null,
                             busyAction,
                             selectTopicBranch,
-                            toggleTopicPermission
+                            toggleTopicPermission,
+                            colors
                           )}
                         </View>
                         )
@@ -1308,8 +1359,9 @@ function renderTopicLevels(
     subjectId: number,
     topicId: number,
     enabled: boolean
-  ) => Promise<void>
-) {
+    ) => Promise<void>,
+    colors: ThemeColors
+  ) {
 
   const byId = new Map(
     topics.map((topic) => [topic.id, topic])
@@ -1425,7 +1477,12 @@ function renderTopicLevels(
       key={`${userId}-${subjectId}-level-${index}`}
       style={styles.topicLevelBlock}
     >
-      <Text style={styles.topicLevelTitle}>
+      <Text
+        style={[
+          styles.topicLevelTitle,
+          { color: colors.muted }
+        ]}
+      >
         Topic Level {index + 1}
       </Text>
 
@@ -1443,6 +1500,10 @@ function renderTopicLevels(
               key={topic.id}
               style={[
                 styles.topicChip,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border
+                },
                 subtreeStatus === "all" &&
                   styles.topicChipEnabled,
                 subtreeStatus === "partial" &&
@@ -1480,10 +1541,11 @@ function renderTopicLevels(
                 }
               }}
               disabled={busyAction != null}
-            >
+              >
               <Text
                 style={[
                   styles.topicChipText,
+                  { color: colors.text },
                   useLightText &&
                     styles.topicChipTextEnabled
                 ]}
