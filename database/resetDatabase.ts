@@ -1,4 +1,5 @@
 import { SQLiteDatabase } from "expo-sqlite"
+import { UserSubjectRepository } from "./userSubjectRepository"
 
 export async function resetUserData(
   db: SQLiteDatabase,
@@ -77,6 +78,12 @@ export async function resetUserData(
       )
     }
 
+    const permissions =
+      new UserSubjectRepository(db)
+
+    await permissions.grantAllSubjects(userId)
+    await permissions.grantAllTopics(userId)
+
     await db.execAsync("COMMIT")
   } catch (error) {
     await db.execAsync("ROLLBACK")
@@ -116,6 +123,21 @@ export async function resetMasterDatabase(
         )
       `
     )
+
+    const permissions =
+      new UserSubjectRepository(db)
+    const userRows =
+      await db.getAllAsync<{ id: number }>(
+        `
+        SELECT id
+        FROM users
+        `
+      )
+
+    for (const user of userRows) {
+      await permissions.grantAllSubjects(user.id)
+      await permissions.grantAllTopics(user.id)
+    }
 
     await db.execAsync("COMMIT")
   } catch (error) {

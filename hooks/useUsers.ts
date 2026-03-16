@@ -9,6 +9,11 @@ import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
 import { pushReviews } from "@/services/sync/pushReviews"
 import { UserSubjectRepository } from "@/database/userSubjectRepository"
+import { logSyncDebug } from "@/config/logging"
+import {
+  DEFAULT_CURRICULUM_SUBJECTS,
+  DEFAULT_CURRICULUM_TOPIC_KEYS
+} from "@/config/curriculum"
 
 export interface User {
   id: number
@@ -93,11 +98,13 @@ export function useUsers(
       }
     ])
 
-    await permissionsRepo.grantAllSubjects(
-      userId
+    await permissionsRepo.grantSubjectsByName(
+      userId,
+      [...DEFAULT_CURRICULUM_SUBJECTS]
     )
-    await permissionsRepo.grantAllTopics(
-      userId
+    await permissionsRepo.grantTopicsByKeys(
+      userId,
+      [...DEFAULT_CURRICULUM_TOPIC_KEYS]
     )
 
     await load()
@@ -184,10 +191,16 @@ export function useUsers(
       previousUser
     ) {
       try {
+        logSyncDebug(
+          `push before switching from user ${previousUser}`
+        )
         await pushReviews(
           db,
           serverUrl,
           previousUser
+        )
+        logSyncDebug(
+          `push before switching from user ${previousUser} done`
         )
       } catch (error) {
         console.error(
@@ -201,10 +214,16 @@ export function useUsers(
 
     if (mode === "hybrid" && serverUrl) {
       try {
+        logSyncDebug(
+          `pull after switching to user ${id}`
+        )
         await pullReviews(
           db,
           serverUrl,
           id
+        )
+        logSyncDebug(
+          `pull after switching to user ${id} done`
         )
       } catch (error) {
         console.error(

@@ -4,6 +4,13 @@ import {
   setLastPushRev,
   setSyncStatus,
 } from "../../database/syncMetaRepository"
+import {
+  logSyncConsole,
+  logSyncDebug
+} from "@/config/logging"
+import { syncConfig } from "@/config/sync"
+
+const CHUNK_SIZE = syncConfig.pushChunkSize
 
 /*
 --------------------------------------------------
@@ -14,7 +21,8 @@ Get Local Review Changes
 async function getLocalReviewChanges(
   db: SQLiteDatabase,
   userId: number,
-  lastSync: number
+  lastSync: number,
+  limit: number
 ) {
 
   const rows = await db.getAllAsync(
@@ -35,8 +43,9 @@ async function getLocalReviewChanges(
     WHERE user_id = ?
       AND rev_id > ?
     ORDER BY rev_id ASC
+    LIMIT ?
     `,
-    [userId, lastSync]
+    [userId, lastSync, limit]
   )
 
   return rows.map((row: any) => ({
@@ -70,7 +79,6 @@ function normalizeQuestionId(
   return Number.isNaN(numeric) ? 0 : numeric
 
 }
-
 
 /*
 --------------------------------------------------
@@ -162,6 +170,18 @@ async function getSettingsForSync(
   return rows.filter((row) => row.user_id === userId)
 }
 
+function hasMeta(
+  stats: unknown[],
+  settings: unknown[],
+  badges: unknown[]
+) {
+  return (
+    stats.length > 0 ||
+    settings.length > 0 ||
+    badges.length > 0
+  )
+}
+
 export async function pushReviews(
   db: SQLiteDatabase,
   serverUrl: string,
@@ -170,53 +190,120 @@ export async function pushReviews(
 
   const lastSync = await getLastPushRev(db, userId)
 
-  const changes = await getLocalReviewChanges(
-    db,
-    userId,
-    lastSync
-  )
-
   const stats = await getStats(db, userId)
-  const settings = await getSettingsForSync(db, userId)
+  const settings = await getSettingsForSync(
+    db,
+    userId
+  )
   const badges = await getUserBadges(db, userId)
 
-  if (
-    (!changes || changes.length === 0) &&
-    stats.length === 0 &&
-    settings.length === 0 &&
-    badges.length === 0
-  ) {
-    return
-  }
+  logSyncConsole(
+    `pushReviews start for user ${userId}, lastSync=${lastSync}, stats=${stats.length}, badges=${badges.length}, settings=${settings.length}`
+  )
 
-  let data
+  const includeMeta = hasMeta(
+    stats,
+    settings,
+    badges
+  )
 
-  try {
-    const res = await fetch(
-      `${serverUrl}/reviews/push`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          reviews: changes,
-          stats,
-          settings,
-          user_badges: badges
-        })
-      }
+  if (!includeMeta && lastSync > 0) {
+    const pending = await getLocalReviewChanges(
+      db,
+      userId,
+      lastSync,
+      1
     )
 
-    if (!res.ok) {
-      const body = await res.text()
-      throw new Error(
-        `Push reviews failed: ${res.status} ${body}`
-      )
+    if (pending.length === 0) {
+      return
     }
+  }
 
-    data = await res.json()
+  let finalRev = lastSync
+  let firstRequest = true
+
+  try {
+    while (true) {
+      const changes = await getLocalReviewChanges(
+        db,
+        userId,
+        finalRev,
+        CHUNK_SIZE
+      )
+
+      logSyncConsole(
+        `pushReviews chunk for ${userId}: changes=${changes.length}, includeMeta=${includeMeta}, finalRev=${finalRev}`
+      )
+
+      const hasChanges = changes.length > 0
+
+      logSyncDebug(
+        `pushReviews chunk for ${userId} since ${finalRev}, changes=${changes.length}`
+      )
+
+      if (!hasChanges && !firstRequest && !includeMeta) {
+        break
+      }
+
+      if (!hasChanges && firstRequest && !includeMeta) {
+        break
+      }
+
+      const payload: Record<string, unknown> = {
+        user_id: userId,
+        reviews: changes
+      }
+
+      if (includeMeta && firstRequest) {
+        payload.stats = stats
+        payload.settings = settings
+        payload.user_badges = badges
+      }
+
+      logSyncDebug(
+        `pushReviews: POST ${serverUrl}/reviews/push chunk`
+      )
+      const res = await fetch(
+        `${serverUrl}/reviews/push`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }
+      )
+
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(
+          `Push reviews failed: ${res.status} ${body}`
+        )
+      }
+
+      const data = await res.json()
+      const serverMax =
+        typeof data?.max_rev === "number"
+          ? data.max_rev
+          : finalRev
+
+      finalRev = Math.max(finalRev, serverMax)
+
+      logSyncConsole(
+        `pushReviews chunk completed for ${userId}, server_max=${serverMax}, new finalRev=${finalRev}`
+      )
+
+      if (!hasChanges) {
+        break
+      }
+
+      if (changes.length < CHUNK_SIZE) {
+        break
+      }
+
+      firstRequest = false
+    }
   } catch (err) {
     await setSyncStatus(
       db,
@@ -228,12 +315,13 @@ export async function pushReviews(
     throw err
   }
 
-  if (data?.max_rev) {
-    await setLastPushRev(db, userId, data.max_rev)
-  } else {
-    await setLastPushRev(db, userId, lastSync)
-  }
-
+  logSyncDebug(
+    `pushReviews: finished for ${userId}, finalRev=${finalRev}`
+  )
+  logSyncConsole(
+    `pushReviews finished for ${userId}, finalRev=${finalRev}`
+  )
+  await setLastPushRev(db, userId, finalRev)
   await setSyncStatus(db, userId, "success", Date.now())
 
 }

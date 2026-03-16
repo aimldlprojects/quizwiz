@@ -61,6 +61,10 @@ export default function TopicsScreen() {
     useState<Record<number, number>>({})
   const [allowedTopicIds, setAllowedTopicIds] =
     useState<Set<number>>(new Set())
+  const [pendingSubjectToggle, setPendingSubjectToggle] =
+    useState<number | null>(null)
+  const [pendingTopicToggle, setPendingTopicToggle] =
+    useState<number | null>(null)
 
   useEffect(() => {
 
@@ -308,30 +312,49 @@ export default function TopicsScreen() {
             Subjects
           </Text>
 
-          <View style={styles.chipWrap}>
-            {visibleSubjects.map((subject) => (
-              <Pressable
-                key={subject.id}
-                style={[
-                  styles.chip,
-                  subjectStatus[subject.id] ===
-                    "all" &&
-                    styles.allowedChip,
-                  subjectStatus[subject.id] ===
-                    "partial" &&
-                    styles.partialChip,
-                  selectedSubjectId === subject.id &&
-                    styles.selectedChipPath
-                ]}
-                onPress={() =>
-                  void (async () => {
+            <View style={styles.chipWrap}>
+            {visibleSubjects.map((subject) => {
+              const isPending =
+                pendingSubjectToggle === subject.id
+
+              return (
+                <Pressable
+                  key={subject.id}
+                  style={[
+                    styles.chip,
+                    subjectStatus[subject.id] ===
+                      "all" &&
+                      styles.allowedChip,
+                    subjectStatus[subject.id] ===
+                      "partial" &&
+                      styles.partialChip,
+                    selectedSubjectId === subject.id &&
+    styles.selectedChipPath,
+    isPending && styles.pendingChip
+  ]}
+                  onPress={async () => {
                     if (!activeUser) {
                       return
                     }
 
+                    const alreadyPending =
+                      pendingSubjectToggle === subject.id
+
                     await setSelectedSubjectId(
                       subject.id
                     )
+
+                    if (!alreadyPending) {
+                      setPendingSubjectToggle(
+                        subject.id
+                      )
+                      setPendingTopicToggle(null)
+                      return
+                    }
+
+                    setPendingSubjectToggle(null)
+                    setPendingTopicToggle(null)
+
                     await setSubjectEnabled(
                       activeUser,
                       subject.id,
@@ -353,21 +376,21 @@ export default function TopicsScreen() {
                         )
                       )
                     )
-                  })()
-                }
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    subjectStatus[subject.id] ===
-                      "all" &&
-                      styles.allowedChipText
-                  ]}
+                  }}
                 >
-                  {subject.name}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.chipText,
+                      subjectStatus[subject.id] ===
+                        "all" &&
+                        styles.allowedChipText
+                    ]}
+                  >
+                    {subject.name}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </View>
         </View>
 
@@ -413,6 +436,8 @@ export default function TopicsScreen() {
                     {levelTopics.map((topic) => {
                       const isInLineage =
                         lineageIds.has(topic.id)
+                      const isPending =
+                        pendingTopicToggle === topic.id
 
                       return (
                         <Pressable
@@ -426,29 +451,37 @@ export default function TopicsScreen() {
                               "partial" &&
                               styles.partialChip,
                             isInLineage &&
-                              styles.selectedChipPath
+                              styles.selectedChipPath,
+                            isPending && styles.pendingChip
                           ]}
                           onPress={async () => {
                             if (!activeUser) {
                               return
                             }
 
-                            const shouldToggle =
-                              selectedTopicId ===
-                              topic.id
+                            const alreadyPending =
+                              pendingTopicToggle === topic.id
 
                             await setSelectedTopicId(
                               topic.id
                             )
 
+                            if (!alreadyPending) {
+                              setPendingTopicToggle(topic.id)
+                              return
+                            }
+
+                            setPendingTopicToggle(null)
+
+                            const shouldEnable =
+                              !allowedTopicIds.has(
+                                topic.id
+                              )
+
                             await setTopicEnabled(
                               activeUser,
                               topic.id,
-                              shouldToggle
-                                ? !allowedTopicIds.has(
-                                    topic.id
-                                  )
-                                : true
+                              shouldEnable
                             )
 
                             const accessRepo =
@@ -655,12 +688,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#16a34a"
   },
 
+  pendingChip: {
+    borderColor: "#0ea5e9",
+    borderWidth: 3
+  },
+
   partialChip: {
     backgroundColor: "#fde68a"
   },
 
   selectedChipPath: {
-    borderColor: "#1d4ed8"
+    borderColor: "#0ea5e9",
+    borderWidth: 3
   },
 
   chipText: {

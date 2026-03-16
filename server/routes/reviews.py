@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 from typing import Any, Iterable, Mapping, Optional
 
 import psycopg2
@@ -24,6 +25,10 @@ from repositories.sync_status_repository import (
     current_millis,
     set_sync_status,
     update_sync_meta,
+)
+from server.config.log_config import (
+    log_debug,
+    log_error,
 )
 
 router = APIRouter(prefix="/reviews")
@@ -185,7 +190,7 @@ def push_reviews(payload: dict[str, Any]):
             str(exc),
             timestamp,
         )
-        print("Error while pushing reviews:", exc)
+        log_error("Error while pushing reviews:", exc)
         traceback.print_exc()
         return JSONResponse(
             status_code=500,
@@ -204,6 +209,11 @@ def pull_reviews(
     conn = get_db()
 
     try:
+        start_ts = time.monotonic()
+        log_debug(
+            "pull_reviews start",
+            {"user_id": user_id, "since_rev_id": since_rev_id},
+        )
         reviews = get_changes_since_rev(
             conn,
             user_id,
@@ -217,6 +227,16 @@ def pull_reviews(
         )
         badges = serialize_user_badges(
             get_user_badges_changes(conn, user_id, since_rev_id)
+        )
+
+        log_debug(
+            "pull_reviews fetched",
+            {
+                "reviews": len(reviews),
+                "stats": len(stats),
+                "settings": len(settings),
+                "badges": len(badges),
+            },
         )
 
         max_rev = since_rev_id
@@ -242,6 +262,12 @@ def pull_reviews(
 
         set_sync_status(conn, user_id, "success", None, now_ts)
 
+        duration_ms = int((time.monotonic() - start_ts) * 1000)
+        log_debug(
+            "pull_reviews completed",
+            {"user_id": user_id, "max_rev": max_rev, "duration_ms": duration_ms},
+        )
+
         return {
             "reviews": reviews,
             "stats": stats,
@@ -250,6 +276,10 @@ def pull_reviews(
             "max_rev": max_rev,
         }
     except Exception as exc:
+        log_error(
+            "pull_reviews error",
+            {"user_id": user_id, "error": str(exc)},
+        )
         timestamp = current_millis()
         update_sync_meta(
             conn,

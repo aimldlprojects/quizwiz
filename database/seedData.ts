@@ -9,6 +9,10 @@ import {
   TOPIC_DEFINITIONS
 } from "./seedTopics"
 import { UserSubjectRepository } from "./userSubjectRepository"
+import {
+  DEFAULT_CURRICULUM_SUBJECTS,
+  DEFAULT_CURRICULUM_TOPIC_KEYS
+} from "@/config/curriculum"
 
 const USERS = [
   [1, "Bhavi"],
@@ -247,7 +251,10 @@ export async function seedData(
       )
 
     if ((existingAssignments?.count ?? 0) === 0) {
-      await userSubjectRepo.grantAllSubjects(id)
+      await userSubjectRepo.grantSubjectsByName(
+        id,
+        [...DEFAULT_CURRICULUM_SUBJECTS]
+      )
     }
 
     const existingTopicAssignments =
@@ -263,7 +270,10 @@ export async function seedData(
       )
 
     if ((existingTopicAssignments?.count ?? 0) === 0) {
-      await userSubjectRepo.grantAllTopics(id)
+      await userSubjectRepo.grantTopicsByKeys(
+        id,
+        [...DEFAULT_CURRICULUM_TOPIC_KEYS]
+      )
     }
   }
 
@@ -318,7 +328,7 @@ async function cleanupLegacyCurriculum(
 ) {
 
   const allowedSubjects = SUBJECTS
-  const allowedTopicKeys = new Set(
+  const allowedTopicKeys = new Set<string>(
     TOPIC_DEFINITIONS.map(
       (topic) => topic.key
     )

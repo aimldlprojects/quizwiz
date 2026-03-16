@@ -112,7 +112,34 @@ export class UserSubjectRepository {
       SELECT ?, id
       FROM subjects
       `,
-      [userId]
+    [userId]
+  )
+
+  }
+
+  async grantSubjectsByName(
+    userId: number,
+    names: string[]
+  ) {
+
+    if (names.length === 0) {
+      return
+    }
+
+    const placeholders =
+      names.map(() => "?").join(", ")
+
+    await this.db.runAsync(
+      `
+      INSERT OR IGNORE INTO user_subjects (
+        user_id,
+        subject_id
+      )
+      SELECT ?, id
+      FROM subjects
+      WHERE name IN (${placeholders})
+      `,
+      [userId, ...names]
     )
 
   }
@@ -222,6 +249,57 @@ export class UserSubjectRepository {
       FROM topics
       `,
       [userId]
+    )
+
+  }
+
+  async grantTopicsByKeys(
+    userId: number,
+    keys: string[]
+  ) {
+
+    if (keys.length === 0) {
+      return
+    }
+
+    const topicIds = new Set<number>()
+
+    for (const key of keys) {
+
+      const row =
+        await this.db.getFirstAsync<{
+          id: number
+        }>(
+          `
+          SELECT id
+          FROM topics
+          WHERE key = ?
+          LIMIT 1
+          `,
+          [key]
+        )
+
+      if (!row?.id) {
+        continue
+      }
+
+      const treeIds =
+        await this.getTopicTreeIds(row.id)
+
+      for (const id of treeIds) {
+        topicIds.add(id)
+      }
+
+    }
+
+    if (topicIds.size === 0) {
+      return
+    }
+
+    await this.setTopicIdsEnabled(
+      userId,
+      Array.from(topicIds),
+      true
     )
 
   }

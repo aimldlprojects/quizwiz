@@ -8,6 +8,11 @@ from psycopg2.extensions import (
 )
 
 from db import get_db_config
+from server.config.app_config import (
+    SYNC_DROP_BEFORE_BOOTSTRAP,
+    SYNC_RESET_TABLES,
+    DEFAULT_CURRICULUM_SUBJECTS
+)
 
 
 SUBJECTS = [
@@ -390,6 +395,26 @@ def ensure_database_exists(config):
         conn.close()
 
 
+def clean_database(conn):
+
+    if not SYNC_DROP_BEFORE_BOOTSTRAP:
+        return
+
+    with conn.cursor() as cur:
+        print(
+            "Dropping existing tables:",
+            ", ".join(SYNC_RESET_TABLES)
+        )
+        for table in SYNC_RESET_TABLES:
+            cur.execute(
+                sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
+                    sql.Identifier(table)
+                )
+            )
+
+    conn.commit()
+
+
 def apply_schema(config):
 
     schema_path = (
@@ -410,6 +435,8 @@ def apply_schema(config):
     conn = psycopg2.connect(**config)
 
     try:
+        clean_database(conn)
+
         with conn.cursor() as cur:
             cur.execute(schema_sql)
             migrate_reviews_table(cur)
@@ -419,6 +446,7 @@ def apply_schema(config):
             migrate_user_badges_table(cur)
             ensure_sync_meta_table(cur)
             seed_demo_content(cur)
+            ensure_initial_review(cur)
 
         conn.commit()
         print(
@@ -762,7 +790,10 @@ def seed_demo_content(cur):
         )
 
     for user_id in user_ids.values():
-        for subject_id in subject_ids.values():
+        for subject_name in DEFAULT_CURRICULUM_SUBJECTS:
+            subject_id = subject_ids.get(subject_name)
+            if not subject_id:
+                continue
             cur.execute(
                 """
                 INSERT INTO user_subjects (
@@ -774,6 +805,48 @@ def seed_demo_content(cur):
                 """,
                 (user_id, subject_id),
             )
+
+
+def ensure_initial_review(cur):
+
+    cur.execute(
+        """
+        INSERT INTO reviews (
+            user_id,
+            question_id,
+            repetition,
+            interval,
+            ease_factor,
+            next_review,
+            last_result,
+            rev_id,
+            sync_version,
+            updated_at
+        )
+        SELECT
+            u.id,
+            q.id::text,
+            0,
+            0,
+            2.5,
+            EXTRACT(EPOCH FROM NOW()) * 1000,
+            'not_started',
+            1,
+            1,
+            NOW()
+        FROM users u
+        CROSS JOIN questions q
+        WHERE u.id = (
+            SELECT id
+            FROM users
+            ORDER BY id
+            LIMIT 1
+        )
+        ORDER BY q.id
+        LIMIT 1
+        ON CONFLICT (user_id, question_id) DO NOTHING
+        """
+    )
 
 
 def main():

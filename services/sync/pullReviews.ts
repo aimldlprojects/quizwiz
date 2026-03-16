@@ -8,6 +8,7 @@ import {
 
 import { Review } from "@/domain/entities/review"
 import { ReviewRepository } from "../../database/reviewRepository"
+import { syncConfig } from "@/config/sync"
 
 /*
 --------------------------------------------------
@@ -174,9 +175,32 @@ export async function pullReviews(
 
   let data: any
 
+  console.log(
+    "[sync-debug] pullReviews start",
+    { serverUrl, userId, since: lastPull }
+  )
+
+  const controller = new AbortController()
+  const timeoutMs = syncConfig.pullTimeoutMs
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+    console.log(
+      "[sync-debug] pullReviews fetch timeout",
+      { timeoutMs }
+    )
+  }, timeoutMs)
+
   try {
+    console.log(
+      "[sync-debug] pullReviews fetching"
+    )
     const res = await fetch(
-      `${serverUrl}/reviews/pull?user_id=${userId}&since_rev_id=${lastPull}`
+      `${serverUrl}/reviews/pull?user_id=${userId}&since_rev_id=${lastPull}`,
+      { signal: controller.signal }
+    )
+    console.log(
+      "[sync-debug] pullReviews response received",
+      { status: res.status }
     )
 
     if (!res.ok) {
@@ -186,7 +210,15 @@ export async function pullReviews(
     }
 
     data = await res.json()
+    console.log(
+      "[sync-debug] pullReviews parsed json",
+      { reviews: data?.reviews?.length ?? 0 }
+    )
   } catch (err) {
+    console.log(
+      "[sync-debug] pullReviews caught error",
+      err
+    )
     await setSyncStatus(
       db,
       userId,
@@ -195,6 +227,8 @@ export async function pullReviews(
       err instanceof Error ? err.message : String(err)
     )
     throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
 
   const reviews =

@@ -17,7 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { resetMasterDatabase, resetUserData } from "../database/resetDatabase"
 import { useDatabase } from "../hooks/useDatabase"
+import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
+import { getThemeColors } from "../styles/theme"
 
 const ADMIN_PASSWORD = "0000"
 
@@ -77,6 +79,16 @@ export default function AdminScreen() {
     >({})
   const [selectedTopicPaths, setSelectedTopicPaths] =
     useState<Record<string, number>>({})
+
+  const {
+    themeMode,
+    loading: preferencesLoading
+  } = useStudyPreferences(db)
+  const colors = getThemeColors(themeMode)
+  const cardStyle = {
+    backgroundColor: colors.surface,
+    borderColor: colors.border
+  }
 
   const loadTopicsForSubject =
     useCallback(async (
@@ -255,10 +267,30 @@ export default function AdminScreen() {
     users
   ])
 
-  if (dbLoading || loading) {
+  useEffect(() => {
+    if (
+      password === ADMIN_PASSWORD &&
+      !unlocked
+    ) {
+      setUnlocked(true)
+      setError("")
+    }
+  }, [password, unlocked])
+
+  if (dbLoading || loading || preferencesLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
+      <SafeAreaView
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <Text
+          style={[
+            styles.loadingText,
+            { color: colors.text }
+          ]}
+        >
           Loading admin tools...
         </Text>
       </SafeAreaView>
@@ -586,13 +618,36 @@ export default function AdminScreen() {
 
   if (!unlocked) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.lockCard}>
-          <Text style={styles.lockTitle}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <View
+          style={[
+            styles.lockCard,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.lockTitle,
+              { color: colors.text }
+            ]}
+          >
             Admin Access
           </Text>
 
-          <Text style={styles.lockText}>
+          <Text
+            style={[
+              styles.lockText,
+              { color: colors.muted }
+            ]}
+          >
             Enter the admin password to manage learners and reset data.
           </Text>
 
@@ -602,17 +657,28 @@ export default function AdminScreen() {
             placeholder="Enter password"
             keyboardType="number-pad"
             secureTextEntry
-            style={styles.passwordInput}
+            style={[
+              styles.passwordInput,
+              { backgroundColor: colors.surface }
+            ]}
           />
 
           {error ? (
-            <Text style={styles.errorText}>
+            <Text
+              style={[
+                styles.errorText,
+                { color: "#f87171" }
+              ]}
+            >
               {error}
             </Text>
           ) : null}
 
           <Pressable
-            style={styles.primaryButton}
+            style={[
+              styles.primaryButton,
+              { backgroundColor: colors.iconActive }
+            ]}
             onPress={unlockAdmin}
           >
             <Text style={styles.primaryButtonText}>
@@ -637,8 +703,18 @@ export default function AdminScreen() {
           Add learners, remove profiles, reset one child, or clear progress data for everyone.
         </Text>
 
-        <View style={styles.addCard}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[
+            styles.addCard,
+            cardStyle
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Add user
           </Text>
 
@@ -662,12 +738,27 @@ export default function AdminScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.resetCard}>
-          <Text style={styles.cardTitle}>
+        <View
+          style={[
+            styles.resetCard,
+            cardStyle
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
             Master reset
           </Text>
 
-          <Text style={styles.resetText}>
+          <Text
+            style={[
+              styles.resetText,
+              { color: colors.muted }
+            ]}
+          >
             Clear all user progress data while keeping learner names and seeded learning content.
           </Text>
 
@@ -695,9 +786,19 @@ export default function AdminScreen() {
           }
           contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <View style={styles.userRow}>
+            <View
+              style={[
+                styles.userRow,
+                cardStyle
+              ]}
+            >
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>
+                <Text
+                  style={[
+                    styles.userName,
+                    { color: colors.text }
+                  ]}
+                >
                   {item.name}
                 </Text>
 
@@ -707,7 +808,12 @@ export default function AdminScreen() {
                   </Text>
                 ) : null}
 
-                <Text style={styles.userHint}>
+                <Text
+                  style={[
+                    styles.userHint,
+                    { color: colors.muted }
+                  ]}
+                >
                   Reset only this learner&apos;s progress or delete the whole profile.
                 </Text>
 

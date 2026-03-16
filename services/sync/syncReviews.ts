@@ -1,14 +1,34 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
-import { setSyncStatus } from "../../database/syncMetaRepository"
+import {
+  setSyncStatus as setSyncMetaStatus
+} from "../../database/syncMetaRepository"
 import { pullReviews } from "./pullReviews"
 import { pushReviews } from "./pushReviews"
+import {
+  setSyncStatus as setGlobalSyncStatus
+} from "@/database/syncStatusRepository"
 
 /*
 --------------------------------------------------
 Sync Reviews (Push → Pull)
 --------------------------------------------------
 */
+
+async function recordGlobalStatus(
+  db: SQLiteDatabase,
+  status: "success" | "failed",
+  message: string | null,
+  direction: "overall" | "push" | "pull"
+) {
+  await setGlobalSyncStatus(
+    db,
+    status,
+    message,
+    Date.now(),
+    direction
+  )
+}
 
 export async function syncReviews(
   db: SQLiteDatabase,
@@ -22,28 +42,46 @@ export async function syncReviews(
 
     stage = "push"
     await pushReviews(db, serverUrl, userId)
-    await setSyncStatus(
+    await setSyncMetaStatus(
       db,
       userId,
       "success",
       Date.now()
+    )
+    await recordGlobalStatus(
+      db,
+      "success",
+      "Push completed",
+      "push"
     )
 
     stage = "pull"
     await pullReviews(db, serverUrl, userId)
-    await setSyncStatus(
+    await setSyncMetaStatus(
       db,
       userId,
       "success",
       Date.now()
     )
+    await recordGlobalStatus(
+      db,
+      "success",
+      "Pull completed",
+      "pull"
+    )
 
     stage = "overall"
-    await setSyncStatus(
+    await setSyncMetaStatus(
       db,
       userId,
       "success",
       Date.now()
+    )
+    await recordGlobalStatus(
+      db,
+      "success",
+      "Sync completed",
+      "overall"
     )
 
   } catch (err) {
@@ -58,12 +96,19 @@ export async function syncReviews(
         ? `[${stage}] ${message}`
         : message
 
-    await setSyncStatus(
+    await setSyncMetaStatus(
       db,
       userId,
       "failed",
       Date.now(),
       stageMessage
+    )
+
+    await recordGlobalStatus(
+      db,
+      "failed",
+      stageMessage,
+      stage
     )
 
     console.error("Review sync failed:", err)

@@ -18,22 +18,21 @@ export default function HomeStats({
   const [dueReviews, setDueReviews] = useState(0)
   const [topics, setTopics] = useState<any[]>([])
 
-  async function loadStats() {
-
-    const acc = await statsRepo.getAccuracy(userId)
-    const due = await statsRepo.getDueReviewCount(userId)
-    const topicProgress =
-      await statsRepo.getTopicProgress(userId)
-
-    setAccuracy(acc)
-    setDueReviews(due)
-    setTopics(topicProgress)
-
-  }
-
   useEffect(() => {
-    loadStats()
-  }, [])
+    async function loadStats() {
+      const acc = await statsRepo.getAccuracy(userId)
+      const due =
+        await statsRepo.getDueReviewCount(userId)
+      const topicProgress =
+        await statsRepo.getTopicProgress(userId)
+
+      setAccuracy(acc)
+      setDueReviews(due)
+      setTopics(topicProgress)
+    }
+
+    void loadStats()
+  }, [statsRepo, userId])
 
   return (
 

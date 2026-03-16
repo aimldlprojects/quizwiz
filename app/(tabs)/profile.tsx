@@ -244,6 +244,9 @@ export default function ProfileScreen() {
   }
 
   async function syncFromMaster() {
+    console.log(
+      "[sync-debug] Sync From Master button pressed"
+    )
 
     if (!db || !activeUser) return
 
@@ -258,27 +261,55 @@ export default function ProfileScreen() {
       return
     }
 
+    console.log(
+      "[sync-debug] syncFromMaster: validated preconditions",
+      {
+        user: activeUser,
+        serverUrl
+      }
+    )
+
     setPulling(true)
 
     try {
+      console.log(
+        "[sync-debug] syncFromMaster: invoking pullReviews"
+      )
       await pullReviews(
         db,
         serverUrl,
         activeUser
       )
 
-      await setSyncStatus(
-        db,
-        "success",
-        "Pulled your profile data from the master database.",
-        Date.now(),
-        "pull"
+      console.log(
+        "[sync-debug] syncFromMaster: pullReviews completed"
       )
 
-      await setSyncStatus(
-        db,
-        "success",
-        "Last sync completed successfully."
+      if (activeUser) {
+        await setSyncStatus(
+          db,
+          activeUser,
+          "success",
+          Date.now(),
+          "pull"
+        )
+      }
+
+      console.log(
+        "[sync-debug] syncFromMaster: sync status updated success (pull)"
+      )
+
+      if (activeUser) {
+        await setSyncStatus(
+          db,
+          activeUser,
+          "success",
+          Date.now()
+        )
+      }
+
+      console.log(
+        "[sync-debug] syncFromMaster: sync status updated overall success"
       )
 
       Alert.alert(
@@ -286,27 +317,39 @@ export default function ProfileScreen() {
         "Your profile was refreshed from the master database."
       )
     } catch (error) {
+      console.log(
+        "[sync-debug] syncFromMaster: pull failed",
+        error
+      )
       const message =
         error instanceof Error
           ? error.message
           : "We could not pull your profile data right now."
 
-      await setSyncStatus(
-        db,
-        "failed",
-        message,
-        Date.now(),
-        "pull"
-      )
+      if (activeUser) {
+        await setSyncStatus(
+          db,
+          activeUser,
+          "failed",
+          Date.now(),
+          "pull"
+        )
+      }
 
-      await setSyncStatus(
-        db,
-        "failed",
-        message
-      )
+      if (activeUser) {
+        await setSyncStatus(
+          db,
+          activeUser,
+          "failed",
+          Date.now()
+        )
+      }
 
       Alert.alert("Sync failed", message)
     } finally {
+      console.log(
+        "[sync-debug] syncFromMaster: finally block firing"
+      )
       setPulling(false)
       await Promise.all([
         refreshSyncStatus(),

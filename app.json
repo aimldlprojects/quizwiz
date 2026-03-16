@@ -44,6 +44,10 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "syncConsoleLogs": true,
+      "syncDebugLogs": false
     }
   }
 }

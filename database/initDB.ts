@@ -1,5 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
 import { seedData } from "./seedData"
+import { DEFAULT_SYNC_MODE } from "@/config/curriculum"
 
 /*
 --------------------------------------------------
@@ -397,7 +398,7 @@ async function createSettingsTable(db: SQLiteDatabase) {
   await db.execAsync(`
     INSERT OR IGNORE INTO settings
     (user_id, key, value)
-    VALUES (0, 'sync_mode', 'local')
+    VALUES (0, 'sync_mode', '${DEFAULT_SYNC_MODE}')
   `)
 
 }

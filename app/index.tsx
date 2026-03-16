@@ -20,15 +20,21 @@ export default function HomeScreen() {
 
   const router = useRouter()
 
-  const { db, loading } = useDatabase()
+  const {
+    db,
+    loading,
+    stageLabel,
+    progress,
+    error,
+    connectivityStatus
+  } = useDatabase()
 
   const { activeUser } = useUsers(db)
   const { themeMode } =
     useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
 
-  const backupManager =
-    useBackupManager(db ?? null)
+  useBackupManager(db ?? null)
 
   const [streak, setStreak] =
     useState<number>(0)
@@ -72,8 +78,57 @@ export default function HomeScreen() {
 
   }, [db, userId])
 
+  if (error) {
+    return (
+      <SafeAreaView
+        style={styles.loadingContainer}
+      >
+        <Text style={styles.errorTitle}>
+          Unable to open database
+        </Text>
+        <Text style={styles.errorMessage}>
+          {error}
+        </Text>
+      </SafeAreaView>
+    )
+  }
+
   if (loading || !db) {
-    return <Text>Loading database...</Text>
+    const progressPercent = Math.min(
+      Math.max(Math.round(progress * 100), 0),
+      100
+    )
+
+    return (
+      <SafeAreaView
+        style={styles.loadingContainer}
+      >
+        <Text style={styles.loadingTitle}>
+          Preparing quizwiz.db
+        </Text>
+        <Text style={styles.loadingStage}>
+          {stageLabel}
+        </Text>
+        {connectivityStatus ? (
+          <Text style={styles.connectivityMessage}>
+            {connectivityStatus}
+          </Text>
+        ) : null}
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${progressPercent}%`
+              }
+            ]}
+          />
+        </View>
+        <Text style={styles.loadingDetail}>
+          {progressPercent}% complete
+        </Text>
+      </SafeAreaView>
+    )
   }
 
   const statsRepo =
@@ -241,6 +296,66 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#fff",
     fontWeight: "600"
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20
+  },
+
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8
+  },
+
+  loadingStage: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#666",
+    marginBottom: 16
+  },
+
+  progressTrack: {
+    height: 6,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 8
+  },
+
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#4caf50"
+  },
+
+  loadingDetail: {
+    fontSize: 14,
+    textAlign: "center",
+    color: "#888"
+  },
+
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#b00020",
+    marginBottom: 8
+  },
+
+  errorMessage: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#b00020"
+  },
+
+  connectivityMessage: {
+    fontSize: 14,
+    textAlign: "center",
+    color: "#ef4444",
+    marginBottom: 12
   }
 
 })
