@@ -162,7 +162,8 @@ export default function TopicsScreen() {
       topics.some(
         (topic) =>
           topic.subject_id === subject.id &&
-          availableTopicIds.has(topic.id)
+          availableTopicIds.has(topic.id) &&
+          allowedTopicIds.has(topic.id)
       )
     )
   const subjectStatus =
@@ -223,13 +224,14 @@ export default function TopicsScreen() {
     let parentId: number | null = null
 
     while (true) {
-      const levelTopics =
+        const levelTopics =
         topics.filter(
           (topic) =>
             topic.subject_id ===
               selectedSubjectId &&
             topic.parent_topic_id === parentId &&
-            availableTopicIds.has(topic.id)
+            availableTopicIds.has(topic.id) &&
+            allowedTopicIds.has(topic.id)
         )
 
       if (levelTopics.length === 0) {
