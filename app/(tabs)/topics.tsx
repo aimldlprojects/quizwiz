@@ -502,19 +502,24 @@ export default function TopicsScreen() {
                                 activeUser
                               )
 
-                            setAllowedTopicIds(
-                              new Set(
-                                allowedTopics.map(
-                                  (allowedTopic) =>
-                                    allowedTopic.id
-                                )
+                            const nextAllowedIds = new Set(
+                              allowedTopics.map(
+                                (allowedTopic) =>
+                                  allowedTopic.id
                               )
                             )
+
+                            setAllowedTopicIds(nextAllowedIds)
+
                             if (
-                              !shouldEnable &&
-                              selectedTopicId === topic.id
+                              selectedTopicId != null &&
+                              !nextAllowedIds.has(
+                                selectedTopicId
+                              )
                             ) {
-                              await setSelectedTopicId(null)
+                              await setSelectedTopicId(
+                                allowedTopics[0]?.id ?? null
+                              )
                             }
                           }}
                         >
