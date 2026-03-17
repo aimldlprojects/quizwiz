@@ -18,7 +18,6 @@ import {
   type SyncStatusRecord,
   type SyncStatusValue
 } from "@/database/syncStatusRepository"
-import { getSyncMeta } from "@/database/syncMetaRepository"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
@@ -101,10 +100,6 @@ export default function ProfileScreen() {
 
   const [syncInfo, setSyncInfo] =
     useState<SyncStatusRecord | null>(null)
-  const [syncMetaInfo, setSyncMetaInfo] =
-    useState<Awaited<
-      ReturnType<typeof getSyncMeta>
-    > | null>(null)
   const syncServerUrl =
     getSyncServerUrl()
 
@@ -118,26 +113,14 @@ export default function ProfileScreen() {
       setSyncInfo(info)
     }, [db])
 
-  const refreshSyncMeta =
-    useCallback(async () => {
-      if (!db || !activeUser) return
-
-      const meta =
-        await getSyncMeta(db, activeUser)
-
-      setSyncMetaInfo(meta)
-    }, [db, activeUser])
-
   useEffect(() => {
     if (!db) return
     if (syncing || pulling) return
 
     refreshSyncStatus()
-    refreshSyncMeta()
   }, [
     db,
     refreshSyncStatus,
-    refreshSyncMeta,
     syncing,
     pulling
   ])
@@ -237,8 +220,7 @@ export default function ProfileScreen() {
     } finally {
       setSyncing(false)
       await Promise.all([
-        refreshSyncStatus(),
-        refreshSyncMeta()
+        refreshSyncStatus()
       ])
     }
   }
@@ -285,28 +267,25 @@ export default function ProfileScreen() {
         "[sync-debug] syncFromMaster: pullReviews completed"
       )
 
-      if (activeUser) {
-        await setSyncStatus(
-          db,
-          activeUser,
-          "success",
-          Date.now(),
-          "pull"
-        )
-      }
+      await setSyncStatus(
+        db,
+        "success",
+        "Pull completed",
+        Date.now(),
+        "pull"
+      )
 
       console.log(
         "[sync-debug] syncFromMaster: sync status updated success (pull)"
       )
 
-      if (activeUser) {
-        await setSyncStatus(
-          db,
-          activeUser,
-          "success",
-          Date.now()
-        )
-      }
+      await setSyncStatus(
+        db,
+        "success",
+        "Sync refreshed",
+        Date.now(),
+        "overall"
+      )
 
       console.log(
         "[sync-debug] syncFromMaster: sync status updated overall success"
@@ -329,21 +308,20 @@ export default function ProfileScreen() {
       if (activeUser) {
         await setSyncStatus(
           db,
-          activeUser,
           "failed",
+          message,
           Date.now(),
           "pull"
         )
       }
 
-      if (activeUser) {
-        await setSyncStatus(
-          db,
-          activeUser,
-          "failed",
-          Date.now()
-        )
-      }
+      await setSyncStatus(
+        db,
+        "failed",
+        message,
+        Date.now(),
+        "overall"
+      )
 
       Alert.alert("Sync failed", message)
     } finally {
@@ -352,8 +330,7 @@ export default function ProfileScreen() {
       )
       setPulling(false)
       await Promise.all([
-        refreshSyncStatus(),
-        refreshSyncMeta()
+        refreshSyncStatus()
       ])
     }
 
@@ -795,73 +772,6 @@ export default function ProfileScreen() {
                 overallStatus.timestamp
               )}
             </Text>
-          </View>
-
-          <View
-            style={[styles.card, themedCard]}
-          >
-            <Text
-              style={[
-                styles.cardTitle,
-                { color: colors.text }
-              ]}
-            >
-              Sync metadata
-            </Text>
-            <View style={styles.metaRow}>
-              <Text
-                style={[
-                  styles.metaLabel,
-                  { color: colors.muted }
-                ]}
-              >
-                Last push rev
-              </Text>
-              <Text
-                style={[
-                  styles.metaValue,
-                  { color: colors.text }
-                ]}
-              >
-                {syncMetaInfo?.lastPushRev ?? "—"}
-              </Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text
-                style={[
-                  styles.metaLabel,
-                  { color: colors.muted }
-                ]}
-              >
-                Last pull rev
-              </Text>
-              <Text
-                style={[
-                  styles.metaValue,
-                  { color: colors.text }
-                ]}
-              >
-                {syncMetaInfo?.lastPullRev ?? "—"}
-              </Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text
-                style={[
-                  styles.metaLabel,
-                  { color: colors.muted }
-                ]}
-              >
-                Last error
-              </Text>
-              <Text
-                style={[
-                  styles.metaValue,
-                  { color: colors.text }
-                ]}
-              >
-                {syncMetaInfo?.lastError ?? "None"}
-              </Text>
-            </View>
           </View>
 
           <View
