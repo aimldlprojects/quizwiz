@@ -376,6 +376,15 @@ export default function TopicsScreen() {
                         )
                       )
                     )
+                    if (
+                      selectedTopicId != null &&
+                      !allowedTopics.some(
+                        (allowedTopic) =>
+                          allowedTopic.id === selectedTopicId
+                      )
+                    ) {
+                      await setSelectedTopicId(null)
+                    }
                   }}
                 >
                   <Text
@@ -501,6 +510,12 @@ export default function TopicsScreen() {
                                 )
                               )
                             )
+                            if (
+                              !shouldEnable &&
+                              selectedTopicId === topic.id
+                            ) {
+                              await setSelectedTopicId(null)
+                            }
                           }}
                         >
                           <Text
