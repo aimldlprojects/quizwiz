@@ -1,5 +1,10 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
-import { useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState
+} from "react"
 import {
   Pressable,
   StyleSheet,
@@ -20,6 +25,7 @@ import {
   TopicRecord
 } from "../../database/contentRepository"
 import { ReviewRepository } from "../../database/reviewRepository"
+import { StatsRepository } from "../../database/statsRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import { BatchLoader } from "../../engine/questions/batchLoader"
 import { generateQuestionBatch } from "../../engine/questions/questionFactory"
@@ -30,6 +36,7 @@ import { useUsers } from "../../hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
 import { usePractice } from "../../hooks/usePractice"
 import { getThemeColors } from "../../styles/theme"
+import { useFocusEffect } from "@react-navigation/native"
 
 function getKeyboardType(answer: unknown) {
 
@@ -96,7 +103,7 @@ export default function PracticeScreen() {
 
   const controller = useMemo(() => {
 
-    if (!db || !activeUser) return null
+    if (!db || !activeUser || !selectedTopicId) return null
 
     const scheduler = new ReviewScheduler({
       questions: [],
@@ -110,55 +117,51 @@ export default function PracticeScreen() {
         loadQuestions: async (
           limit: number
         ) => {
-          if (selectedTopicId) {
-            const topic =
-              await getTopicById(
-                db,
-                selectedTopicId
+          const topic =
+            await getTopicById(
+              db,
+              selectedTopicId
+            )
+          const topics =
+            await getAllTopics(db)
+          const topicIds =
+            getDescendantTopicIds(
+              topics,
+              selectedTopicId
+            )
+
+          const rows =
+            await getQuestionsForTopicTree(
+              db,
+              topicIds,
+              limit,
+              "sequence"
+            )
+
+          if (rows.length > 0) {
+            const mappedRows = rows.map((row) => ({
+              id: row.id,
+              question: row.question,
+              answer: Number.isNaN(
+                Number(row.answer)
               )
-            const topics =
-              await getAllTopics(db)
-            const topicIds =
-              getDescendantTopicIds(
-                topics,
-                selectedTopicId
+                ? row.answer
+                : Number(row.answer),
+              type: row.type ?? undefined
+            }))
+
+            return mappedRows
+          }
+
+          if (topic?.key) {
+            const generated =
+              generateQuestionBatch(
+                topic.key,
+                limit
               )
 
-            const rows =
-              await getQuestionsForTopicTree(
-                db,
-                topicIds,
-                limit,
-                "sequence"
-              )
-
-            if (rows.length > 0) {
-              const mappedRows = rows.map((row) => ({
-                id: row.id,
-                question: row.question,
-                answer: Number.isNaN(
-                  Number(row.answer)
-                )
-                  ? row.answer
-                  : Number(row.answer),
-                type: row.type ?? undefined
-              }))
-
-              return practiceRandomOrderEnabled
-                ? mappedRows
-                : mappedRows
-            }
-
-            if (topic?.key) {
-              const generated =
-                generateQuestionBatch(
-                  topic.key,
-                  limit
-                )
-
-              if (generated.length > 0) {
-                return generated
-              }
+            if (generated.length > 0) {
+              return generated
             }
           }
 
@@ -187,7 +190,7 @@ export default function PracticeScreen() {
       scheduler,
       queue,
       repo,
-      selectedTopicId ?? null
+      selectedTopicId
     )
 
   }, [
@@ -212,6 +215,34 @@ export default function PracticeScreen() {
       ? colors.iconActive
       : colors.iconInactive
   })
+
+  const [practiceAccuracy, setPracticeAccuracy] =
+    useState(0)
+
+  const loadPracticeAccuracy =
+    useCallback(async () => {
+      if (!db || !activeUser) {
+        setPracticeAccuracy(0)
+        return
+      }
+
+      const statsRepo =
+        new StatsRepository(db)
+      const acc =
+        await statsRepo.getAccuracy(activeUser)
+
+      setPracticeAccuracy(acc)
+    }, [db, activeUser])
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPracticeAccuracy()
+    }, [loadPracticeAccuracy])
+  )
+
+  useEffect(() => {
+    loadPracticeAccuracy()
+  }, [practice.stats, loadPracticeAccuracy])
 
   useEffect(() => {
 
@@ -279,8 +310,18 @@ export default function PracticeScreen() {
 
   if (!selectedTopicId) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
+      <SafeAreaView
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <Text
+          style={[
+            styles.loadingText,
+            { color: colors.text }
+          ]}
+        >
           Choose a topic in the Topics tab first.
         </Text>
       </SafeAreaView>
@@ -503,10 +544,10 @@ export default function PracticeScreen() {
             </View>
           </View>
 
-          <ScoreHeader
-            attempts={practice.stats.attempts}
-            correct={practice.stats.correct}
-            accuracy={practice.accuracy}
+            <ScoreHeader
+              attempts={practice.stats.attempts}
+              correct={practice.stats.correct}
+              accuracy={practiceAccuracy}
             containerStyle={{
               backgroundColor: colors.surface,
               borderWidth: 1,

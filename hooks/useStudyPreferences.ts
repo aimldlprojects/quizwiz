@@ -36,7 +36,7 @@ const DEFAULTS: Preferences = {
   learnBackDelaySeconds: 5,
   learnRandomOrderEnabled: false,
   practiceRandomOrderEnabled: false,
-  themeMode: "light"
+  themeMode: "dark"
 }
 
 const preferenceListeners =

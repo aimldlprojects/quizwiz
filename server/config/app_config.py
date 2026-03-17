@@ -32,4 +32,12 @@ SYNC_DROP_BEFORE_BOOTSTRAP = os.getenv(
     "SYNC_DROP_BEFORE_BOOTSTRAP", "true"
 ).lower() in ("1", "true", "yes")
 
+SEED_MASTER_DATA = os.getenv(
+    "SEED_MASTER_DATA", "true"
+).lower() in ("1", "true", "yes")
+
+SEED_INITIAL_REVIEWS = os.getenv(
+    "SEED_INITIAL_REVIEWS", "false"
+).lower() in ("1", "true", "yes")
+
 DEFAULT_CURRICULUM_SUBJECTS = ["Mathematics"]

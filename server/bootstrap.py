@@ -15,6 +15,8 @@ from db import get_db_config
 from server.config.app_config import (
     SYNC_DROP_BEFORE_BOOTSTRAP,
     SYNC_RESET_TABLES,
+    SEED_INITIAL_REVIEWS,
+    SEED_MASTER_DATA,
     DEFAULT_CURRICULUM_SUBJECTS
 )
 
@@ -449,8 +451,10 @@ def apply_schema(config):
             migrate_settings_table(cur)
             migrate_user_badges_table(cur)
             ensure_sync_meta_table(cur)
-            seed_demo_content(cur)
-            ensure_initial_review(cur)
+            if SEED_MASTER_DATA:
+                seed_demo_content(cur)
+            if SEED_INITIAL_REVIEWS:
+                ensure_initial_review(cur)
 
         conn.commit()
         print(
