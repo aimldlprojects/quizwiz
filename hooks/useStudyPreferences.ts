@@ -3,11 +3,36 @@ import { useFocusEffect } from "@react-navigation/native"
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState
 } from "react"
 
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
+
+function parseIdArray(
+  value: string | null
+): number[] {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed
+      .map(Number)
+      .filter((item) =>
+        Number.isFinite(item)
+      )
+  } catch {
+    return []
+  }
+}
 
 type Preferences = {
   selectedSubjectId: number | null
@@ -22,6 +47,9 @@ type Preferences = {
   learnRandomOrderEnabled: boolean
   practiceRandomOrderEnabled: boolean
   themeMode: ThemeMode
+  selectedSubjectIds: number[]
+  selectedTopicLevel1Ids: number[]
+  selectedTopicLevel2Ids: number[]
 }
 
 const DEFAULTS: Preferences = {
@@ -36,25 +64,37 @@ const DEFAULTS: Preferences = {
   learnBackDelaySeconds: 5,
   learnRandomOrderEnabled: false,
   practiceRandomOrderEnabled: false,
-  themeMode: "dark"
+  themeMode: "dark",
+  selectedSubjectIds: [],
+  selectedTopicLevel1Ids: [],
+  selectedTopicLevel2Ids: []
 }
 
-const preferenceListeners =
-  new Set<() => void>()
+const preferenceListeners = new Map<
+  symbol,
+  () => void
+>()
 
-function notifyPreferenceChange() {
-  for (const listener of preferenceListeners) {
+function notifyPreferenceChange(
+  sourceId?: symbol
+) {
+  for (const [id, listener] of preferenceListeners) {
+    if (sourceId != null && id === sourceId) {
+      continue
+    }
+
     listener()
   }
 }
 
 function subscribeToPreferenceChanges(
-  listener: () => void
+  listener: () => void,
+  id: symbol
 ) {
-  preferenceListeners.add(listener)
+  preferenceListeners.set(id, listener)
 
   return () => {
-    preferenceListeners.delete(listener)
+    preferenceListeners.delete(id)
   }
 }
 
@@ -67,59 +107,75 @@ export function useStudyPreferences(
     useState(true)
   const [preferences, setPreferences] =
     useState<Preferences>(DEFAULTS)
+  const selectedSubjectKey =
+    userId == null
+      ? "selected_subject_id"
+      : `selected_subject_id_user_${userId}`
+  const selectedTopicKey =
+    userId == null
+      ? "selected_topic_id"
+      : `selected_topic_id_user_${userId}`
+  const autoNextEnabledKey =
+    userId == null
+      ? "auto_next_enabled"
+      : `auto_next_enabled_user_${userId}`
+  const autoNextCorrectDelayKey =
+    userId == null
+      ? "auto_next_correct_delay_seconds"
+      : `auto_next_correct_delay_seconds_user_${userId}`
+  const autoNextWrongDelayKey =
+    userId == null
+      ? "auto_next_wrong_delay_seconds"
+      : `auto_next_wrong_delay_seconds_user_${userId}`
+  const learnAutoPlayKey =
+    userId == null
+      ? "learn_auto_play_enabled"
+      : `learn_auto_play_enabled_user_${userId}`
+  const learnFrontDelayKey =
+    userId == null
+      ? "learn_front_delay_seconds"
+      : `learn_front_delay_seconds_user_${userId}`
+  const learnBackDelayKey =
+    userId == null
+      ? "learn_back_delay_seconds"
+      : `learn_back_delay_seconds_user_${userId}`
+  const learnRandomOrderKey =
+    userId == null
+      ? "learn_random_order_enabled"
+      : `learn_random_order_enabled_user_${userId}`
+  const practiceRandomOrderKey =
+    userId == null
+      ? "practice_random_order_enabled"
+      : `practice_random_order_enabled_user_${userId}`
+  const themeModeKey =
+    userId == null
+      ? "theme_mode"
+      : `theme_mode_user_${userId}`
+  const ttsKey =
+    userId == null
+      ? "tts_enabled"
+      : `tts_enabled_user_${userId}`
+  const selectedSubjectIdsKey =
+    userId == null
+      ? "selected_subject_ids"
+      : `selected_subject_ids_user_${userId}`
+  const selectedTopicLevel1IdsKey =
+    userId == null
+      ? "selected_topic_level1_ids"
+      : `selected_topic_level1_ids_user_${userId}`
+  const selectedTopicLevel2IdsKey =
+    userId == null
+      ? "selected_topic_level2_ids"
+      : `selected_topic_level2_ids_user_${userId}`
+  const preferenceListenerId = useMemo(
+    () => Symbol("study-preferences"),
+    []
+  )
 
   const loadPreferences = useCallback(async () => {
 
     if (!db) return
 
-    const selectedSubjectKey =
-      userId == null
-        ? "selected_subject_id"
-        : `selected_subject_id_user_${userId}`
-    const selectedTopicKey =
-      userId == null
-        ? "selected_topic_id"
-        : `selected_topic_id_user_${userId}`
-    const autoNextEnabledKey =
-      userId == null
-        ? "auto_next_enabled"
-        : `auto_next_enabled_user_${userId}`
-    const autoNextCorrectDelayKey =
-      userId == null
-        ? "auto_next_correct_delay_seconds"
-        : `auto_next_correct_delay_seconds_user_${userId}`
-    const autoNextWrongDelayKey =
-      userId == null
-        ? "auto_next_wrong_delay_seconds"
-        : `auto_next_wrong_delay_seconds_user_${userId}`
-    const learnAutoPlayKey =
-      userId == null
-        ? "learn_auto_play_enabled"
-        : `learn_auto_play_enabled_user_${userId}`
-    const learnFrontDelayKey =
-      userId == null
-        ? "learn_front_delay_seconds"
-        : `learn_front_delay_seconds_user_${userId}`
-    const learnBackDelayKey =
-      userId == null
-        ? "learn_back_delay_seconds"
-        : `learn_back_delay_seconds_user_${userId}`
-    const learnRandomOrderKey =
-      userId == null
-        ? "learn_random_order_enabled"
-        : `learn_random_order_enabled_user_${userId}`
-    const practiceRandomOrderKey =
-      userId == null
-        ? "practice_random_order_enabled"
-        : `practice_random_order_enabled_user_${userId}`
-    const themeModeKey =
-      userId == null
-        ? "theme_mode"
-        : `theme_mode_user_${userId}`
-    const ttsKey =
-      userId == null
-        ? "tts_enabled"
-        : `tts_enabled_user_${userId}`
     const keys = [
       selectedSubjectKey,
       selectedTopicKey,
@@ -133,7 +189,10 @@ export function useStudyPreferences(
       learnBackDelayKey,
       learnRandomOrderKey,
       practiceRandomOrderKey,
-      themeModeKey
+      themeModeKey,
+      selectedSubjectIdsKey,
+      selectedTopicLevel1IdsKey,
+      selectedTopicLevel2IdsKey
     ]
 
     const targetUserId =
@@ -231,6 +290,18 @@ export function useStudyPreferences(
               ? "dark"
               : "light"
           break
+        case selectedSubjectIdsKey:
+          next.selectedSubjectIds =
+            parseIdArray(row.value)
+          break
+        case selectedTopicLevel1IdsKey:
+          next.selectedTopicLevel1Ids =
+            parseIdArray(row.value)
+          break
+        case selectedTopicLevel2IdsKey:
+          next.selectedTopicLevel2Ids =
+            parseIdArray(row.value)
+          break
       }
     }
 
@@ -259,7 +330,8 @@ export function useStudyPreferences(
 
     const unsubscribe =
       subscribeToPreferenceChanges(
-        loadPreferences
+        loadPreferences,
+        preferenceListenerId
       )
 
     return unsubscribe
@@ -293,10 +365,147 @@ export function useStudyPreferences(
       ON CONFLICT(user_id, key)
       DO UPDATE SET value = excluded.value
       `,
-      [targetUserId, key, value]
+    [targetUserId, key, value]
+  )
+
+  notifyPreferenceChange(preferenceListenerId)
+
+}
+
+  async function persistIdArray(
+    key: string,
+    ids: number[]
+  ) {
+
+    await savePreference(
+      key,
+      ids.length === 0
+        ? null
+        : JSON.stringify(ids)
     )
 
-    notifyPreferenceChange()
+  }
+
+  async function toggleSubjectSelection(
+    subjectId: number
+  ) {
+
+    let nextArray: number[] = []
+    let nextPrimary: number | null = null
+
+    setPreferences((current) => {
+      const nextSet = new Set(
+        current.selectedSubjectIds
+      )
+      const wasSelected =
+        nextSet.has(subjectId)
+
+      if (wasSelected) {
+        nextSet.delete(subjectId)
+      } else {
+        nextSet.add(subjectId)
+      }
+
+      nextArray = Array.from(nextSet)
+
+      if (wasSelected) {
+        nextPrimary =
+          current.selectedSubjectId ===
+          subjectId
+            ? nextArray.length > 0
+              ? nextArray[
+                  nextArray.length - 1
+                ]
+              : null
+            : current.selectedSubjectId
+      } else {
+        nextPrimary = subjectId
+      }
+
+      return {
+        ...current,
+        selectedSubjectIds: nextArray,
+        selectedSubjectId: nextPrimary
+      }
+    })
+
+    await persistIdArray(
+      selectedSubjectIdsKey,
+      nextArray
+    )
+    await savePreference(
+      selectedSubjectKey,
+      nextPrimary == null
+        ? null
+        : String(nextPrimary)
+    )
+
+  }
+
+  async function toggleTopicSelection(
+    levelIndex: number,
+    topicId: number
+  ) {
+
+    let nextArray: number[] = []
+    let nextPrimary: number | null = null
+
+    setPreferences((current) => {
+      const targetArray =
+        levelIndex === 0
+          ? current.selectedTopicLevel1Ids
+          : current.selectedTopicLevel2Ids
+      const nextSet = new Set(targetArray)
+      const wasSelected =
+        nextSet.has(topicId)
+
+      if (wasSelected) {
+        nextSet.delete(topicId)
+      } else {
+        nextSet.add(topicId)
+      }
+
+      nextArray = Array.from(nextSet)
+
+      if (wasSelected) {
+        nextPrimary =
+          current.selectedTopicId === topicId
+            ? nextArray.length > 0
+              ? nextArray[
+                  nextArray.length - 1
+                ]
+              : null
+            : current.selectedTopicId
+      } else {
+        nextPrimary = topicId
+      }
+
+      return {
+        ...current,
+        selectedTopicLevel1Ids:
+          levelIndex === 0
+            ? nextArray
+            : current.selectedTopicLevel1Ids,
+        selectedTopicLevel2Ids:
+          levelIndex === 0
+            ? current.selectedTopicLevel2Ids
+            : nextArray,
+        selectedTopicId: nextPrimary
+      }
+    })
+
+    const targetKey =
+      levelIndex === 0
+        ? selectedTopicLevel1IdsKey
+        : selectedTopicLevel2IdsKey
+
+    await persistIdArray(targetKey, nextArray)
+    await savePreference(
+      selectedTopicKey,
+      nextPrimary == null
+        ? null
+        : String(nextPrimary)
+    )
 
   }
 
@@ -543,6 +752,14 @@ export function useStudyPreferences(
     loading,
     setSelectedSubjectId,
     setSelectedTopicId,
+    selectedSubjectIds:
+      preferences.selectedSubjectIds,
+    selectedTopicLevel1Ids:
+      preferences.selectedTopicLevel1Ids,
+    selectedTopicLevel2Ids:
+      preferences.selectedTopicLevel2Ids,
+    toggleSubjectSelection,
+    toggleTopicSelection,
     setTtsEnabled,
     setAutoNextEnabled,
     setAutoNextCorrectDelaySeconds,

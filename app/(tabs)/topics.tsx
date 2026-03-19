@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Pressable,
   ScrollView,
@@ -36,15 +36,17 @@ export default function TopicsScreen() {
   const { db, loading } = useDatabase()
   const {
     activeUser,
-    setSubjectEnabled,
-    setTopicEnabled,
     loading: usersLoading
   } = useUsers(db)
   const {
     selectedSubjectId,
     selectedTopicId,
+    selectedSubjectIds,
+    selectedTopicLevel1Ids,
+    selectedTopicLevel2Ids,
     setSelectedSubjectId,
-    setSelectedTopicId,
+    toggleSubjectSelection,
+    toggleTopicSelection,
     themeMode,
     loading: preferencesLoading
   } = useStudyPreferences(
@@ -52,6 +54,30 @@ export default function TopicsScreen() {
     activeUser
   )
   const colors = getThemeColors(themeMode)
+
+  const selectedSubjectIdsSet = useMemo(
+    () => new Set(selectedSubjectIds),
+    [selectedSubjectIds]
+  )
+  const selectedTopicLevel1IdsSet = useMemo(
+    () => new Set(selectedTopicLevel1Ids),
+    [selectedTopicLevel1Ids]
+  )
+  const selectedTopicLevel2IdsSet = useMemo(
+    () => new Set(selectedTopicLevel2Ids),
+    [selectedTopicLevel2Ids]
+  )
+  const selectedTopicIdsSet = useMemo(
+    () =>
+      new Set([
+        ...selectedTopicLevel1Ids,
+        ...selectedTopicLevel2Ids
+      ]),
+    [
+      selectedTopicLevel1Ids,
+      selectedTopicLevel2Ids
+    ]
+  )
 
   const [subjects, setSubjects] =
     useState<Subject[]>([])
@@ -61,10 +87,10 @@ export default function TopicsScreen() {
     useState<Record<number, number>>({})
   const [allowedTopicIds, setAllowedTopicIds] =
     useState<Set<number>>(new Set())
-  const [pendingSubjectToggle, setPendingSubjectToggle] =
+  const [activeSubjectId, setActiveSubjectId] =
     useState<number | null>(null)
-  const [pendingTopicToggle, setPendingTopicToggle] =
-    useState<number | null>(null)
+  const [activeTopicPath, setActiveTopicPath] =
+    useState<number[]>([])
 
   useEffect(() => {
 
@@ -131,59 +157,392 @@ export default function TopicsScreen() {
 
   }, [db, activeUser])
 
-  const selectedTopic =
-    topics.find((topic) => topic.id === selectedTopicId)
   const lineage =
     getTopicLineage(
       topics,
       selectedTopicId
     )
-  const lineageIds = new Set(
-    lineage.map((topic) => topic.id)
-  )
   const availableTopicIds =
     getAvailableTopicIds(
       topics,
       topicQuestionCounts
     )
-  const topicStatus =
-    useMemo(
-      () =>
-        buildTopicStatusMap(
-          topics.filter((topic) =>
-            availableTopicIds.has(topic.id)
-          ),
-          allowedTopicIds
-        ),
-      [topics, availableTopicIds, allowedTopicIds]
-    )
-  const visibleSubjects =
-    subjects.filter((subject) =>
-      topics.some(
+  const allowedTopicsList = useMemo(
+    () =>
+      topics.filter(
         (topic) =>
-          topic.subject_id === subject.id &&
           availableTopicIds.has(topic.id) &&
           allowedTopicIds.has(topic.id)
+      ),
+    [topics, availableTopicIds, allowedTopicIds]
+  )
+  const selectedTopicsSort = useMemo(() => {
+    const byId = new Map(
+      topics.map((topic) => [topic.id, topic])
+    )
+    return [
+      ...Array.from(selectedTopicLevel1IdsSet).map(
+        (id) => byId.get(id)
+      ),
+      ...Array.from(selectedTopicLevel2IdsSet).map(
+        (id) => byId.get(id)
+      )
+    ]
+      .filter(Boolean)
+      .map((topic) => topic!.name)
+  }, [
+    selectedTopicLevel1IdsSet,
+    selectedTopicLevel2IdsSet,
+    topics
+  ])
+  const visibleSubjects =
+    subjects.filter((subject) =>
+      allowedTopicsList.some(
+        (topic) => topic.subject_id === subject.id
       )
     )
-  const subjectStatus =
-    useMemo(
-      () =>
-        buildSubjectStatusMap(
-          visibleSubjects,
-          topics.filter((topic) =>
-            availableTopicIds.has(topic.id)
-          ),
-          topicStatus
-        ),
-      [
-        visibleSubjects,
-        topics,
-        availableTopicIds,
-        topicStatus
-      ]
-    )
+  const subjectMap = useMemo(
+    () =>
+      new Map(subjects.map((subject) => [
+        subject.id,
+        subject
+      ])),
+    [subjects]
+  )
+  const subjectRootTopicsMap = useMemo(() => {
+    const map = new Map<number, Topic[]>()
 
+    for (const topic of allowedTopicsList) {
+      if (topic.parent_topic_id != null) {
+        continue
+      }
+
+      const topics =
+        map.get(topic.subject_id) ?? []
+      topics.push(topic)
+      map.set(topic.subject_id, topics)
+    }
+
+    return map
+  }, [allowedTopicsList])
+  const topicChildrenByParent = useMemo(() => {
+    const map = new Map<
+      number | null,
+      Topic[]
+    >()
+
+    for (const topic of allowedTopicsList) {
+      const parentId =
+        topic.parent_topic_id ?? null
+      const siblings =
+        map.get(parentId) ?? []
+
+      siblings.push(topic)
+      map.set(parentId, siblings)
+    }
+
+    return map
+  }, [allowedTopicsList])
+  const topicDepthMap = useMemo(() => {
+    const depthMap = new Map<number, number>()
+
+    function visit(topic: Topic, depth: number) {
+      depthMap.set(topic.id, depth)
+
+      const children =
+        topicChildrenByParent.get(topic.id) ?? []
+
+      for (const child of children) {
+        visit(child, depth + 1)
+      }
+    }
+
+    for (const topic of allowedTopicsList) {
+      if (topic.parent_topic_id == null) {
+        visit(topic, 0)
+      }
+    }
+
+    return depthMap
+  }, [allowedTopicsList, topicChildrenByParent])
+  const topicSelectionStatus = useMemo(() => {
+    const status: Record<
+      number,
+      "selected" | "partial" | "none"
+    > = {}
+
+    function calculate(
+      topic: Topic
+    ): "selected" | "partial" | "none" {
+      if (status[topic.id]) {
+        return status[topic.id]
+      }
+
+      const children =
+        topicChildrenByParent.get(topic.id) ?? []
+      const childStatuses = children.map(
+        (child) => calculate(child)
+      )
+      const hasSelectedChild = childStatuses.some(
+        (childStatus) =>
+          childStatus !== "none"
+      )
+      const hasUnselectedChild =
+        children.length > 0 &&
+        childStatuses.some(
+          (childStatus) =>
+            childStatus === "none"
+        )
+
+      const selfSelected =
+        selectedTopicIdsSet.has(topic.id)
+
+      if (selfSelected) {
+        if (hasUnselectedChild) {
+          status[topic.id] = "partial"
+          return "partial"
+        }
+
+        status[topic.id] = "selected"
+        return "selected"
+      }
+
+      if (hasSelectedChild) {
+        status[topic.id] = "partial"
+        return "partial"
+      }
+
+      status[topic.id] = "none"
+      return "none"
+    }
+
+    for (const topic of allowedTopicsList) {
+      if (!status[topic.id]) {
+        calculate(topic)
+      }
+    }
+
+    return status
+  }, [
+    allowedTopicsList,
+    selectedTopicIdsSet,
+    topicChildrenByParent
+  ])
+  const selectedSubjectsList = useMemo(
+    () =>
+      Array.from(selectedSubjectIdsSet)
+        .map((subjectId) => subjectMap.get(subjectId))
+        .filter(Boolean)
+        .map((subject) => subject!.name),
+    [selectedSubjectIdsSet, subjectMap]
+  )
+  const subjectSelectionStatus = useMemo(() => {
+    const status: Record<
+      number,
+      "selected" | "partial" | "none"
+    > = {}
+
+    for (const subject of visibleSubjects) {
+      const subjectTopics =
+        allowedTopicsList.filter(
+          (topic) =>
+            topic.subject_id === subject.id
+        )
+
+      const anySelected =
+        subjectTopics.some(
+          (topic) =>
+            topicSelectionStatus[topic.id] !== "none"
+        )
+
+      const allSelected =
+        subjectTopics.length > 0 &&
+        subjectTopics.every(
+          (topic) =>
+            topicSelectionStatus[topic.id] ===
+            "selected"
+        )
+
+      if (allSelected && subjectTopics.length > 0) {
+        status[subject.id] = "selected"
+      } else if (anySelected) {
+        status[subject.id] = "partial"
+      } else {
+        status[subject.id] = "none"
+      }
+    }
+
+    return status
+  }, [
+    allowedTopicsList,
+    topicSelectionStatus,
+    visibleSubjects
+  ])
+
+  const collectDescendantTopicIds = useCallback(
+    (rootId: number) => {
+      const ids: number[] = []
+      const stack = [rootId]
+
+      while (stack.length > 0) {
+        const current = stack.pop()!
+        ids.push(current)
+
+        const children =
+          topicChildrenByParent.get(current) ?? []
+
+        for (const child of children) {
+          stack.push(child.id)
+        }
+      }
+
+      return ids
+    },
+    [topicChildrenByParent]
+  )
+
+  const cascadeTopicSelection = useCallback(
+    async (
+      topicId: number,
+      select: boolean,
+      includeRoot = true
+    ) => {
+      const ids = collectDescendantTopicIds(
+        topicId
+      )
+
+      if (!includeRoot) {
+        ids.shift()
+      }
+
+      for (const id of ids) {
+        const depth =
+          topicDepthMap.get(id) ?? 0
+        const levelIndex =
+          depth === 0 ? 0 : 1
+        const currentlySelected =
+          selectedTopicIdsSet.has(id)
+
+        if (currentlySelected === select) {
+          continue
+        }
+
+        await toggleTopicSelection(levelIndex, id)
+      }
+    },
+    [
+      collectDescendantTopicIds,
+      selectedTopicIdsSet,
+      topicDepthMap,
+      toggleTopicSelection
+    ]
+  )
+
+  const cascadeSubjectTopicSelection = useCallback(
+    async (subjectId: number, select: boolean) => {
+      const roots =
+        subjectRootTopicsMap.get(subjectId) ?? []
+
+      for (const root of roots) {
+        await cascadeTopicSelection(
+          root.id,
+          select
+        )
+      }
+    },
+    [
+      subjectRootTopicsMap,
+      cascadeTopicSelection
+    ]
+  )
+
+  const handleSubjectPress = useCallback(
+    async (subjectId: number) => {
+      const isActive = activeSubjectId === subjectId
+
+      console.log(
+        "[Topics] subject press",
+        subjectId,
+        "active:",
+        isActive ? "yes" : "no"
+      )
+
+      if (!isActive) {
+        setActiveSubjectId(subjectId)
+        setActiveTopicPath([])
+        return
+      }
+
+      const shouldSelect =
+        !selectedSubjectIdsSet.has(subjectId)
+
+      await toggleSubjectSelection(subjectId)
+      await cascadeSubjectTopicSelection(
+        subjectId,
+        shouldSelect
+      )
+      console.log(
+        "[Topics] subject selection toggled",
+        subjectId
+      )
+    },
+    [
+      activeSubjectId,
+      selectedSubjectIdsSet,
+      toggleSubjectSelection,
+      cascadeSubjectTopicSelection
+    ]
+  )
+  const handleTopicPress = useCallback(
+    async (levelIndex: number, topicId: number) => {
+      const isActive =
+        activeTopicPath[levelIndex] === topicId
+
+      console.log(
+        "[Topics] topic press",
+        levelIndex,
+        topicId,
+        "active:",
+        isActive ? "yes" : "no"
+      )
+
+      if (!isActive) {
+        setActiveTopicPath((current) => {
+          const next = current.slice(0, levelIndex)
+          next[levelIndex] = topicId
+          return next
+        })
+        return
+      }
+
+      const shouldSelect =
+        !selectedTopicIdsSet.has(topicId)
+
+      await toggleTopicSelection(levelIndex, topicId)
+      const hasChildren =
+        (topicChildrenByParent.get(topicId) ?? [])
+          .length > 0
+
+      if (hasChildren) {
+        await cascadeTopicSelection(
+          topicId,
+          shouldSelect,
+          false
+        )
+      }
+      console.log(
+        "[Topics] topic selection toggled",
+        levelIndex,
+        topicId
+      )
+    },
+    [
+      activeTopicPath,
+      selectedTopicIdsSet,
+      toggleTopicSelection,
+      cascadeTopicSelection
+    ]
+  )
   useEffect(() => {
 
     if (
@@ -203,6 +562,26 @@ export default function TopicsScreen() {
     setSelectedSubjectId
   ])
 
+  useEffect(() => {
+    if (
+      activeTopicPath.length === 0 &&
+      selectedTopicId != null
+    ) {
+      setActiveTopicPath(
+        lineage.map((topic) => topic.id)
+      )
+    }
+  }, [activeTopicPath.length, lineage, selectedTopicId])
+
+  useEffect(() => {
+    if (selectedSubjectId == null) {
+      return
+    }
+
+    setActiveSubjectId(selectedSubjectId)
+    setActiveTopicPath([])
+  }, [selectedSubjectId])
+
   if (
     loading ||
     usersLoading ||
@@ -218,21 +597,37 @@ export default function TopicsScreen() {
     )
   }
 
+  const navigationSubjectId =
+    activeSubjectId ?? selectedSubjectId
+  const activeSubjectName =
+    visibleSubjects.find(
+      (subject) =>
+        subject.id === navigationSubjectId
+    )?.name ?? null
+  const activePathNames =
+    activeTopicPath
+      .map((topicId) =>
+        topics.find((topic) => topic.id === topicId)
+      )
+      .filter(Boolean)
+      .map((topic) => topic!.name)
+  const pathText =
+    activeSubjectName != null
+      ? [activeSubjectName, ...activePathNames]
+          .filter(Boolean)
+          .join(" -> ") || "Choose a topic"
+      : "Activate a subject first"
   const topicLevels: Topic[][] = []
 
-  if (selectedSubjectId != null) {
+  if (navigationSubjectId != null) {
     let parentId: number | null = null
 
-    while (true) {
-        const levelTopics =
-        topics.filter(
-          (topic) =>
-            topic.subject_id ===
-              selectedSubjectId &&
-            topic.parent_topic_id === parentId &&
-            availableTopicIds.has(topic.id) &&
-            allowedTopicIds.has(topic.id)
-        )
+    for (let levelIndex = 0; ; levelIndex++) {
+      const levelTopics = allowedTopicsList.filter(
+        (topic) =>
+          topic.subject_id === navigationSubjectId &&
+          topic.parent_topic_id === parentId
+      )
 
       if (levelTopics.length === 0) {
         break
@@ -240,17 +635,14 @@ export default function TopicsScreen() {
 
       topicLevels.push(levelTopics)
 
-      const selectedLevelTopic =
-        lineage.find(
-          (topic) =>
-            topic.parent_topic_id === parentId
-        )
+      const nextActiveId =
+        activeTopicPath[levelIndex] ?? null
 
-      if (!selectedLevelTopic) {
+      if (nextActiveId == null) {
         break
       }
 
-      parentId = selectedLevelTopic.id
+      parentId = nextActiveId
     }
   }
 
@@ -281,7 +673,7 @@ export default function TopicsScreen() {
         <Text
           style={[styles.helperText, { color: colors.muted }]}
         >
-          Green means allowed, white means off, yellow means some child topics are off, and the blue border shows your current path.
+          Green means selected, white means deselected, yellow means only part of the branch is selected, and the blue border shows the path you're navigating.
         </Text>
 
         {activeUser && visibleSubjects.length === 0 ? (
@@ -314,87 +706,38 @@ export default function TopicsScreen() {
             Subjects
           </Text>
 
-            <View style={styles.chipWrap}>
+          <View style={styles.chipWrap}>
             {visibleSubjects.map((subject) => {
-              const isPending =
-                pendingSubjectToggle === subject.id
+              const subjectStatus =
+                subjectSelectionStatus[subject.id] ?? "none"
+              const isSelected =
+                subjectStatus === "selected"
+              const isPartial =
+                subjectStatus === "partial"
+              const isSelectedVisual =
+                isSelected && !isPartial
+              const isActive =
+                activeSubjectId === subject.id
 
               return (
                 <Pressable
                   key={subject.id}
                   style={[
                     styles.chip,
-                    subjectStatus[subject.id] ===
-                      "all" &&
-                      styles.allowedChip,
-                    subjectStatus[subject.id] ===
-                      "partial" &&
-                      styles.partialChip,
-                    selectedSubjectId === subject.id &&
-    styles.selectedChipPath,
-    isPending && styles.pendingChip
-  ]}
-                  onPress={async () => {
-                    if (!activeUser) {
-                      return
-                    }
-
-                    const alreadyPending =
-                      pendingSubjectToggle === subject.id
-
-                    await setSelectedSubjectId(
-                      subject.id
-                    )
-
-                    if (!alreadyPending) {
-                      setPendingSubjectToggle(
-                        subject.id
-                      )
-                      setPendingTopicToggle(null)
-                      return
-                    }
-
-                    setPendingSubjectToggle(null)
-                    setPendingTopicToggle(null)
-
-                    await setSubjectEnabled(
-                      activeUser,
-                      subject.id,
-                      subjectStatus[subject.id] !==
-                        "all"
-                    )
-
-                    const accessRepo =
-                      new UserSubjectRepository(db)
-                    const allowedTopics =
-                      await accessRepo.getAllowedTopics(
-                        activeUser
-                      )
-
-                    setAllowedTopicIds(
-                      new Set(
-                        allowedTopics.map(
-                          (topic) => topic.id
-                        )
-                      )
-                    )
-                    if (
-                      selectedTopicId != null &&
-                      !allowedTopics.some(
-                        (allowedTopic) =>
-                          allowedTopic.id === selectedTopicId
-                      )
-                    ) {
-                      await setSelectedTopicId(null)
-                    }
-                  }}
+                    isPartial && styles.partialChip,
+                    isSelectedVisual &&
+                      styles.learningChip,
+                    isActive && styles.activeChip
+                  ]}
+                  onPress={() =>
+                    handleSubjectPress(subject.id)
+                  }
                 >
                   <Text
                     style={[
                       styles.chipText,
-                      subjectStatus[subject.id] ===
-                        "all" &&
-                        styles.allowedChipText
+                      isSelectedVisual &&
+                        styles.learningChipText
                     ]}
                   >
                     {subject.name}
@@ -423,14 +766,14 @@ export default function TopicsScreen() {
             Topics
           </Text>
 
-          {selectedSubjectId == null ? (
+          {navigationSubjectId == null ? (
             <Text
               style={[
                 styles.helperText,
                 { color: colors.muted }
               ]}
             >
-              Select a subject first.
+              Activate a subject first.
             </Text>
           ) : (
             topicLevels.map(
@@ -445,92 +788,44 @@ export default function TopicsScreen() {
 
                   <View style={styles.chipWrap}>
                     {levelTopics.map((topic) => {
-                      const isInLineage =
-                        lineageIds.has(topic.id)
-                      const isPending =
-                        pendingTopicToggle === topic.id
+                      const isActive =
+                        activeTopicPath[levelIndex] ===
+                        topic.id
+                      const topicStatus =
+                        topicSelectionStatus[
+                          topic.id
+                        ] ?? "none"
+                      const isSelected =
+                        topicStatus === "selected"
+                      const isPartial =
+                        topicStatus === "partial"
+                      const isSelectedVisual =
+                        isSelected && !isPartial
 
                       return (
                         <Pressable
                           key={topic.id}
                           style={[
                             styles.chip,
-                            topicStatus[topic.id] ===
-                              "all" &&
-                              styles.allowedChip,
-                            topicStatus[topic.id] ===
-                              "partial" &&
+                            isPartial &&
                               styles.partialChip,
-                            isInLineage &&
-                              styles.selectedChipPath,
-                            isPending && styles.pendingChip
+                            isSelectedVisual &&
+                              styles.learningChip,
+                            isActive &&
+                              styles.activeChip
                           ]}
-                          onPress={async () => {
-                            if (!activeUser) {
-                              return
-                            }
-
-                            const alreadyPending =
-                              pendingTopicToggle === topic.id
-
-                            await setSelectedTopicId(
+                          onPress={() =>
+                            handleTopicPress(
+                              levelIndex,
                               topic.id
                             )
-
-                            if (!alreadyPending) {
-                              setPendingTopicToggle(topic.id)
-                              return
-                            }
-
-                            setPendingTopicToggle(null)
-
-                            const shouldEnable =
-                              !allowedTopicIds.has(
-                                topic.id
-                              )
-
-                            await setTopicEnabled(
-                              activeUser,
-                              topic.id,
-                              shouldEnable
-                            )
-
-                            const accessRepo =
-                              new UserSubjectRepository(
-                                db
-                              )
-                            const allowedTopics =
-                              await accessRepo.getAllowedTopics(
-                                activeUser
-                              )
-
-                            const nextAllowedIds = new Set(
-                              allowedTopics.map(
-                                (allowedTopic) =>
-                                  allowedTopic.id
-                              )
-                            )
-
-                            setAllowedTopicIds(nextAllowedIds)
-
-                            if (
-                              selectedTopicId != null &&
-                              !nextAllowedIds.has(
-                                selectedTopicId
-                              )
-                            ) {
-                              await setSelectedTopicId(
-                                allowedTopics[0]?.id ?? null
-                              )
-                            }
-                          }}
+                          }
                         >
                           <Text
                             style={[
                               styles.chipText,
-                              topicStatus[topic.id] ===
-                                "all" &&
-                                styles.allowedChipText
+                              isSelectedVisual &&
+                                styles.learningChipText
                             ]}
                           >
                             {topic.name}
@@ -569,11 +864,10 @@ export default function TopicsScreen() {
               { color: colors.text }
             ]}
           >
-            Subject:{" "}
-            {visibleSubjects.find(
-              (subject) =>
-                subject.id === selectedSubjectId
-            )?.name ?? "Not selected"}
+            Subjects:{" "}
+            {selectedSubjectsList.length > 0
+              ? selectedSubjectsList.join(", ")
+              : "Not selected"}
           </Text>
 
           <Text
@@ -582,8 +876,10 @@ export default function TopicsScreen() {
               { color: colors.text }
             ]}
           >
-            Topic:{" "}
-            {selectedTopic?.name ?? "Not selected"}
+            Topics:{" "}
+            {selectedTopicsSort.length > 0
+              ? selectedTopicsSort.join(", ")
+              : "Not selected"}
           </Text>
 
           <Text
@@ -592,12 +888,7 @@ export default function TopicsScreen() {
               { color: colors.muted }
             ]}
           >
-            Path:{" "}
-            {lineage.length === 0
-              ? "Choose a topic"
-              : lineage
-                  .map((topic) => topic.name)
-                  .join(" -> ")}
+            Path: {pathText}
           </Text>
         </View>
       </ScrollView>
@@ -703,7 +994,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 2,
-    borderColor: "#ffffff"
+    borderColor: "#dbe4f0"
   },
 
   allowedChip: {
@@ -711,29 +1002,33 @@ const styles = StyleSheet.create({
     borderColor: "#ffffff"
   },
 
-  pendingChip: {
-    borderColor: "#93c5fd",
-    borderWidth: 3,
-    backgroundColor: "#e0f2fe"
-  },
-
   partialChip: {
     backgroundColor: "#fde68a",
-    borderColor: "#f59e0b",
+    borderColor: "#dbe4f0",
+    borderWidth: 2
+  },
+
+  activeChip: {
+    borderColor: "#0ea5e9",
     borderWidth: 3
   },
 
-  selectedChipPath: {
-    borderColor: "#93c5fd",
-    borderWidth: 3
+  learningChip: {
+    backgroundColor: "#16a34a",
+    borderColor: "#16a34a",
+    borderWidth: 2
   },
 
   chipText: {
-    color: "#0f172a",
+    color: "#1e3a5f",
     fontWeight: "700"
   },
 
   allowedChipText: {
+    color: "#ffffff"
+  },
+
+  learningChipText: {
     color: "#ffffff"
   },
 
@@ -821,127 +1116,5 @@ function getAvailableTopicIds(
   }
 
   return available
-
-}
-
-function buildTopicStatusMap(
-  topics: Topic[],
-  allowedTopicIds: Set<number>
-) {
-
-  const childrenByParent = new Map<
-    number | null,
-    Topic[]
-  >()
-  const statusMap: Record<
-    number,
-    "all" | "partial" | "off"
-  > = {}
-
-  for (const topic of topics) {
-    const parentId =
-      topic.parent_topic_id ?? null
-    const siblings =
-      childrenByParent.get(parentId) ?? []
-
-    siblings.push(topic)
-    childrenByParent.set(parentId, siblings)
-  }
-
-  function getStatus(
-    topic: Topic
-  ): "all" | "partial" | "off" {
-
-    const children =
-      childrenByParent.get(topic.id) ?? []
-
-    if (children.length === 0) {
-      return allowedTopicIds.has(topic.id)
-        ? "all"
-        : "off"
-    }
-
-    const childStatuses =
-      children.map(getStatus)
-    const selfAllowed =
-      allowedTopicIds.has(topic.id)
-    const allChildrenAllowed =
-      childStatuses.every(
-        (status) => status === "all"
-      )
-    const anyAllowed =
-      selfAllowed ||
-      childStatuses.some(
-        (status) => status !== "off"
-      )
-
-    if (selfAllowed && allChildrenAllowed) {
-      return "all"
-    }
-
-    return anyAllowed ? "partial" : "off"
-
-  }
-
-  for (const topic of topics) {
-    statusMap[topic.id] = getStatus(topic)
-  }
-
-  return statusMap
-
-}
-
-function buildSubjectStatusMap(
-  subjects: Subject[],
-  topics: Topic[],
-  topicStatus: Record<
-    number,
-    "all" | "partial" | "off"
-  >
-) {
-
-  const statusMap: Record<
-    number,
-    "all" | "partial" | "off"
-  > = {}
-
-  for (const subject of subjects) {
-    const subjectTopics =
-      topics.filter(
-        (topic) =>
-          topic.subject_id === subject.id
-      )
-
-    if (subjectTopics.length === 0) {
-      statusMap[subject.id] = "off"
-      continue
-    }
-
-    const statuses = subjectTopics.map(
-      (topic) => topicStatus[topic.id] ?? "off"
-    )
-
-    if (
-      statuses.every(
-        (status) => status === "all"
-      )
-    ) {
-      statusMap[subject.id] = "all"
-      continue
-    }
-
-    if (
-      statuses.some(
-        (status) => status !== "off"
-      )
-    ) {
-      statusMap[subject.id] = "partial"
-      continue
-    }
-
-    statusMap[subject.id] = "off"
-  }
-
-  return statusMap
 
 }

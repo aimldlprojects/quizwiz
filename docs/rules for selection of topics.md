@@ -1,4 +1,3 @@
-
 ### ✅ Context for Codex (Clean & Structured)
 
 ---
@@ -296,19 +295,71 @@ handleTopicPress
 
 ---
 
-## ✅ Summary for Codex
+# Color schema
+
+### 🎨 Subject Chips Styling (Admin Tab)
+
+| State         | Background Color | Border Color | Color Names           | Meaning                     |
+| ------------- | ---------------- | ------------ | --------------------- | --------------------------- |
+| Default       | `#ffffff`      | `#ffffff`  | White / White         | Neutral, no emphasis        |
+| Fully Allowed | `#16a34a`      | `#ffffff`  | Green / White         | Fully permitted subject     |
+| Partial       | `#fde68a`      | `#f59e0b`  | Light Yellow / Orange | Partially permitted subject |
+
+---
+
+### 🎨 Topic Chips Styling (Admin Tab)
+
+| State          | Background Color | Border Color | Color Names           | Meaning                      |
+| -------------- | ---------------- | ------------ | --------------------- | ---------------------------- |
+| Default        | `#ffffff`      | `#ffffff`  | White / White         | Neutral topic                |
+| Fully Allowed  | `#16a34a`      | `#ffffff`  | Green / White         | Fully permitted topic        |
+| Partial        | `#fde68a`      | `#f59e0b`  | Light Yellow / Orange | Partially permitted topic    |
+| Selected Path  | `—`           | `#93c5fd`  | Light Blue            | Active navigation path       |
+| Pending Toggle | Light Blue BG    | `#93c5fd`  | Light Blue            | User interaction in progress |
+
+---
+
+### 🎨 Subjects – Topics Tab Color Schema
+
+| State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                   |
+| ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ------------------------- |
+| Default                | `#ffffff`      | `#dbe4f0`  | `#1e3a5f` | White / Light Blue-Gray / Dark Navy        | Neutral subject           |
+| Fully Allowed          | `#16a34a`      | `#16a34a`  | `#ffffff` | Green / Green / White                      | Fully enabled subject     |
+| Partial                | `#fde68a`      | `#dbe4f0`  | `#1e3a5f` | Light Yellow / Light Blue-Gray / Dark Navy | Partially enabled subject |
+| Selected Path (Active) | `#ffffff`      | `#0ea5e9`  | `#1e3a5f` | White / Sky Blue / Dark Navy               | Active navigation subject |
+
+---
+
+### 🎨 Topics – Topics Tab Color Schema
+
+| State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                 |
+| ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ----------------------- |
+| Default                | `#ffffff`      | `#dbe4f0`  | `#1e3a5f` | White / Light Blue-Gray / Dark Navy        | Neutral topic           |
+| Fully Allowed          | `#16a34a`      | `#16a34a`  | `#ffffff` | Green / Green / White                      | Fully enabled topic     |
+| Partial                | `#fde68a`      | `#dbe4f0`  | `#1e3a5f` | Light Yellow / Light Blue-Gray / Dark Navy | Partially enabled topic |
+| Selected Path (Active) | `#ffffff`      | `#0ea5e9`  | `#1e3a5f` | White / Sky Blue / Dark Navy               | Active navigation topic |
+
+---
+
+🎯 Key Pattern
+
+| Color       | Name         | Purpose                      |
+| ----------- | ------------ | ---------------------------- |
+| `#ffffff` | White        | Default / no emphasis        |
+| `#16a34a` | Green        | Fully allowed                |
+| `#fde68a` | Light Yellow | Partial state                |
+| `#f59e0b` | Orange       | Partial border highlight     |
+| `#93c5fd` | Light Blue   | Active / pending interaction |
+
+---
+
+### 🧠 Summary
 
 ```text
-There are 2 distinct interactions:
-1. First click → expand/filter hierarchy (no selection)
-2. Second click on same item → toggle selection (learn ON/OFF)
-
-Currently only expansion works.
-Selection toggle on second click is not happening.
-
-Fix by separating:
-- active state (for navigation)
-- selected state (for learning)
-
-Ensure toggle only happens when clicking an already active item.
+White → default / clean UI
+Green → fully allowed
+Yellow + Orange → partial state
+Blue → active / user interaction
 ```
+
+---
