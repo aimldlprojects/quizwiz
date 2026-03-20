@@ -247,6 +247,16 @@ activeSubjectId / activeTopicId   → controls UI expansion
 selectedSubjectIds / selectedTopicIds → controls learning selection
 ```
 
+
+
+ * **Admin and topics tab permissions and selection schema**
+   * The documented two-click pattern (first click = navigation/focus, second click = learning selection) must remain enforced: navigation interactions only adjust focus, while toggling learning state occurs only when the already-focused node is clicked again.
+   * Admin visibility (the subjects/topics surfaced in the UI) must stay independent from the learning selections; only the `selected*` sets should drive the color/highlighting states, and these selections should be allowed strictly within the currently visible (admin-permitted) subset.
+   * Clearing any learning state must never change the underlying permissions—topic visibility is solely determined by admin configuration, and user selections should never modify the admin-permitted list.
+ * **Selected Path text requirement**
+* Reset the navigation path and derived UI (topic levels, path text) whenever the active subject switches.
+  * `topicLevels` should be recalculated for the new subject so chips from the previous subject never remain after the switch.
+  * `activePathNames` and the “Path:” summary must always start from the newly focused subject, and they should not display topics that belonged to the prior subject until the user drills into them again.
 ---
 
 ### Constraints
