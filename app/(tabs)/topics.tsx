@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 import {
   Pressable,
   ScrollView,
@@ -91,6 +97,10 @@ export default function TopicsScreen() {
     useState<number | null>(null)
   const [activeTopicPath, setActiveTopicPath] =
     useState<number[]>([])
+  const navigationSubjectId =
+    activeSubjectId ?? selectedSubjectId
+  const previousNavigationSubjectId =
+    useRef<number | null>(null)
 
   useEffect(() => {
 
@@ -156,6 +166,18 @@ export default function TopicsScreen() {
     loadOptions()
 
   }, [db, activeUser])
+
+  useEffect(() => {
+    if (
+      previousNavigationSubjectId.current !==
+      navigationSubjectId
+    ) {
+      setActiveTopicPath([])
+    }
+
+    previousNavigationSubjectId.current =
+      navigationSubjectId
+  }, [navigationSubjectId])
 
   const lineage =
     getTopicLineage(
@@ -460,13 +482,6 @@ export default function TopicsScreen() {
     async (subjectId: number) => {
       const isActive = activeSubjectId === subjectId
 
-      console.log(
-        "[Topics] subject press",
-        subjectId,
-        "active:",
-        isActive ? "yes" : "no"
-      )
-
       if (!isActive) {
         setActiveSubjectId(subjectId)
         setActiveTopicPath([])
@@ -481,10 +496,6 @@ export default function TopicsScreen() {
         subjectId,
         shouldSelect
       )
-      console.log(
-        "[Topics] subject selection toggled",
-        subjectId
-      )
     },
     [
       activeSubjectId,
@@ -497,14 +508,6 @@ export default function TopicsScreen() {
     async (levelIndex: number, topicId: number) => {
       const isActive =
         activeTopicPath[levelIndex] === topicId
-
-      console.log(
-        "[Topics] topic press",
-        levelIndex,
-        topicId,
-        "active:",
-        isActive ? "yes" : "no"
-      )
 
       if (!isActive) {
         setActiveTopicPath((current) => {
@@ -530,11 +533,6 @@ export default function TopicsScreen() {
           false
         )
       }
-      console.log(
-        "[Topics] topic selection toggled",
-        levelIndex,
-        topicId
-      )
     },
     [
       activeTopicPath,
@@ -597,8 +595,6 @@ export default function TopicsScreen() {
     )
   }
 
-  const navigationSubjectId =
-    activeSubjectId ?? selectedSubjectId
   const activeSubjectName =
     visibleSubjects.find(
       (subject) =>

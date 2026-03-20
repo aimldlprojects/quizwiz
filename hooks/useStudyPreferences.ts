@@ -264,11 +264,6 @@ export function useStudyPreferences(
 
     if (!db) return
 
-    console.log(
-      "[StudyPreferences] loading for user",
-      preferenceUserId
-    )
-
     const targetUserId =
       preferenceUserId == null
         ? 0
@@ -289,11 +284,6 @@ export function useStudyPreferences(
         `,
         [targetUserId, ...preferenceKeys]
       )
-
-    console.log(
-      "[StudyPreferences] rows",
-      rows
-    )
 
     const updates: Partial<Preferences> = {}
     let userTtsApplied = false
@@ -406,14 +396,6 @@ export function useStudyPreferences(
         ...current,
         ...updates
       }
-      console.log(
-        "[StudyPreferences] applying updates",
-        updates,
-        "current",
-        current,
-        "next",
-        next
-      )
       return next
     })
     setLoading(false)
@@ -488,12 +470,6 @@ export function useStudyPreferences(
       key: string,
       ids: number[]
     ) {
-
-      console.log(
-        "[StudyPreferences] persist",
-        key,
-        ids
-      )
 
       await savePreference(
         key,
