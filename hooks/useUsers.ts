@@ -1,7 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useFocusEffect } from "@react-navigation/native"
-import { useCallback } from "react"
 
 import { UserController } from "../controllers/userController"
 import { getSyncMode } from "@/database/settingsRepository"
@@ -9,7 +8,6 @@ import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
 import { pushReviews } from "@/services/sync/pushReviews"
 import { UserSubjectRepository } from "@/database/userSubjectRepository"
-import { logSyncDebug } from "@/config/logging"
 import {
   DEFAULT_CURRICULUM_SUBJECTS,
   DEFAULT_CURRICULUM_TOPIC_KEYS
@@ -35,24 +33,7 @@ export function useUsers(
   const [loading, setLoading] =
     useState(true)
 
-  useEffect(() => {
-
-    if (!db) return
-
-    load()
-
-  }, [db, includeDisabled])
-
-  useFocusEffect(useCallback(() => {
-
-    if (!db) {
-      return
-    }
-
-    load()
-  }, [db, includeDisabled]))
-
-  async function load() {
+  const load = useCallback(async () => {
 
     if (!db) return
 
@@ -73,7 +54,24 @@ export function useUsers(
 
     setLoading(false)
 
-  }
+  }, [db, includeDisabled])
+
+  useEffect(() => {
+
+    if (!db) return
+
+    load()
+
+  }, [db, load])
+
+  useFocusEffect(useCallback(() => {
+
+    if (!db) {
+      return
+    }
+
+    load()
+  }, [db, load]))
 
   async function createUser(
     name: string
@@ -180,6 +178,7 @@ export function useUsers(
       new UserController(db)
 
     const previousUser = activeUser
+
     const mode =
       await getSyncMode(db)
     const serverUrl =
@@ -191,16 +190,10 @@ export function useUsers(
       previousUser
     ) {
       try {
-        logSyncDebug(
-          `push before switching from user ${previousUser}`
-        )
         await pushReviews(
           db,
           serverUrl,
           previousUser
-        )
-        logSyncDebug(
-          `push before switching from user ${previousUser} done`
         )
       } catch (error) {
         console.error(
@@ -214,16 +207,10 @@ export function useUsers(
 
     if (mode === "hybrid" && serverUrl) {
       try {
-        logSyncDebug(
-          `pull after switching to user ${id}`
-        )
         await pullReviews(
           db,
           serverUrl,
           id
-        )
-        logSyncDebug(
-          `pull after switching to user ${id} done`
         )
       } catch (error) {
         console.error(

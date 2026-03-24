@@ -26,6 +26,13 @@ export default function ProgressScreen() {
 
   const [accuracy, setAccuracy] =
     useState(0)
+  const [overallTotals, setOverallTotals] =
+    useState({
+      attempts: 0,
+      correct: 0
+    })
+  const [overallQuestionCount, setOverallQuestionCount] =
+    useState(0)
   const [topics, setTopics] =
     useState<any[]>([])
   const [subjects, setSubjects] =
@@ -47,8 +54,16 @@ export default function ProgressScreen() {
     const streakController =
       new StreakController(db)
 
+    const totals =
+      await statsRepo.getAccuracyTotals(activeUser)
+    const totalQuestions =
+      await statsRepo.getTotalQuestionCount()
     const acc =
-      await statsRepo.getAccuracy(activeUser)
+      totals.attempts === 0
+        ? 0
+        : Math.round(
+            (totals.correct / totals.attempts) * 100
+          )
 
     const topicData =
       await statsRepo.getTopicProgress(
@@ -66,6 +81,8 @@ export default function ProgressScreen() {
       )
 
     setAccuracy(acc)
+    setOverallTotals(totals)
+    setOverallQuestionCount(totalQuestions)
     setTopics(topicData)
     setSubjects(subjectData)
     setStreak(streakState.currentStreak)
@@ -134,6 +151,24 @@ export default function ProgressScreen() {
 
           <Text style={styles.bigValue}>
             {accuracy}%
+          </Text>
+
+          <Text
+            style={[
+              styles.heroMeta,
+              { color: colors.text }
+            ]}
+          >
+            {overallTotals.correct}/{overallTotals.attempts} correct
+          </Text>
+
+          <Text
+            style={[
+              styles.heroMeta,
+              { color: colors.muted }
+            ]}
+          >
+            {overallTotals.attempts}/{overallQuestionCount} seen
           </Text>
 
           <Text
@@ -337,6 +372,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: "#475569",
     fontSize: 16,
+    fontWeight: "700"
+  },
+
+  heroMeta: {
+    textAlign: "center",
+    marginTop: 8,
+    fontSize: 15,
     fontWeight: "700"
   },
 

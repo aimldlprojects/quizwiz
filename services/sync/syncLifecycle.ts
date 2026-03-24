@@ -107,15 +107,16 @@ export class SyncLifecycle {
 
   private async safeSync(source: string) {
     if (this.syncInProgress) return
-
-    if (!(await this.canPerformSync())) {
-      return
-    }
-
     this.syncInProgress = true
+    let didSync = false
 
     try {
+      if (!(await this.canPerformSync())) {
+        return
+      }
+
       await this.syncService.sync()
+      didSync = true
     } catch (err) {
       console.warn(
         `Sync (${source}) failed:`,
@@ -123,7 +124,9 @@ export class SyncLifecycle {
       )
     } finally {
       this.syncInProgress = false
-      this.lastSyncAt = Date.now()
+      if (didSync) {
+        this.lastSyncAt = Date.now()
+      }
     }
   }
 

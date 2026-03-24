@@ -1,9 +1,9 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { useFocusEffect } from "@react-navigation/native"
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react"
 
@@ -70,93 +70,107 @@ const DEFAULTS: Preferences = {
   selectedTopicLevel2Ids: []
 }
 
-const preferencesCache = new Map<
-  number | null,
-  Preferences
->()
+const preferencesCache = new Map<number, Preferences>()
 
-const preferenceListeners = new Map<
-  symbol,
-  () => void
->()
-
-function notifyPreferenceChange(
-  sourceId?: symbol
-) {
-  for (const [id, listener] of preferenceListeners) {
-    if (sourceId != null && id === sourceId) {
-      continue
-    }
-
-    listener()
+function clonePreferences(prefs: Preferences) {
+  return {
+    ...prefs,
+    selectedSubjectIds: [...prefs.selectedSubjectIds],
+    selectedTopicLevel1Ids: [
+      ...prefs.selectedTopicLevel1Ids
+    ],
+    selectedTopicLevel2Ids: [
+      ...prefs.selectedTopicLevel2Ids
+    ]
   }
 }
 
-function subscribeToPreferenceChanges(
-  listener: () => void,
-  id: symbol
+function getSelectedTopicIds(
+  prefs: Preferences
 ) {
-  preferenceListeners.set(id, listener)
+  return Array.from(
+    new Set([
+      ...prefs.selectedTopicLevel1Ids,
+      ...prefs.selectedTopicLevel2Ids,
+      ...(prefs.selectedTopicId == null
+        ? []
+        : [prefs.selectedTopicId])
+    ])
+  )
+}
 
-  return () => {
-    preferenceListeners.delete(id)
+function cachePreferencesForUser(
+  userId: number | null,
+  prefs: Preferences
+) {
+  if (userId == null) {
+    return
   }
+
+  preferencesCache.set(
+    userId,
+    clonePreferences(prefs)
+  )
+}
+
+function logSelectionState(
+  userId: number | null,
+  action: string,
+  prefs: Preferences
+) {
+  console.log("[study-preferences] selection", {
+    action,
+    userId,
+    selectedSubjectId: prefs.selectedSubjectId,
+    selectedSubjectIds: [...prefs.selectedSubjectIds],
+    selectedTopicId: prefs.selectedTopicId,
+    selectedTopicLevel1Ids: [
+      ...prefs.selectedTopicLevel1Ids
+    ],
+    selectedTopicLevel2Ids: [
+      ...prefs.selectedTopicLevel2Ids
+    ],
+    selectedTopicIds: getSelectedTopicIds(prefs)
+  })
 }
 
 export function useStudyPreferences(
   db: SQLiteDatabase | null,
   userId: number | null = null
 ) {
-
-  const [loading, setLoading] =
-    useState(true)
+  const [loading, setLoading] = useState(true)
   const [preferences, setPreferences] =
-    useState<Preferences>(() => {
-      return (
-        preferencesCache.get(userId) ?? DEFAULTS
-      )
-    })
-  const [
-    lastKnownUserId,
-    setLastKnownUserId
-  ] = useState<number | null>(userId)
+    useState<Preferences>(() =>
+      userId == null
+        ? DEFAULTS
+        : preferencesCache.get(userId) ??
+          DEFAULTS
+    )
+  const preferencesRef = useRef(preferences)
+  const loadTokenRef = useRef(0)
+
+  const preferenceUserId = userId
 
   useEffect(() => {
-    if (userId != null) {
-      setLastKnownUserId(userId)
-    }
-  }, [userId])
-
-  const preferenceUserId =
-    userId ?? lastKnownUserId
+    preferencesRef.current = preferences
+  }, [preferences])
 
   useEffect(() => {
     if (preferenceUserId == null) {
-      setPreferences(DEFAULTS)
       return
     }
 
-    const cached =
-      preferencesCache.get(preferenceUserId)
+    const cached = preferencesCache.get(
+      preferenceUserId
+    )
 
     if (cached) {
-      setPreferences(cached)
-      return
+      const nextPreferences = clonePreferences(cached)
+      preferencesRef.current = nextPreferences
+      setPreferences(nextPreferences)
     }
-
-    setPreferences(DEFAULTS)
   }, [preferenceUserId])
 
-  useEffect(() => {
-    if (preferenceUserId == null) {
-      return
-    }
-
-    preferencesCache.set(
-      preferenceUserId,
-      preferences
-    )
-  }, [preferences, preferenceUserId])
   const selectedSubjectKey =
     preferenceUserId == null
       ? "selected_subject_id"
@@ -217,6 +231,7 @@ export function useStudyPreferences(
     preferenceUserId == null
       ? "selected_topic_level2_ids"
       : `selected_topic_level2_ids_user_${preferenceUserId}`
+
   const preferenceKeys = useMemo(
     () => [
       selectedSubjectKey,
@@ -245,7 +260,6 @@ export function useStudyPreferences(
       learnFrontDelayKey,
       learnRandomOrderKey,
       practiceRandomOrderKey,
-      preferenceUserId,
       selectedSubjectIdsKey,
       selectedSubjectKey,
       selectedTopicKey,
@@ -255,38 +269,41 @@ export function useStudyPreferences(
       themeModeKey
     ]
   )
-  const preferenceListenerId = useMemo(
-    () => Symbol("study-preferences"),
-    []
-  )
 
   const loadPreferences = useCallback(async () => {
+    const loadToken = ++loadTokenRef.current
 
-    if (!db) return
+    if (!db || preferenceUserId == null) {
+      setPreferences(DEFAULTS)
+      setLoading(false)
+      return
+    }
 
-    const targetUserId =
-      preferenceUserId == null
-        ? 0
-        : preferenceUserId
+    setLoading(true)
 
-    const rows =
-      await db.getAllAsync<{
-        key: string
-        value: string
-      }>(
-        `
-        SELECT key, value
-        FROM settings
-        WHERE user_id = ?
-          AND key IN (${preferenceKeys
-            .map(() => "?")
-            .join(", ")})
-        `,
-        [targetUserId, ...preferenceKeys]
-      )
+    const rows = await db.getAllAsync<{
+      key: string
+      value: string
+    }>(
+      `
+      SELECT key, value
+      FROM settings
+      WHERE user_id = ?
+        AND key IN (${preferenceKeys
+          .map(() => "?")
+          .join(", ")})
+      `,
+      [preferenceUserId, ...preferenceKeys]
+    )
 
     const updates: Partial<Preferences> = {}
     let userTtsApplied = false
+    const rawTopicArrayRows: {
+      key: string
+      value: string
+    }[] = []
+    const cachedBase =
+      preferencesCache.get(preferenceUserId) ?? DEFAULTS
 
     for (const row of rows) {
       switch (row.key) {
@@ -308,8 +325,7 @@ export function useStudyPreferences(
           }
           break
         case autoNextEnabledKey:
-          updates.autoNextEnabled =
-            row.value === "1"
+          updates.autoNextEnabled = row.value === "1"
           break
         case autoNextCorrectDelayKey:
           updates.autoNextCorrectDelaySeconds =
@@ -357,100 +373,154 @@ export function useStudyPreferences(
           break
         case themeModeKey:
           updates.themeMode =
-            row.value === "dark"
-              ? "dark"
-              : "light"
+            row.value === "dark" ? "dark" : "light"
           break
         case selectedSubjectIdsKey:
-          if (
-            row.value &&
-            row.value !== "[]"
-          ) {
-            updates.selectedSubjectIds =
-              parseIdArray(row.value)
-          }
+          updates.selectedSubjectIds = parseIdArray(
+            row.value
+          )
           break
         case selectedTopicLevel1IdsKey:
-          if (
-            row.value &&
-            row.value !== "[]"
-          ) {
-            updates.selectedTopicLevel1Ids =
-              parseIdArray(row.value)
-          }
+          rawTopicArrayRows.push(row)
+          updates.selectedTopicLevel1Ids =
+            parseIdArray(row.value)
           break
         case selectedTopicLevel2IdsKey:
-          if (
-            row.value &&
-            row.value !== "[]"
-          ) {
-            updates.selectedTopicLevel2Ids =
-              parseIdArray(row.value)
-          }
+          rawTopicArrayRows.push(row)
+          updates.selectedTopicLevel2Ids =
+            parseIdArray(row.value)
           break
       }
     }
 
-    setPreferences((current) => {
-      const next = {
-        ...current,
-        ...updates
-      }
-      return next
-    })
-    setLoading(false)
+    if (updates.selectedTopicId != null) {
+      const topicRow =
+        await db.getFirstAsync<{
+          subject_id: number
+          parent_topic_id: number | null
+        }>(
+          `
+          SELECT subject_id, parent_topic_id
+          FROM topics
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [updates.selectedTopicId]
+        )
 
-  }, [db, preferenceUserId, preferenceKeys])
+      if (topicRow) {
+        const derivedSubjectId = Number(
+          topicRow.subject_id
+        )
+
+        if (updates.selectedSubjectId == null) {
+          updates.selectedSubjectId = derivedSubjectId
+        }
+
+        if (
+          !updates.selectedSubjectIds ||
+          updates.selectedSubjectIds.length === 0
+        ) {
+          updates.selectedSubjectIds = [derivedSubjectId]
+        }
+
+        const isLevel1Topic =
+          topicRow.parent_topic_id == null
+        const selectedTopicArray = isLevel1Topic
+          ? updates.selectedTopicLevel1Ids ?? []
+          : updates.selectedTopicLevel2Ids ?? []
+
+        if (
+          !selectedTopicArray.includes(
+            updates.selectedTopicId
+          )
+        ) {
+          const nextTopicArray = [
+            ...selectedTopicArray,
+            updates.selectedTopicId
+          ]
+
+          if (isLevel1Topic) {
+            updates.selectedTopicLevel1Ids =
+              nextTopicArray
+          } else {
+            updates.selectedTopicLevel2Ids =
+              nextTopicArray
+          }
+        }
+      }
+    }
+
+    const nextPreferences = {
+      ...cachedBase,
+      ...updates
+    }
+
+    if (rawTopicArrayRows.length > 0) {
+      console.log("[study-preferences] topic ids loaded", {
+        userId: preferenceUserId,
+        rows: rawTopicArrayRows
+      })
+    }
+
+    if (loadToken !== loadTokenRef.current) {
+      return
+    }
+
+    const clonedPreferences =
+      clonePreferences(nextPreferences)
+    preferencesRef.current = clonedPreferences
+    setPreferences(clonedPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
+    logSelectionState(
+      preferenceUserId,
+      "loaded",
+      nextPreferences
+    )
+    setLoading(false)
+  }, [
+    autoNextCorrectDelayKey,
+    autoNextEnabledKey,
+    autoNextWrongDelayKey,
+    db,
+    learnAutoPlayKey,
+    learnBackDelayKey,
+    learnFrontDelayKey,
+    learnRandomOrderKey,
+    preferenceKeys,
+    preferenceUserId,
+    practiceRandomOrderKey,
+    selectedSubjectIdsKey,
+    selectedSubjectKey,
+    selectedTopicKey,
+    selectedTopicLevel1IdsKey,
+    selectedTopicLevel2IdsKey,
+    ttsKey,
+    themeModeKey
+  ])
 
   useEffect(() => {
-
-    loadPreferences()
-
+    void loadPreferences()
   }, [loadPreferences])
 
-  useFocusEffect(
-    useCallback(() => {
-
-      loadPreferences()
-
-    }, [loadPreferences])
-  )
-
   useEffect(() => {
-
-    if (!db) return
-
-    const unsubscribe =
-      subscribeToPreferenceChanges(
-        loadPreferences,
-        preferenceListenerId
-      )
-
-    return unsubscribe
-
-  }, [db, loadPreferences])
-
-  useEffect(() => {
-
     if (preferences.ttsEnabled) {
       ttsService.enable()
     } else {
       ttsService.disable()
     }
-
   }, [preferences.ttsEnabled])
 
   async function savePreference(
     key: string,
     value: string | null
   ) {
-
-    if (!db) return
-
-    const targetUserId =
-      preferenceUserId == null
-        ? 0
-        : preferenceUserId
+    if (!db || preferenceUserId == null) {
+      return
+    }
 
     await db.runAsync(
       `
@@ -459,67 +529,71 @@ export function useStudyPreferences(
       ON CONFLICT(user_id, key)
       DO UPDATE SET value = excluded.value
       `,
-    [targetUserId, key, value]
-  )
+      [preferenceUserId, key, value]
+    )
 
-  notifyPreferenceChange(preferenceListenerId)
-
-}
-
-    async function persistIdArray(
-      key: string,
-      ids: number[]
-    ) {
-
-      await savePreference(
-        key,
-        JSON.stringify(ids)
-      )
-
+    if (key === selectedTopicKey) {
+      console.log("[study-preferences] topic saved", {
+        userId: preferenceUserId,
+        selectedTopicId:
+          value == null ? null : Number(value)
+      })
     }
+  }
+
+  async function persistIdArray(
+    key: string,
+    ids: number[]
+  ) {
+    if (
+      key === selectedTopicLevel1IdsKey ||
+      key === selectedTopicLevel2IdsKey
+    ) {
+      console.log("[study-preferences] topic ids saved", {
+        userId: preferenceUserId,
+        key,
+        ids: [...ids]
+      })
+    }
+
+    await savePreference(key, JSON.stringify(ids))
+  }
 
   async function toggleSubjectSelection(
     subjectId: number
   ) {
+    const current = preferencesRef.current
+    const nextSet = new Set(
+      current.selectedSubjectIds
+    )
+    const wasSelected = nextSet.has(subjectId)
 
-    let nextArray: number[] = []
-    let nextPrimary: number | null = null
+    if (wasSelected) {
+      nextSet.delete(subjectId)
+    } else {
+      nextSet.add(subjectId)
+    }
 
-    setPreferences((current) => {
-      const nextSet = new Set(
-        current.selectedSubjectIds
-      )
-      const wasSelected =
-        nextSet.has(subjectId)
+    const nextArray = Array.from(nextSet)
+    const nextPrimary = wasSelected
+      ? current.selectedSubjectId === subjectId
+        ? nextArray.length > 0
+          ? nextArray[nextArray.length - 1]
+          : null
+        : current.selectedSubjectId
+      : subjectId
+    const nextPreferences = {
+      ...current,
+      selectedSubjectIds: nextArray,
+      selectedSubjectId: nextPrimary
+    }
 
-      if (wasSelected) {
-        nextSet.delete(subjectId)
-      } else {
-        nextSet.add(subjectId)
-      }
-
-      nextArray = Array.from(nextSet)
-
-      if (wasSelected) {
-        nextPrimary =
-          current.selectedSubjectId ===
-          subjectId
-            ? nextArray.length > 0
-              ? nextArray[
-                  nextArray.length - 1
-                ]
-              : null
-            : current.selectedSubjectId
-      } else {
-        nextPrimary = subjectId
-      }
-
-      return {
-        ...current,
-        selectedSubjectIds: nextArray,
-        selectedSubjectId: nextPrimary
-      }
-    })
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await persistIdArray(
       selectedSubjectIdsKey,
@@ -532,59 +606,62 @@ export function useStudyPreferences(
         : String(nextPrimary)
     )
 
+    logSelectionState(
+      preferenceUserId,
+      "subject-toggle",
+      {
+        ...nextPreferences,
+        selectedSubjectIds: nextArray,
+        selectedSubjectId: nextPrimary
+      }
+    )
   }
 
   async function toggleTopicSelection(
     levelIndex: number,
     topicId: number
   ) {
+    const current = preferencesRef.current
+    const targetArray =
+      levelIndex === 0
+        ? current.selectedTopicLevel1Ids
+        : current.selectedTopicLevel2Ids
+    const nextSet = new Set(targetArray)
+    const wasSelected = nextSet.has(topicId)
 
-    let nextArray: number[] = []
-    let nextPrimary: number | null = null
+    if (wasSelected) {
+      nextSet.delete(topicId)
+    } else {
+      nextSet.add(topicId)
+    }
 
-    setPreferences((current) => {
-      const targetArray =
+    const nextArray = Array.from(nextSet)
+    const nextPrimary = wasSelected
+      ? current.selectedTopicId === topicId
+        ? nextArray.length > 0
+          ? nextArray[nextArray.length - 1]
+          : null
+        : current.selectedTopicId
+      : topicId
+    const nextPreferences = {
+      ...current,
+      selectedTopicLevel1Ids:
         levelIndex === 0
-          ? current.selectedTopicLevel1Ids
-          : current.selectedTopicLevel2Ids
-      const nextSet = new Set(targetArray)
-      const wasSelected =
-        nextSet.has(topicId)
+          ? nextArray
+          : current.selectedTopicLevel1Ids,
+      selectedTopicLevel2Ids:
+        levelIndex === 0
+          ? current.selectedTopicLevel2Ids
+          : nextArray,
+      selectedTopicId: nextPrimary
+    }
 
-      if (wasSelected) {
-        nextSet.delete(topicId)
-      } else {
-        nextSet.add(topicId)
-      }
-
-      nextArray = Array.from(nextSet)
-
-      if (wasSelected) {
-        nextPrimary =
-          current.selectedTopicId === topicId
-            ? nextArray.length > 0
-              ? nextArray[
-                  nextArray.length - 1
-                ]
-              : null
-            : current.selectedTopicId
-      } else {
-        nextPrimary = topicId
-      }
-
-      return {
-        ...current,
-        selectedTopicLevel1Ids:
-          levelIndex === 0
-            ? nextArray
-            : current.selectedTopicLevel1Ids,
-        selectedTopicLevel2Ids:
-          levelIndex === 0
-            ? current.selectedTopicLevel2Ids
-            : nextArray,
-        selectedTopicId: nextPrimary
-      }
-    })
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     const targetKey =
       levelIndex === 0
@@ -599,215 +676,268 @@ export function useStudyPreferences(
         : String(nextPrimary)
     )
 
+    logSelectionState(
+      preferenceUserId,
+      "topic-toggle",
+      nextPreferences
+    )
   }
 
   async function setSelectedSubjectId(
     subjectId: number | null
   ) {
-
-    setPreferences((current) => ({
+    const current = preferencesRef.current
+    const nextPreferences = {
       ...current,
       selectedSubjectId: subjectId,
       selectedTopicId: null
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       selectedSubjectKey,
-      subjectId == null
-        ? null
-        : String(subjectId)
+      subjectId == null ? null : String(subjectId)
     )
-    await savePreference(
-      selectedTopicKey,
-      null
-    )
+    await savePreference(selectedTopicKey, null)
 
+    logSelectionState(
+      preferenceUserId,
+      "set-subject",
+      {
+        ...nextPreferences,
+        selectedSubjectId: subjectId,
+        selectedTopicId: null
+      }
+    )
   }
 
   async function setSelectedTopicId(
     topicId: number | null
   ) {
-
-    setPreferences((current) => ({
+    const current = preferencesRef.current
+    const nextPreferences = {
       ...current,
       selectedTopicId: topicId
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       selectedTopicKey,
-      topicId == null
-        ? null
-        : String(topicId)
+      topicId == null ? null : String(topicId)
     )
 
+    logSelectionState(
+      preferenceUserId,
+      "set-topic",
+      {
+        ...nextPreferences,
+        selectedTopicId: topicId
+      }
+    )
   }
 
-  async function setTtsEnabled(
-    enabled: boolean
-  ) {
-
-    setPreferences((current) => ({
-      ...current,
+  async function setTtsEnabled(enabled: boolean) {
+    const nextPreferences = {
+      ...preferencesRef.current,
       ttsEnabled: enabled
-    }))
-
-    await savePreference(
-      ttsKey,
-      enabled ? "1" : "0"
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
     )
 
+    await savePreference(ttsKey, enabled ? "1" : "0")
   }
 
   async function setAutoNextEnabled(
     enabled: boolean
   ) {
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       autoNextEnabled: enabled
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       autoNextEnabledKey,
       enabled ? "1" : "0"
     )
-
   }
 
   async function setAutoNextCorrectDelaySeconds(
     seconds: number
   ) {
-
     const nextValue = Math.max(1, seconds)
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       autoNextCorrectDelaySeconds: nextValue
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       autoNextCorrectDelayKey,
       String(nextValue)
     )
-
   }
 
   async function setAutoNextWrongDelaySeconds(
     seconds: number
   ) {
-
     const nextValue = Math.max(1, seconds)
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       autoNextWrongDelaySeconds: nextValue
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       autoNextWrongDelayKey,
       String(nextValue)
     )
-
   }
 
   async function setLearnAutoPlayEnabled(
     enabled: boolean
   ) {
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       learnAutoPlayEnabled: enabled
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       learnAutoPlayKey,
       enabled ? "1" : "0"
     )
-
   }
 
   async function setLearnFrontDelaySeconds(
     seconds: number
   ) {
-
     const nextValue = Math.max(1, seconds)
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       learnFrontDelaySeconds: nextValue
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       learnFrontDelayKey,
       String(nextValue)
     )
-
   }
 
   async function setLearnBackDelaySeconds(
     seconds: number
   ) {
-
     const nextValue = Math.max(1, seconds)
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       learnBackDelaySeconds: nextValue
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       learnBackDelayKey,
       String(nextValue)
     )
-
   }
 
   async function setLearnRandomOrderEnabled(
     enabled: boolean
   ) {
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       learnRandomOrderEnabled: enabled
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       learnRandomOrderKey,
       enabled ? "1" : "0"
     )
-
   }
 
   async function setPracticeRandomOrderEnabled(
     enabled: boolean
   ) {
-
-    setPreferences((current) => ({
-      ...current,
+    const nextPreferences = {
+      ...preferencesRef.current,
       practiceRandomOrderEnabled: enabled
-    }))
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
+    )
 
     await savePreference(
       practiceRandomOrderKey,
       enabled ? "1" : "0"
     )
-
   }
 
-  async function setThemeMode(
-    mode: ThemeMode
-  ) {
-
-    setPreferences((current) => ({
-      ...current,
+  async function setThemeMode(mode: ThemeMode) {
+    const nextPreferences = {
+      ...preferencesRef.current,
       themeMode: mode
-    }))
-
-    await savePreference(
-      themeModeKey,
-      mode
+    }
+    preferencesRef.current = nextPreferences
+    setPreferences(nextPreferences)
+    cachePreferencesForUser(
+      preferenceUserId,
+      nextPreferences
     )
 
+    await savePreference(themeModeKey, mode)
   }
 
   return {
@@ -815,8 +945,7 @@ export function useStudyPreferences(
     loading,
     setSelectedSubjectId,
     setSelectedTopicId,
-    selectedSubjectIds:
-      preferences.selectedSubjectIds,
+    selectedSubjectIds: preferences.selectedSubjectIds,
     selectedTopicLevel1Ids:
       preferences.selectedTopicLevel1Ids,
     selectedTopicLevel2Ids:
@@ -834,5 +963,4 @@ export function useStudyPreferences(
     setPracticeRandomOrderEnabled,
     setThemeMode
   }
-
 }

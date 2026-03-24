@@ -87,7 +87,10 @@ export function usePractice(controller: PracticeController | null) {
 
     const nextStats =
       safeController.getStats()
-    setStats(nextStats)
+    setStats({
+      attempts: nextStats.attempts,
+      correct: nextStats.correct
+    })
 
   }, [answer, question, result, safeController])
 

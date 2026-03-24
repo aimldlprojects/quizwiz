@@ -12,6 +12,7 @@ import {
   Text,
   View
 } from "react-native"
+import { useFocusEffect } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../../hooks/useDatabase"
@@ -50,7 +51,6 @@ export default function TopicsScreen() {
     selectedSubjectIds,
     selectedTopicLevel1Ids,
     selectedTopicLevel2Ids,
-    setSelectedSubjectId,
     toggleSubjectSelection,
     toggleTopicSelection,
     themeMode,
@@ -77,11 +77,15 @@ export default function TopicsScreen() {
     () =>
       new Set([
         ...selectedTopicLevel1Ids,
-        ...selectedTopicLevel2Ids
+        ...selectedTopicLevel2Ids,
+        ...(selectedTopicId == null
+          ? []
+          : [selectedTopicId])
       ]),
     [
       selectedTopicLevel1Ids,
-      selectedTopicLevel2Ids
+      selectedTopicLevel2Ids,
+      selectedTopicId
     ]
   )
 
@@ -102,7 +106,58 @@ export default function TopicsScreen() {
   const previousNavigationSubjectId =
     useRef<number | null>(null)
 
+  const logTopicsState = useCallback(
+    (reason: string) => {
+      console.log("[topics-state] selected", {
+        reason,
+        userId: activeUser,
+        selectedSubjectId,
+        selectedSubjectIds: Array.from(
+          selectedSubjectIdsSet
+        ),
+        selectedTopicId,
+        selectedTopicIds: Array.from(
+          selectedTopicIdsSet
+        ),
+        selectedTopicLevel1Ids: Array.from(
+          selectedTopicLevel1IdsSet
+        ),
+        selectedTopicLevel2Ids: Array.from(
+          selectedTopicLevel2IdsSet
+        ),
+        navigationSubjectId,
+        activeSubjectId,
+        activeTopicPath: [...activeTopicPath]
+      })
+    },
+    [
+      activeUser,
+      activeSubjectId,
+      activeTopicPath,
+      navigationSubjectId,
+      selectedSubjectId,
+      selectedSubjectIdsSet,
+      selectedTopicId,
+      selectedTopicIdsSet,
+      selectedTopicLevel1IdsSet,
+      selectedTopicLevel2IdsSet
+    ]
+  )
+
+  useFocusEffect(
+    useCallback(() => {
+      logTopicsState("focus")
+    }, [logTopicsState])
+  )
+
   useEffect(() => {
+    logTopicsState("state-change")
+  }, [logTopicsState])
+
+  useEffect(() => {
+
+    setActiveSubjectId(null)
+    setActiveTopicPath([])
 
     async function loadOptions() {
 
@@ -208,21 +263,28 @@ export default function TopicsScreen() {
       ),
       ...Array.from(selectedTopicLevel2IdsSet).map(
         (id) => byId.get(id)
-      )
+      ),
+      ...(selectedTopicId == null
+        ? []
+        : [byId.get(selectedTopicId)])
     ]
       .filter(Boolean)
       .map((topic) => topic!.name)
   }, [
     selectedTopicLevel1IdsSet,
     selectedTopicLevel2IdsSet,
-    topics
+    topics,
+    selectedTopicId
   ])
-  const visibleSubjects =
-    subjects.filter((subject) =>
-      allowedTopicsList.some(
-        (topic) => topic.subject_id === subject.id
-      )
-    )
+  const visibleSubjects = useMemo(
+    () =>
+      subjects.filter((subject) =>
+        allowedTopicsList.some(
+          (topic) => topic.subject_id === subject.id
+        )
+      ),
+    [subjects, allowedTopicsList]
+  )
   const subjectMap = useMemo(
     () =>
       new Map(subjects.map((subject) => [
@@ -385,7 +447,12 @@ export default function TopicsScreen() {
             "selected"
         )
 
-      if (allSelected && subjectTopics.length > 0) {
+      const selfSelected =
+        selectedSubjectIdsSet.has(subject.id)
+
+      if (selfSelected) {
+        status[subject.id] = "selected"
+      } else if (allSelected && subjectTopics.length > 0) {
         status[subject.id] = "selected"
       } else if (anySelected) {
         status[subject.id] = "partial"
@@ -398,7 +465,8 @@ export default function TopicsScreen() {
   }, [
     allowedTopicsList,
     topicSelectionStatus,
-    visibleSubjects
+    visibleSubjects,
+    selectedSubjectIdsSet
   ])
 
   const collectDescendantTopicIds = useCallback(
@@ -481,6 +549,13 @@ export default function TopicsScreen() {
   const handleSubjectPress = useCallback(
     async (subjectId: number) => {
       const isActive = activeSubjectId === subjectId
+      console.log("[topics-click] subject", {
+        subjectId,
+        isActive,
+        selectedSubjectIds: Array.from(
+          selectedSubjectIdsSet
+        )
+      })
 
       if (!isActive) {
         setActiveSubjectId(subjectId)
@@ -508,6 +583,14 @@ export default function TopicsScreen() {
     async (levelIndex: number, topicId: number) => {
       const isActive =
         activeTopicPath[levelIndex] === topicId
+      console.log("[topics-click] topic", {
+        levelIndex,
+        topicId,
+        isActive,
+        selectedTopicIds: Array.from(
+          selectedTopicIdsSet
+        )
+      })
 
       if (!isActive) {
         setActiveTopicPath((current) => {
@@ -538,7 +621,8 @@ export default function TopicsScreen() {
       activeTopicPath,
       selectedTopicIdsSet,
       toggleTopicSelection,
-      cascadeTopicSelection
+      cascadeTopicSelection,
+      topicChildrenByParent
     ]
   )
   useEffect(() => {
@@ -551,13 +635,20 @@ export default function TopicsScreen() {
           subject.id === selectedSubjectId
       )
     ) {
-      setSelectedSubjectId(null)
+      if (activeSubjectId != null) {
+        setActiveSubjectId(null)
+      }
+
+      if (activeTopicPath.length > 0) {
+        setActiveTopicPath([])
+      }
     }
 
   }, [
     visibleSubjects,
     selectedSubjectId,
-    setSelectedSubjectId
+    activeSubjectId,
+    activeTopicPath.length
   ])
 
   useEffect(() => {
@@ -572,13 +663,16 @@ export default function TopicsScreen() {
   }, [activeTopicPath.length, lineage, selectedTopicId])
 
   useEffect(() => {
-    if (selectedSubjectId == null) {
-      return
+    if (
+      selectedSubjectId != null &&
+      activeSubjectId !== selectedSubjectId
+    ) {
+      setActiveSubjectId(selectedSubjectId)
     }
-
-    setActiveSubjectId(selectedSubjectId)
-    setActiveTopicPath([])
-  }, [selectedSubjectId])
+  }, [
+    selectedSubjectId,
+    activeSubjectId
+  ])
 
   if (
     loading ||
@@ -669,7 +763,7 @@ export default function TopicsScreen() {
         <Text
           style={[styles.helperText, { color: colors.muted }]}
         >
-          Green means selected, white means deselected, yellow means only part of the branch is selected, and the blue border shows the path you're navigating.
+          Green means selected, white means deselected, yellow means only part of the branch is selected, and the blue border shows the path you are navigating.
         </Text>
 
         {activeUser && visibleSubjects.length === 0 ? (
@@ -706,36 +800,24 @@ export default function TopicsScreen() {
             {visibleSubjects.map((subject) => {
               const subjectStatus =
                 subjectSelectionStatus[subject.id] ?? "none"
-              const isSelected =
-                subjectStatus === "selected"
-              const isPartial =
-                subjectStatus === "partial"
-              const isSelectedVisual =
-                isSelected && !isPartial
-              const isActive =
-                activeSubjectId === subject.id
+              const isSelectedById =
+                selectedSubjectIdsSet.has(subject.id)
+              const chipVisual =
+                getChipVisualStyles(
+                  subjectStatus,
+                  activeSubjectId === subject.id,
+                  isSelectedById
+                )
 
               return (
                 <Pressable
                   key={subject.id}
-                  style={[
-                    styles.chip,
-                    isPartial && styles.partialChip,
-                    isSelectedVisual &&
-                      styles.learningChip,
-                    isActive && styles.activeChip
-                  ]}
+                  style={chipVisual.container}
                   onPress={() =>
                     handleSubjectPress(subject.id)
                   }
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      isSelectedVisual &&
-                        styles.learningChipText
-                    ]}
-                  >
+                  <Text style={chipVisual.text}>
                     {subject.name}
                   </Text>
                 </Pressable>
@@ -784,32 +866,21 @@ export default function TopicsScreen() {
 
                   <View style={styles.chipWrap}>
                     {levelTopics.map((topic) => {
-                      const isActive =
-                        activeTopicPath[levelIndex] ===
-                        topic.id
                       const topicStatus =
                         topicSelectionStatus[
                           topic.id
                         ] ?? "none"
-                      const isSelected =
-                        topicStatus === "selected"
-                      const isPartial =
-                        topicStatus === "partial"
-                      const isSelectedVisual =
-                        isSelected && !isPartial
+                      const chipVisual =
+                        getChipVisualStyles(
+                          topicStatus,
+                          activeTopicPath[levelIndex] ===
+                            topic.id
+                        )
 
                       return (
                         <Pressable
                           key={topic.id}
-                          style={[
-                            styles.chip,
-                            isPartial &&
-                              styles.partialChip,
-                            isSelectedVisual &&
-                              styles.learningChip,
-                            isActive &&
-                              styles.activeChip
-                          ]}
+                          style={chipVisual.container}
                           onPress={() =>
                             handleTopicPress(
                               levelIndex,
@@ -817,13 +888,7 @@ export default function TopicsScreen() {
                             )
                           }
                         >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              isSelectedVisual &&
-                                styles.learningChipText
-                            ]}
-                          >
+                          <Text style={chipVisual.text}>
                             {topic.name}
                           </Text>
                         </Pressable>
@@ -1112,5 +1177,29 @@ function getAvailableTopicIds(
   }
 
   return available
+
+}
+
+function getChipVisualStyles(
+  status: "selected" | "partial" | "none",
+  isActive: boolean,
+  forceSelected = false
+) {
+  const isSelected =
+    forceSelected || status === "selected"
+  const isPartial = status === "partial"
+
+  return {
+    container: [
+      styles.chip,
+      isPartial && styles.partialChip,
+      isSelected && !isPartial && styles.learningChip,
+      isActive && styles.activeChip
+    ],
+    text: [
+      styles.chipText,
+      isSelected && !isPartial && styles.learningChipText
+    ]
+  }
 
 }

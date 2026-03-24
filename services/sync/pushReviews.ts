@@ -167,7 +167,28 @@ async function getSettingsForSync(
 ) {
   const rows = await getSettings(db, userId)
 
-  return rows.filter((row) => row.user_id === userId)
+  return rows.filter((row) => {
+    if (row.user_id !== userId) {
+      return false
+    }
+
+    return !isLocalStudySelectionKey(row.key)
+  })
+}
+
+function isLocalStudySelectionKey(key: string) {
+  return (
+    key === "selected_subject_id" ||
+    key === "selected_topic_id" ||
+    key === "selected_subject_ids" ||
+    key === "selected_topic_level1_ids" ||
+    key === "selected_topic_level2_ids" ||
+    key.startsWith("selected_subject_id_user_") ||
+    key.startsWith("selected_topic_id_user_") ||
+    key.startsWith("selected_subject_ids_user_") ||
+    key.startsWith("selected_topic_level1_ids_user_") ||
+    key.startsWith("selected_topic_level2_ids_user_")
+  )
 }
 
 function hasMeta(

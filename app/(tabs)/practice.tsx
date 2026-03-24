@@ -218,21 +218,54 @@ export default function PracticeScreen() {
 
   const [practiceAccuracy, setPracticeAccuracy] =
     useState(0)
+  const [practiceTotals, setPracticeTotals] =
+    useState({
+      attempts: 0,
+      correct: 0
+    })
 
   const loadPracticeAccuracy =
     useCallback(async () => {
       if (!db || !activeUser) {
         setPracticeAccuracy(0)
+        setPracticeTotals({
+          attempts: 0,
+          correct: 0
+        })
         return
       }
 
       const statsRepo =
         new StatsRepository(db)
-      const acc =
-        await statsRepo.getAccuracy(activeUser)
+      const totals =
+        await statsRepo.getAccuracyTotals(
+          activeUser,
+          selectedTopicId
+        )
 
-      setPracticeAccuracy(acc)
-    }, [db, activeUser])
+      setPracticeTotals(totals)
+      setPracticeAccuracy(
+        totals.attempts === 0
+          ? 0
+          : Math.round(
+              (totals.correct / totals.attempts) * 100
+            )
+      )
+
+      console.log("[practice-accuracy] refreshed", {
+        userId: activeUser,
+        selectedTopicId,
+        attempts: totals.attempts,
+        correct: totals.correct,
+        accuracy:
+          totals.attempts === 0
+            ? 0
+            : Math.round(
+                (totals.correct / totals.attempts) *
+                  100
+              )
+      })
+    }, [db, activeUser, selectedTopicId])
 
   useFocusEffect(
     useCallback(() => {
@@ -242,7 +275,7 @@ export default function PracticeScreen() {
 
   useEffect(() => {
     loadPracticeAccuracy()
-  }, [practice.stats, loadPracticeAccuracy])
+  }, [practice.result, loadPracticeAccuracy])
 
   useEffect(() => {
 
@@ -545,8 +578,8 @@ export default function PracticeScreen() {
           </View>
 
             <ScoreHeader
-              attempts={practice.stats.attempts}
-              correct={practice.stats.correct}
+              attempts={practiceTotals.attempts}
+              correct={practiceTotals.correct}
               accuracy={practiceAccuracy}
             containerStyle={{
               backgroundColor: colors.surface,
@@ -563,7 +596,7 @@ export default function PracticeScreen() {
               { color: colors.text }
             ]}
           >
-            Score: {practice.score}
+            Session score: {practice.score}
           </Text>
         </View>
 
