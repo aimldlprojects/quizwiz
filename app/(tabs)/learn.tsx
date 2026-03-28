@@ -31,10 +31,10 @@ import {
   getLearnProgress,
   setLearnProgress
 } from "../../database/learnProgressRepository"
+import { generateLearnCardsForTopic } from "../../engine/questions/questionFactory"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
-import { generateLearnCardsForTopic } from "../../engine/questions/questionFactory"
 import { getThemeColors } from "../../styles/theme"
 
 type Card = {
@@ -503,17 +503,17 @@ export default function LearnScreen() {
               </View>
 
               <View style={styles.headerActions}>
-            <Pressable
-              style={[
-                styles.iconButton,
-                iconButtonStyle(learnRandomOrderEnabled)
-              ]}
-              onPress={() =>
-                setLearnRandomOrderEnabled(
-                  !learnRandomOrderEnabled
-                )
-              }
-            >
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  iconButtonStyle(learnRandomOrderEnabled)
+                ]}
+                onPress={() =>
+                  setLearnRandomOrderEnabled(
+                    !learnRandomOrderEnabled
+                  )
+                }
+              >
                 <MaterialIcons
                   name="shuffle"
                   size={20}
@@ -521,17 +521,17 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-            <Pressable
-              style={[
-                styles.iconButton,
-                iconButtonStyle(learnAutoPlayEnabled)
-              ]}
-              onPress={() =>
-                setLearnAutoPlayEnabled(
-                  !learnAutoPlayEnabled
-                )
-              }
-            >
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  iconButtonStyle(learnAutoPlayEnabled)
+                ]}
+                onPress={() =>
+                  setLearnAutoPlayEnabled(
+                    !learnAutoPlayEnabled
+                  )
+                }
+              >
                 <MaterialIcons
                   name="skip-next"
                   size={20}
@@ -539,15 +539,15 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-            <Pressable
-              style={[
-                styles.iconButton,
-                iconButtonStyle(ttsEnabled)
-              ]}
-              onPress={() =>
-                setTtsEnabled(!ttsEnabled)
-              }
-            >
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  iconButtonStyle(ttsEnabled)
+                ]}
+                onPress={() =>
+                  setTtsEnabled(!ttsEnabled)
+                }
+              >
                 <MaterialIcons
                   name={
                     ttsEnabled
@@ -559,13 +559,13 @@ export default function LearnScreen() {
                 />
               </Pressable>
 
-            <Pressable
-              style={[
-                styles.iconButton,
-                iconButtonStyle(false)
-              ]}
-              onPress={replayQuestion}
-            >
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  iconButtonStyle(false)
+                ]}
+                onPress={replayQuestion}
+              >
                 <MaterialIcons
                   name="play-arrow"
                   size={20}

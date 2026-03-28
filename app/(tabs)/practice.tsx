@@ -15,10 +15,10 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { useFocusEffect } from "@react-navigation/native"
 import AnswerActions from "../../components/AnswerActions"
 import ScoreHeader from "../../components/ScoreHeader"
 import { PracticeController } from "../../controllers/practiceController"
-import { getSyncDirtyAt } from "../../database/syncMetaRepository"
 import {
   getAllTopics,
   getDescendantTopicIds,
@@ -28,20 +28,20 @@ import {
 } from "../../database/contentRepository"
 import { ReviewRepository } from "../../database/reviewRepository"
 import { StatsRepository } from "../../database/statsRepository"
+import { getSyncDirtyAt } from "../../database/syncMetaRepository"
 import { getSyncStatus, type SyncStatusRecord } from "../../database/syncStatusRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import { BatchLoader } from "../../engine/questions/batchLoader"
 import { generateQuestionBatch } from "../../engine/questions/questionFactory"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 import { useDatabase } from "../../hooks/useDatabase"
+import { usePractice } from "../../hooks/usePractice"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { getSyncServerUrl } from "../../services/sync/config"
 import { syncReviews } from "../../services/sync/syncReviews"
 import { ttsService } from "../../services/ttsService"
-import { usePractice } from "../../hooks/usePractice"
 import { getThemeColors } from "../../styles/theme"
-import { useFocusEffect } from "@react-navigation/native"
 
 function getKeyboardType(answer: unknown) {
 
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
   headerCard: {
     backgroundColor: "#ffffff",
     borderRadius: 24,
-    padding: 18
+    padding: 22
   },
 
   headerRow: {
@@ -880,8 +880,7 @@ const styles = StyleSheet.create({
 
   screenMode: {
     fontWeight: "800",
-    textTransform: "uppercase",
-    marginBottom: 4
+    textTransform: "uppercase"
   },
 
   topicTitle: {
