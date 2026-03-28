@@ -32,11 +32,18 @@ export class UserRepository {
       await this.db.getAllAsync<User>(
         `
         SELECT
-          COALESCE(id, rowid) as id,
-          name,
-          COALESCE(disabled, 0) as disabled
-        FROM users
-        ORDER BY id DESC
+          u.id,
+          u.name,
+          CASE
+            WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
+            WHEN ds.value IN ('1', 'true') THEN 1
+            ELSE 0
+          END as disabled
+        FROM users u
+        LEFT JOIN settings ds
+          ON ds.user_id = 0
+          AND ds.key = 'user_disabled_user_' || u.id
+        ORDER BY u.id DESC
         `
       )
 
@@ -71,11 +78,18 @@ export class UserRepository {
       await this.db.getFirstAsync<User>(
         `
         SELECT
-          id,
-          name,
-          COALESCE(disabled, 0) as disabled
-        FROM users
-        WHERE id = ?
+          u.id,
+          u.name,
+          CASE
+            WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
+            WHEN ds.value IN ('1', 'true') THEN 1
+            ELSE 0
+          END as disabled
+        FROM users u
+        LEFT JOIN settings ds
+          ON ds.user_id = 0
+          AND ds.key = 'user_disabled_user_' || u.id
+        WHERE u.id = ?
         `,
         [id]
       )
@@ -121,6 +135,27 @@ export class UserRepository {
           WHERE id = ?
           `,
           [name, existing.id]
+        )
+
+        await this.db.runAsync(
+          `
+          INSERT INTO settings (
+            user_id,
+            key,
+            value,
+            updated_at
+          )
+          VALUES (0, ?, ?, ?)
+          ON CONFLICT(user_id, key)
+          DO UPDATE SET
+            value = excluded.value,
+            updated_at = excluded.updated_at
+          `,
+          [
+            this.getDisabledSettingKey(existing.id),
+            "0",
+            Date.now()
+          ]
         )
 
         return existing.id
@@ -315,6 +350,24 @@ export class UserRepository {
     await this.db.runAsync(
       `
       DELETE FROM settings
+      WHERE user_id = 0
+        AND key = ?
+      `,
+      [this.getDisabledSettingKey(userId)]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE user_id = 0
+        AND key = ?
+      `,
+      [this.getDisabledSettingKey(userId)]
+    )
+
+    await this.db.runAsync(
+      `
+      DELETE FROM settings
       WHERE user_id = ?
         AND key IN (?, ?, ?)
       `,
@@ -444,6 +497,27 @@ export class UserRepository {
         `,
         [disabled ? 1 : 0, currentUserId]
       )
+
+      await this.db.runAsync(
+        `
+        INSERT INTO settings (
+          user_id,
+          key,
+          value,
+          updated_at
+        )
+        VALUES (0, ?, ?, ?)
+        ON CONFLICT(user_id, key)
+        DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        `,
+        [
+          this.getDisabledSettingKey(currentUserId),
+          disabled ? "1" : "0",
+          Date.now()
+        ]
+      )
     }
 
     if (normalizedName) {
@@ -472,6 +546,10 @@ export class UserRepository {
       }
     }
 
+  }
+
+  private getDisabledSettingKey(userId: number) {
+    return `user_disabled_user_${userId}`
   }
 
 }

@@ -25,10 +25,13 @@ These user changes are part of sync:
 - topic selections
 - Learn screen progress, including the last card position for a topic
 - profile preferences such as theme, voice, and practice behavior
+- sync settings such as sync mode, sync interval, and sync gap
 
 These are part of sync too:
 
 - admin visibility rules for which subjects and topics are shown
+- the current admin topic path for a subject
+- user disable / enable state
 
 ## Across Devices
 
@@ -53,14 +56,14 @@ This table follows the screen order in the app and shows what each screen can do
 | Practice | Answer questions and build progress | Yes | Yes | Practice updates review history, progress, and accuracy. |
 | Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen only displays synced practice data. |
 | Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
-| Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls. |
+| Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls and shared sync settings. |
 | Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles. |
 | App opens or comes back to the front | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app makes a best-effort sync pass while loading or resuming. |
 | App goes to the background | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app tries one last sync pass before it backgrounds. |
-| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user changes, including admin visibility rules. |
-| `Push` in Profile | Upload the current user's local changes only | No new change by itself | Yes, but only from device to global | Uploads local changes for the active user, including admin visibility rules. |
-| `Pull` in Profile | Refresh the current user from the global database only | No new change by itself | Yes, but only from global to device | Refreshes the active user, including admin visibility rules. |
-| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | Saves locally first and follows the same sync flow as user data. |
+| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings. |
+| `Push` in Profile | Upload the current user's local changes only | No new change by itself | Yes, but only from device to global | Uploads local changes for the active user and shared settings. |
+| `Pull` in Profile | Refresh the current user from the global database only | No new change by itself | Yes, but only from global to device | Refreshes the active user and shared settings. |
+| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | Includes allowed subjects/topics, current admin topic path, and user disable / enable. |
 
 ### Top-right sync icon
 
@@ -77,6 +80,28 @@ The Profile screen also shows:
 - connection state
 - last sync time
 - a small countdown for the next automatic sync
+
+## Profile And Admin Settings
+
+This table lists the settings that are saved right away on the device and also synced to the global database when sync runs.
+
+| Screen | Setting | Saved on this device right away? | Sent to the global database by sync? | Notes |
+| --- | --- | --- | --- | --- |
+| Profile | Sync mode: Local / Hybrid | Yes | Yes | Controls whether the scheduler sync runs or stays off. |
+| Profile | Sync interval | Yes | Yes | Controls how often scheduler sync checks for changes. |
+| Profile | Sync gap | Yes | Yes | Controls the minimum wait between scheduler sync checks. |
+| Profile | Dark theme | Yes | Yes | Theme choice is stored per profile. |
+| Profile | Read questions aloud | Yes | Yes | Voice setting for the current profile. |
+| Profile | Auto next | Yes | Yes | Moves to the next question automatically after an answer. |
+| Profile | Correct answer delay | Yes | Yes | Delay before moving on after a correct answer. |
+| Profile | Wrong answer delay | Yes | Yes | Delay before moving on after a wrong answer. |
+| Profile | Auto play learn cards | Yes | Yes | Learn screen autoplay for the current profile. |
+| Profile | Front side delay | Yes | Yes | Wait time before showing the answer side in Learn. |
+| Profile | Back side delay | Yes | Yes | Wait time before moving to the next Learn card. |
+| Admin | Allowed subjects | Yes | Yes | Controls which subjects show for a learner. |
+| Admin | Allowed topics | Yes | Yes | Controls which topics show for a learner. |
+| Admin | Current admin topic path | Yes | Yes | Remembers the selected admin path for that subject. |
+| Admin | Disable / Enable user | Yes | Yes | Keeps the learner hidden or available across devices. |
 
 ### Practice screen
 

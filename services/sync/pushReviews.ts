@@ -154,6 +154,7 @@ async function getSettings(
       updated_at
     FROM settings
     WHERE user_id = ?
+      OR user_id = 0
     `,
     [userId]
   )
@@ -165,7 +166,23 @@ async function getSettingsForSync(
 ) {
   const rows = await getSettings(db, userId)
 
-  return rows.filter((row) => row.user_id === userId)
+  return rows.filter((row) => {
+    if (row.user_id === userId) {
+      return true
+    }
+
+    if (row.user_id !== 0) {
+      return false
+    }
+
+    return (
+      row.key === "sync_mode" ||
+      row.key === "sync_interval_ms" ||
+      row.key === "sync_min_gap_ms" ||
+      row.key.startsWith("admin_selected_topic_path_") ||
+      row.key.startsWith("user_disabled_user_")
+    )
+  })
 }
 
 function hasMeta(
@@ -229,9 +246,15 @@ export async function pushReviews(
     options?.showOverlay !== false
   const overlayLabel =
     options?.overlayLabel ?? "Syncing current profile..."
+  const overlayDelayMs = 150
+  let overlayShown = false
+  let overlayTimer: ReturnType<typeof setTimeout> | null = null
 
   if (showOverlay) {
-    beginSyncActivity(overlayLabel)
+    overlayTimer = setTimeout(() => {
+      overlayShown = true
+      beginSyncActivity(overlayLabel)
+    }, overlayDelayMs)
   }
 
   try {
@@ -312,7 +335,11 @@ export async function pushReviews(
     throw err
   } finally {
     clearTimeout(timeoutId)
-    if (showOverlay) {
+    if (overlayTimer) {
+      clearTimeout(overlayTimer)
+      overlayTimer = null
+    }
+    if (showOverlay && overlayShown) {
       endSyncActivity()
     }
   }

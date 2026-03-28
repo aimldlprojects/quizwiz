@@ -64,7 +64,7 @@ export default function ProfileScreen() {
     updateSyncIntervalMs,
     updateSyncMinGapMs,
     loading: settingsLoading
-  } = useSettings(db)
+  } = useSettings(db, activeUser)
 
   const {
     users,

@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
+import { markSyncDirty } from "@/database/syncMetaRepository"
 import {
     getSyncMode,
     setSyncMode,
@@ -15,7 +16,8 @@ const MIN_SYNC_INTERVAL_MS = 15_000
 const MIN_SYNC_GAP_MS = 5_000
 
 export function useSettings(
-  db: SQLiteDatabase | null
+  db: SQLiteDatabase | null,
+  syncOwnerUserId: number | null = null
 ) {
 
   const [syncMode, setMode] =
@@ -30,15 +32,7 @@ export function useSettings(
   const [loading, setLoading] =
     useState(true)
 
-  useEffect(() => {
-
-    if (!db) return
-
-    load()
-
-  }, [db])
-
-  async function load() {
+  const load = useCallback(async () => {
 
     if (!db) return
 
@@ -58,7 +52,15 @@ export function useSettings(
 
     setLoading(false)
 
-  }
+  }, [db])
+
+  useEffect(() => {
+
+    if (!db) return
+
+    load()
+
+  }, [db, load])
 
   async function updateSyncMode(
     mode: SyncMode
@@ -70,6 +72,13 @@ export function useSettings(
       db,
       mode
     )
+    if (syncOwnerUserId != null) {
+      await markSyncDirty(
+        db,
+        syncOwnerUserId,
+        Date.now()
+      )
+    }
 
     setMode(mode)
 
@@ -89,6 +98,13 @@ export function useSettings(
       db,
       normalized
     )
+    if (syncOwnerUserId != null) {
+      await markSyncDirty(
+        db,
+        syncOwnerUserId,
+        Date.now()
+      )
+    }
 
     setIntervalMs(normalized)
 
@@ -108,6 +124,13 @@ export function useSettings(
       db,
       normalized
     )
+    if (syncOwnerUserId != null) {
+      await markSyncDirty(
+        db,
+        syncOwnerUserId,
+        Date.now()
+      )
+    }
 
     setMinGapMs(normalized)
 

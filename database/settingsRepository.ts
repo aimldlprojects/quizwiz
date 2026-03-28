@@ -19,6 +19,8 @@ export async function initSettings(
       user_id INTEGER NOT NULL DEFAULT 0,
       key TEXT NOT NULL,
       value TEXT,
+      updated_at INTEGER DEFAULT (strftime('%s','now')*1000),
+      sync_version INTEGER DEFAULT 1,
       PRIMARY KEY(user_id, key)
     )
   `)
@@ -40,7 +42,8 @@ export async function getSyncMode(
       `
       SELECT value
       FROM settings
-      WHERE key = 'sync_mode'
+      WHERE user_id = 0
+        AND key = 'sync_mode'
       `
     )
 
@@ -59,16 +62,20 @@ export async function setSyncMode(
   mode: SyncMode
 ): Promise<void> {
 
-    await db.runAsync(
-      `
-    INSERT INTO settings (user_id, key, value)
-    VALUES (0, 'sync_mode', ?)
+  const updatedAt = Date.now()
+
+  await db.runAsync(
+    `
+    INSERT INTO settings (user_id, key, value, updated_at)
+    VALUES (0, 'sync_mode', ?, ?)
 
     ON CONFLICT(user_id, key)
-    DO UPDATE SET value = excluded.value
+    DO UPDATE SET
+      value = excluded.value,
+      updated_at = excluded.updated_at
     `,
-      [mode]
-    )
+    [mode, updatedAt]
+  )
 
 }
 
@@ -89,7 +96,8 @@ async function getNumericSetting(
       `
       SELECT value
       FROM settings
-      WHERE key = ?
+      WHERE user_id = 0
+        AND key = ?
       `,
       [key]
     )
@@ -109,15 +117,19 @@ async function setNumericSetting(
   value: number
 ): Promise<void> {
 
-    await db.runAsync(
-      `
-    INSERT INTO settings (user_id, key, value)
-    VALUES (0, ?, ?)
+  const updatedAt = Date.now()
+
+  await db.runAsync(
+    `
+    INSERT INTO settings (user_id, key, value, updated_at)
+    VALUES (0, ?, ?, ?)
     ON CONFLICT(user_id, key)
-    DO UPDATE SET value = excluded.value
+    DO UPDATE SET
+      value = excluded.value,
+      updated_at = excluded.updated_at
     `,
-      [key, String(value)]
-    )
+    [key, String(value), updatedAt]
+  )
 
 }
 

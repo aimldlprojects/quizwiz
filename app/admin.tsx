@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { resetMasterDatabase, resetUserData } from "../database/resetDatabase"
+import { markSyncDirty } from "../database/syncMetaRepository"
 import { useDatabase } from "../hooks/useDatabase"
 import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
@@ -637,16 +638,27 @@ export default function AdminScreen() {
 
     await db.runAsync(
       `
-      INSERT INTO settings (user_id, key, value)
-      VALUES (0, ?, ?)
+      INSERT INTO settings (user_id, key, value, updated_at)
+      VALUES (0, ?, ?, ?)
       ON CONFLICT(user_id, key)
-      DO UPDATE SET value = excluded.value
+      DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
       `,
       [
         `admin_selected_topic_path_${userId}:${subjectId}`,
-        String(topicId)
+        String(topicId),
+        Date.now()
       ]
     )
+
+    if (activeUser != null) {
+      await markSyncDirty(
+        db,
+        activeUser,
+        Date.now()
+      )
+    }
 
   }
 

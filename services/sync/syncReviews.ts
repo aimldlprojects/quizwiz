@@ -48,9 +48,15 @@ export async function syncReviews(
     options?.showOverlay !== false
   const overlayLabel =
     options?.overlayLabel ?? "Syncing current profile..."
+  const overlayDelayMs = 150
+  let overlayShown = false
+  let overlayTimer: ReturnType<typeof setTimeout> | null = null
 
   if (showOverlay) {
-    beginSyncActivity(overlayLabel)
+    overlayTimer = setTimeout(() => {
+      overlayShown = true
+      beginSyncActivity(overlayLabel)
+    }, overlayDelayMs)
   }
 
   try {
@@ -136,7 +142,11 @@ export async function syncReviews(
     throw err
 
   } finally {
-    if (showOverlay) {
+    if (overlayTimer) {
+      clearTimeout(overlayTimer)
+      overlayTimer = null
+    }
+    if (showOverlay && overlayShown) {
       endSyncActivity()
     }
 

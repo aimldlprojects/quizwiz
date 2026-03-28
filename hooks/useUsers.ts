@@ -162,6 +162,11 @@ export function useUsers(
       name
     )
 
+    await markSyncDirty(
+      db,
+      activeUser ?? id
+    )
+
     setUsers((current) =>
       current.map((user) =>
         user.id === id

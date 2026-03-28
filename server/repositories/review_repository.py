@@ -280,7 +280,21 @@ def get_settings_changes(
             value,
             updated_at
         FROM settings
-        WHERE (user_id = %s OR user_id = 0)
+        WHERE (
+            user_id = %s
+            OR (
+                user_id = 0
+                AND (
+                    key IN (
+                        'sync_mode',
+                        'sync_interval_ms',
+                        'sync_min_gap_ms'
+                    )
+                    OR key LIKE 'admin_selected_topic_path_%%'
+                    OR key LIKE 'user_disabled_user_%%'
+                )
+            )
+        )
         {clause}
         ORDER BY updated_at ASC
         """
