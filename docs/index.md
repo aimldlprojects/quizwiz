@@ -5,7 +5,6 @@ Use this as the main landing page for the non-coder reference docs.
 ## UI Reference
 
 - [UI overview](./ui/README.md)
-- [Home](./ui/home.md)
 - [Users](./ui/users.md)
 - [Topics](./ui/topics.md)
 - [Learn](./ui/learn.md)
@@ -14,6 +13,10 @@ Use this as the main landing page for the non-coder reference docs.
 - [Badges](./ui/badges.md)
 - [Profile](./ui/profile.md)
 - [Admin](./ui/admin.md)
+
+## Startup Flow
+
+The app starts by sending the user to `Users` if no profile is active, or to `Topics` if a profile is already active. There is no separate landing screen.
 
 ## Rules
 

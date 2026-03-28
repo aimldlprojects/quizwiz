@@ -57,6 +57,13 @@ export default function ProfileScreen() {
     useDatabase()
 
   const {
+    users,
+    activeUser,
+    loading: usersLoading,
+    logoutCurrentUser
+  } = useUsers(db, true)
+
+  const {
     syncMode,
     updateSyncMode,
     syncIntervalMs,
@@ -66,11 +73,6 @@ export default function ProfileScreen() {
     loading: settingsLoading
   } = useSettings(db, activeUser)
 
-  const {
-    users,
-    activeUser,
-    loading: usersLoading
-  } = useUsers(db, true)
   const {
     ttsEnabled,
     setTtsEnabled,
@@ -368,6 +370,15 @@ export default function ProfileScreen() {
     }
   }
 
+  async function handleLogout() {
+
+    if (!db) return
+
+    await logoutCurrentUser()
+    router.replace("/users")
+
+  }
+
   async function adjustDelay(
     type:
       | "correct"
@@ -478,6 +489,26 @@ export default function ProfileScreen() {
             >
               <Text style={styles.primaryButtonText}>
                 Change User
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.logoutButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface
+                }
+              ]}
+              onPress={handleLogout}
+            >
+              <Text
+                style={[
+                  styles.logoutButtonText,
+                  { color: colors.text }
+                ]}
+              >
+                Log out
               </Text>
             </Pressable>
           </View>
@@ -1503,6 +1534,19 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700"
+  },
+
+  logoutButton: {
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 12
+  },
+
+  logoutButtonText: {
     fontSize: 16,
     fontWeight: "700"
   },

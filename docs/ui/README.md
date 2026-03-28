@@ -13,16 +13,17 @@ Use this as a short cross-check after each UI change.
 - [data-ownership.md](../data-ownership.md)
 - [sync-settings.md](../sync-settings.md)
 - [topic selection rules.md](../topic%20selection%20rules.md)
+- [template.md](./TEMPLATE.md)
 
 ## Shared Across Screens
 
-- top-right sync icon appears in the header
-- sync icon changes color when attention is needed
-- sync overlay appears only for manual and lifecycle syncs
+- The app starts by redirecting to Users or Topics.
+- The top-right sync icon appears in the header.
+- The sync icon changes color when attention is needed.
+- The sync overlay appears only for manual and lifecycle syncs.
 
 ## Pages
 
-- [Home](./home.md)
 - [Users](./users.md)
 - [Topics](./topics.md)
 - [Learn](./learn.md)

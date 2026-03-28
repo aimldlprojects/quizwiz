@@ -213,6 +213,18 @@ export default function LearnScreen() {
     persistLearnProgress
   ])
 
+  const speakCurrentSide = useCallback(() => {
+    if (!ttsEnabled || !card) {
+      return
+    }
+
+    const spokenText = revealed
+      ? String(card.answer)
+      : card.question
+
+    controller.speak(spokenText)
+  }, [ttsEnabled, card, revealed, controller])
+
   useEffect(() => {
 
     let cancelled = false
@@ -392,13 +404,9 @@ export default function LearnScreen() {
 
   useEffect(() => {
 
-    if (!ttsEnabled || !card) {
-      return
-    }
+    speakCurrentSide()
 
-    controller.speak(card.question)
-
-  }, [ttsEnabled, card, controller])
+  }, [speakCurrentSide])
 
   useEffect(() => {
 
@@ -441,7 +449,7 @@ export default function LearnScreen() {
 
     if (!card) return
 
-    controller.speak(card.question)
+    speakCurrentSide()
 
   }
 
@@ -477,31 +485,24 @@ export default function LearnScreen() {
             { backgroundColor: colors.card }
           ]}
         >
-          <View
-            style={[
-              styles.heroHeader,
-              { borderColor: colors.border }
-            ]}
-          >
-            <View style={styles.heroCopy}>
-              <Text
-                style={[
-                  styles.kicker,
-                  { color: colors.iconActive }
-                ]}
-              >
-                Learn mode
-              </Text>
+            <View
+              style={[
+                styles.heroHeader,
+                { borderColor: colors.border }
+              ]}
+            >
+              <View style={styles.heroCopy}>
+                <Text
+                  style={[
+                    styles.kicker,
+                    { color: colors.iconActive }
+                  ]}
+                >
+                  Learn mode
+                </Text>
+              </View>
 
-              <Text
-                style={[styles.title, { color: colors.text }]}
-              >
-                {topic?.name ??
-                  "Choose a topic first"}
-              </Text>
-            </View>
-
-            <View style={styles.headerActions}>
+              <View style={styles.headerActions}>
             <Pressable
               style={[
                 styles.iconButton,
@@ -570,14 +571,26 @@ export default function LearnScreen() {
                   size={20}
                   color="#ffffff"
                 />
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
-          </View>
 
-          <Text
-            style={[styles.subtitle, { color: colors.muted }]}
-          >
-            {getTopicDescription(topic)}
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[
+                styles.topicTitle,
+                { color: colors.text }
+              ]}
+            >
+              {topic?.name ??
+                "Choose a topic first"}
+            </Text>
+
+            <Text
+              style={[styles.subtitle, { color: colors.muted }]}
+            >
+              {getTopicDescription(topic)}
           </Text>
         </View>
 
@@ -787,6 +800,13 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     fontWeight: "800",
     color: "#1e3a5f",
+    marginTop: 8
+  },
+
+  topicTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "800",
     marginTop: 8
   },
 

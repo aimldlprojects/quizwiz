@@ -222,6 +222,33 @@ export function useUsers(
 
   }
 
+  async function logoutCurrentUser() {
+
+    if (!db) return
+
+    if (activeUser != null) {
+      try {
+        await new SyncService(
+          db,
+          activeUser
+        ).sync()
+      } catch (error) {
+        console.warn(
+          "Logout sync timed out or failed, continuing with logout:",
+          error
+        )
+      }
+    }
+
+    const controller =
+      new UserController(db)
+
+    await controller.setActiveUser(null)
+
+    setActiveUser(null)
+
+  }
+
   async function getSubjectsForUser(
     userId: number
   ) {
@@ -324,6 +351,7 @@ export function useUsers(
     setSubjectEnabled,
     getTopicsForUser,
     setTopicEnabled,
+    logoutCurrentUser,
     reload: load
   }
 

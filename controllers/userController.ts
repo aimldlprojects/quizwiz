@@ -96,7 +96,7 @@ export class UserController {
   }
 
   async setActiveUser(
-    userId: number
+    userId: number | null
   ) {
 
     await this.settingsRepo

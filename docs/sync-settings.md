@@ -58,6 +58,7 @@ This table follows the screen order in the app and shows what each screen can do
 | Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls and shared sync settings. |
 | Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles. |
+| Log out | Leave the current learner profile | Yes, for the current user before logout | Yes, if the current user sync finishes in time | The app syncs first, then returns to the user picker. |
 | App opens or comes back to the front | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app makes a best-effort sync pass while loading or resuming. |
 | App goes to the background | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app tries one last sync pass before it backgrounds. |
 | Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings. |
@@ -214,10 +215,10 @@ This is mainly for development or repair work. It is not part of normal app use.
 
 ## Reference Docs
 
-- [Docs Index](./index.md)
-- [UI Reference](./ui/README.md)
-- [Glossary](./glossary.md)
-- [Data Ownership](./data-ownership.md)
-- [Topic Selection Rules](./topic%20selection%20rules.md)
-- [Change Log](./change-log.md)
-- [Maintenance](./maintenance.md)
+- See [Docs Index](./index.md) for the full docs map.
+- See [UI Reference](./ui/README.md) for the screen-by-screen guide.
+- See [Glossary](./glossary.md) for word meanings.
+- See [Data Ownership](./data-ownership.md) for local vs global data.
+- See [Topic Selection Rules](./topic%20selection%20rules.md) for selection rules.
+- See [Change Log](./change-log.md) for recent changes.
+- See [Maintenance](./maintenance.md) for docs rules.

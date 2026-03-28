@@ -26,9 +26,13 @@ export class UserSettingsRepository {
         `
       )
 
-    if (!row) return null
+    if (!row || row.value == null) return null
 
-    return Number(row.value)
+    const parsed = Number(row.value)
+
+    return Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : null
 
   }
 
@@ -39,7 +43,7 @@ export class UserSettingsRepository {
   */
 
   async setActiveUser(
-    userId: number
+    userId: number | null
   ) {
 
     await this.db.runAsync(
@@ -51,7 +55,7 @@ export class UserSettingsRepository {
       DO UPDATE SET
       value = excluded.value
       `,
-      [String(userId)]
+      [userId == null ? null : String(userId)]
     )
 
   }

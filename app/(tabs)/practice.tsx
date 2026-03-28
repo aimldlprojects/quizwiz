@@ -630,21 +630,11 @@ export default function PracticeScreen() {
             <View style={styles.headerTitleWrap}>
               <Text
                 style={[
-                  styles.screenTitle,
-                  { color: colors.text }
+                  styles.screenMode,
+                  { color: colors.iconActive }
                 ]}
               >
-                Practice Arena
-              </Text>
-
-              <Text
-                style={[
-                  styles.topicLabel,
-                  { color: colors.muted }
-                ]}
-              >
-                {selectedTopic?.name ??
-                  "Selected topic"}
+                Practice Mode
               </Text>
             </View>
 
@@ -718,6 +708,18 @@ export default function PracticeScreen() {
             </Pressable>
           </View>
           </View>
+
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[
+              styles.topicTitle,
+              { color: colors.text }
+            ]}
+          >
+            {selectedTopic?.name ??
+              "Selected topic"}
+          </Text>
 
             <ScoreHeader
               attempts={practiceTotals.attempts}
@@ -863,30 +865,31 @@ const styles = StyleSheet.create({
     flex: 1
   },
 
-  topicLabel: {
-    color: "#475569",
-    fontWeight: "700",
-    marginTop: 2
-  },
-
   headerActions: {
     flexDirection: "row",
-    gap: 10
+    gap: 8
   },
 
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center"
   },
 
-  screenTitle: {
-    fontSize: 28,
+  screenMode: {
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 4
+  },
+
+  topicTitle: {
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: "800",
     color: "#1e3a5f",
-    marginBottom: 4
+    marginTop: 8
   },
 
   scoreText: {
