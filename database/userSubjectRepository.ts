@@ -99,6 +99,112 @@ export class UserSubjectRepository {
 
   }
 
+  async savePermissionSnapshots(userId: number) {
+
+    const [subjects, topics] = await Promise.all([
+      this.getAllowedSubjects(userId),
+      this.getAllowedTopics(userId)
+    ])
+
+    const timestamp = Date.now()
+
+    await this.upsertSetting(
+      userId,
+      this.getSubjectSnapshotKey(userId),
+      JSON.stringify(subjects.map((row) => row.id)),
+      timestamp
+    )
+
+    await this.upsertSetting(
+      userId,
+      this.getTopicSnapshotKey(userId),
+      JSON.stringify(topics.map((row) => row.id)),
+      timestamp
+    )
+
+  }
+
+  async restorePermissionSnapshots(userId: number) {
+
+    const [subjectSnapshot, topicSnapshot] =
+      await Promise.all([
+        this.getSnapshotValue(
+          userId,
+          this.getSubjectSnapshotKey(userId)
+        ),
+        this.getSnapshotValue(
+          userId,
+          this.getTopicSnapshotKey(userId)
+        )
+      ])
+
+    if (!subjectSnapshot && !topicSnapshot) {
+      return
+    }
+
+    if (subjectSnapshot) {
+      const subjectIds =
+        this.parseIdList(subjectSnapshot)
+
+      await this.db.runAsync(
+        `
+        DELETE FROM user_subjects
+        WHERE user_id = ?
+        `,
+        [userId]
+      )
+
+      if (subjectIds.length > 0) {
+        const placeholders =
+          subjectIds.map(() => "?").join(", ")
+
+        await this.db.runAsync(
+          `
+          INSERT OR IGNORE INTO user_subjects (
+            user_id,
+            subject_id
+          )
+          SELECT ?, id
+          FROM subjects
+          WHERE id IN (${placeholders})
+          `,
+          [userId, ...subjectIds]
+        )
+      }
+    }
+
+    if (topicSnapshot) {
+      const topicIds = this.parseIdList(topicSnapshot)
+
+      await this.db.runAsync(
+        `
+        DELETE FROM user_topics
+        WHERE user_id = ?
+        `,
+        [userId]
+      )
+
+      if (topicIds.length > 0) {
+        const placeholders =
+          topicIds.map(() => "?").join(", ")
+
+        await this.db.runAsync(
+          `
+          INSERT OR IGNORE INTO user_topics (
+            user_id,
+            topic_id
+          )
+          SELECT ?, id
+          FROM topics
+          WHERE id IN (${placeholders})
+          `,
+          [userId, ...topicIds]
+        )
+      }
+    }
+
+  }
+
   async grantAllSubjects(
     userId: number
   ) {
@@ -372,6 +478,82 @@ export class UserSubjectRepository {
       `,
       [userId, ...topicIds]
     )
+
+  }
+
+  private getSubjectSnapshotKey(userId: number) {
+    return `admin_visible_subject_ids_user_${userId}`
+  }
+
+  private getTopicSnapshotKey(userId: number) {
+    return `admin_visible_topic_ids_user_${userId}`
+  }
+
+  private async upsertSetting(
+    userId: number,
+    key: string,
+    value: string,
+    updatedAt: number
+  ) {
+
+    await this.db.runAsync(
+      `
+      INSERT INTO settings (
+        user_id,
+        key,
+        value,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id, key)
+      DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+      `,
+      [userId, key, value, updatedAt]
+    )
+
+  }
+
+  private async getSnapshotValue(
+    userId: number,
+    key: string
+  ) {
+
+    const row = await this.db.getFirstAsync<{
+      value: string | null
+    }>(
+      `
+      SELECT value
+      FROM settings
+      WHERE user_id = ?
+        AND key = ?
+      LIMIT 1
+      `,
+      [userId, key]
+    )
+
+    return row?.value ?? null
+
+  }
+
+  private parseIdList(value: string) {
+
+    try {
+      const parsed = JSON.parse(value)
+
+      if (!Array.isArray(parsed)) {
+        return []
+      }
+
+      return parsed
+        .map((item) => Number(item))
+        .filter((item) =>
+          Number.isFinite(item)
+        )
+    } catch {
+      return []
+    }
 
   }
 

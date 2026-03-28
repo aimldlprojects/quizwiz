@@ -121,6 +121,23 @@ def query_badge(user_id, badge_id):
     return rows[0] if rows else None
 
 
+def query_setting_key(user_id, key):
+    rows = fetch_rows(
+        """
+        SELECT value,
+               EXTRACT(EPOCH FROM updated_at) * 1000 AS updated_at_ms
+        FROM settings
+        WHERE user_id = %s
+          AND key = %s
+        ORDER BY updated_at DESC
+        LIMIT 1
+        """,
+        (user_id, key),
+    )
+
+    return rows[0] if rows else None
+
+
 def test_stats_upsert_ignores_stale_payload():
     user_id = 1
     question_id = "conflict_test"
@@ -289,3 +306,41 @@ def test_push_pull_roundtrip_includes_all_tables():
         badge["badge_id"] == badge_id
         for badge in pulled.get("user_badges", [])
     ), "Badges should appear in pull response"
+
+
+def test_settings_roundtrip_keeps_admin_snapshot_rows():
+    user_id = 1
+    subject_key = f"admin_visible_subject_ids_user_{user_id}"
+    topic_key = f"admin_visible_topic_ids_user_{user_id}"
+    timestamp = current_millis()
+
+    payload = {
+        "user_id": user_id,
+        "reviews": [],
+        "stats": [],
+        "settings": [
+            {
+                "user_id": user_id,
+                "key": subject_key,
+                "value": "[1,2,3]",
+                "updated_at": timestamp,
+            },
+            {
+                "user_id": user_id,
+                "key": topic_key,
+                "value": "[4,5,6]",
+                "updated_at": timestamp,
+            },
+        ],
+        "user_badges": [],
+    }
+
+    push_payload(payload)
+
+    subject_row = query_setting_key(user_id, subject_key)
+    topic_row = query_setting_key(user_id, topic_key)
+
+    assert subject_row is not None
+    assert topic_row is not None
+    assert subject_row["value"] == "[1,2,3]"
+    assert topic_row["value"] == "[4,5,6]"

@@ -26,11 +26,23 @@ These user changes are part of sync:
 - Learn screen progress, including the last card position for a topic
 - profile preferences such as theme, voice, and practice behavior
 
-These are not part of the regular user sync data:
+These are part of sync too:
 
 - admin visibility rules for which subjects and topics are shown
 
-Those admin changes affect what the current device shows, but they are managed separately from the user sync flow.
+## Across Devices
+
+When you use the same profile on more than one device, sync keeps the newer change.
+
+The app does this with a saved time stamp on each synced item.
+
+| Situation | What happens |
+| --- | --- |
+| You change something on Device A and tap sync | The change is saved on Device A first, then sent to the global database. |
+| You open Device B and tap sync later | Device B pulls the newer data from the global database. |
+| The same item changed on two devices | The newer time stamp wins, so the latest change becomes the final one. |
+
+This is how the app keeps progress, badges, topic selections, Learn progress, preferences, and admin visibility rules in step across devices.
 
 ## Device Vs Global
 
@@ -44,19 +56,19 @@ The table below follows the screen order in the app and shows what each screen c
 | Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen shows data that came from sync. |
 | Badges | See earned badges | Yes | Yes | Badge progress is saved on the device and synced with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen also contains the main sync controls. |
-| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Sends current user changes between the device and the global database. |
-| `Push` in Profile | Upload local changes only | No new change by itself | Yes, but only from device to global | Use this when you only want to upload local changes. |
-| `Pull` in Profile | Refresh the device only | No new change by itself | Yes, but only from global to device | Use this when you only want to refresh the device. |
-| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Not through the normal user sync flow | These changes affect what the current device can show, but they are handled separately from the user sync data. |
+| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Sends current user changes between the device and the global database, including admin visibility rules. |
+| `Push` in Profile | Upload local changes only | No new change by itself | Yes, but only from device to global | Use this when you only want to upload local changes, including admin visibility rules. |
+| `Pull` in Profile | Refresh the device only | No new change by itself | Yes, but only from global to device | Use this when you only want to refresh the device, including admin visibility rules. |
+| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | These changes are saved locally first and travel with the same sync flow as the rest of the user data. |
 
 ## What Each Sync Control Does
 
 | Sync control | Where it appears | What it does | What data it sends or refreshes |
 | --- | --- | --- | --- |
-| Top-right sync icon | Every screen header | Syncs the current user | Sends and refreshes the current user's practice data, progress, Learn card position, badges, topic selections, and profile preferences |
-| `Push` | Profile screen | Upload only | Sends local user changes, including Learn progress, to the global database without refreshing from the global database first |
-| `Sync` | Profile screen | Full sync | Sends local user changes first, then refreshes the device from the global database |
-| `Pull` | Profile screen | Download only | Refreshes the device from the global database without uploading local changes first |
+| Top-right sync icon | Every screen header | Syncs the current user | Sends and refreshes the current user's practice data, progress, Learn card position, badges, topic selections, profile preferences, and admin visibility rules |
+| `Push` | Profile screen | Upload only | Sends local user changes, including Learn progress and admin visibility rules, to the global database without refreshing from the global database first |
+| `Sync` | Profile screen | Full sync | Sends local user changes first, then refreshes the device from the global database, including admin visibility rules |
+| `Pull` | Profile screen | Download only | Refreshes the device from the global database without uploading local changes first, including admin visibility rules |
 | Sync button after Practice | Practice screen | Save practice progress right away | Sends the latest practice data and refreshes the user sync status |
 
 ### Top-right sync icon
@@ -125,6 +137,19 @@ Examples:
 - `Off`
 
 If the timer says `Off`, auto sync is not running for that profile.
+
+## When Sync Runs
+
+The app can try to sync at a few important moments:
+
+| Trigger | What happens | Timeout rule |
+| --- | --- | --- |
+| User taps `Change User` | The app tries to sync the current user first, then switches to the new user. | If the sync does not finish in time, the app skips that sync step and continues switching users. |
+| App opens or comes back to the front | The app tries a quick sync for the current user. | If the sync times out, the app skips that step and continues loading normally. |
+| App goes to the background | The app tries one last sync for the current user. | If the sync times out, the app skips that step and lets the app close normally. |
+| Manual sync buttons | The app runs the chosen sync action for the current user. | Each sync action waits only up to the configured timeout, then skips the step if the server does not answer in time. |
+
+This means sync is helpful, but it should not block the app for too long.
 
 ## How Sync Works
 

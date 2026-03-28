@@ -60,6 +60,18 @@ export async function resetUserData(
 
     await db.runAsync(
       `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND (
+          key LIKE 'admin_visible_subject_ids_user_%'
+          OR key LIKE 'admin_visible_topic_ids_user_%'
+        )
+      `,
+      [userId]
+    )
+
+    await db.runAsync(
+      `
       DELETE FROM sync_meta
       WHERE key = ?
       `,
@@ -144,6 +156,15 @@ export async function resetMasterDatabase(
           'selected_subject_id',
           'selected_topic_id'
         )
+      `
+    )
+
+    await db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE key LIKE 'learn_progress_topic_%'
+         OR key LIKE 'admin_visible_subject_ids_user_%'
+         OR key LIKE 'admin_visible_topic_ids_user_%'
       `
     )
 

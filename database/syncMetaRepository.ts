@@ -38,6 +38,10 @@ function notifyPermissionMetaListeners() {
   }
 }
 
+export function notifyPermissionMetaChanges() {
+  notifyPermissionMetaListeners()
+}
+
 export function subscribePermissionMetaChanges(
   listener: () => void
 ) {

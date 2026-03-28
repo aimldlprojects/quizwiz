@@ -3,11 +3,13 @@ import { SQLiteDatabase } from "expo-sqlite"
 import {
   getLastPullRev,
   setLastPullRev,
-  setSyncStatus
+  setSyncStatus,
+  notifyPermissionMetaChanges
 } from "../../database/syncMetaRepository"
 
 import { Review } from "@/domain/entities/review"
 import { ReviewRepository } from "../../database/reviewRepository"
+import { UserSubjectRepository } from "../../database/userSubjectRepository"
 import { syncConfig } from "@/config/sync"
 
 /*
@@ -285,6 +287,14 @@ export async function pullReviews(
     db,
     data?.settings ?? []
   )
+
+  const permissionsRepo =
+    new UserSubjectRepository(db)
+
+  await permissionsRepo.restorePermissionSnapshots(
+    userId
+  )
+  notifyPermissionMetaChanges()
 
   const finalRev =
     data?.max_rev ?? maxRev

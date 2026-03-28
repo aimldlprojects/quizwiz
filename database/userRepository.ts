@@ -282,6 +282,18 @@ export class UserRepository {
 
     await this.db.runAsync(
       `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND (
+          key LIKE 'admin_visible_subject_ids_user_%'
+          OR key LIKE 'admin_visible_topic_ids_user_%'
+        )
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
       DELETE FROM sync_meta
       WHERE key = ?
       `,

@@ -907,7 +907,7 @@ export default function AdminScreen() {
                   <View style={styles.subjectChips}>
                     {uniqueSubjectsByName(
                       subjectPermissions[item.id] ?? []
-                    ).map((subject) => {
+                    ).map((subject, index, subjects) => {
                       const combinedTopics =
                         subject.aliasIds.flatMap(
                           (subjectId) =>
@@ -996,6 +996,17 @@ export default function AdminScreen() {
                             pendingTopicToggle,
                             setPendingTopicToggle
                           )}
+                          {index < subjects.length - 1 ? (
+                            <View
+                              style={[
+                                styles.subjectSeparator,
+                                {
+                                  backgroundColor:
+                                    colors.border
+                                }
+                              ]}
+                            />
+                          ) : null}
                         </View>
                       )
                     })}
@@ -1266,6 +1277,11 @@ const styles = StyleSheet.create({
 
   permissionGroup: {
     gap: 8
+  },
+
+  subjectSeparator: {
+    height: 1,
+    marginTop: 4
   },
 
   subjectChip: {

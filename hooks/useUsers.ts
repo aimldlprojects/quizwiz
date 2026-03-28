@@ -8,7 +8,11 @@ import {
   DEFAULT_CURRICULUM_SUBJECTS,
   DEFAULT_CURRICULUM_TOPIC_KEYS
 } from "@/config/curriculum"
-import { markPermissionsDirty } from "@/database/syncMetaRepository"
+import {
+  markPermissionsDirty,
+  markSyncDirty,
+  notifyPermissionMetaChanges
+} from "@/database/syncMetaRepository"
 
 export interface User {
   id: number
@@ -36,11 +40,22 @@ export function useUsers(
 
     const controller =
       new UserController(db)
+    const permissionsRepo =
+      new UserSubjectRepository(db)
 
     const list =
       await controller.getUsers(
         includeDisabled
       )
+
+    await Promise.all(
+      list.map((user) =>
+        permissionsRepo.restorePermissionSnapshots(
+          user.id
+        )
+      )
+    )
+    notifyPermissionMetaChanges()
 
     const active =
       await controller.getActiveUser()
@@ -100,6 +115,13 @@ export function useUsers(
     await permissionsRepo.grantTopicsByKeys(
       userId,
       [...DEFAULT_CURRICULUM_TOPIC_KEYS]
+    )
+    await permissionsRepo.savePermissionSnapshots(
+      userId
+    )
+    await markSyncDirty(
+      db,
+      Number(userId)
     )
 
     await load()
@@ -215,7 +237,12 @@ export function useUsers(
       subjectId,
       enabled
     )
+    await repository.savePermissionSnapshots(userId)
     await markPermissionsDirty(
+      db,
+      userId
+    )
+    await markSyncDirty(
       db,
       userId
     )
@@ -254,7 +281,12 @@ export function useUsers(
       topicId,
       enabled
     )
+    await repository.savePermissionSnapshots(userId)
     await markPermissionsDirty(
+      db,
+      userId
+    )
+    await markSyncDirty(
       db,
       userId
     )
