@@ -202,6 +202,7 @@ Notes:
 - These selections must be allowed strictly within the currently visible (admin-permitted) subset.
 - Clearing any learning state must never change the underlying permissions.
 - Topic visibility is solely determined by admin configuration, and user selections should never modify the admin-permitted list.
+- When admin changes subject/topic permissions, the Topics tab must refresh its visible list immediately in the same app session.
 
 ### Selected Path text requirement
 

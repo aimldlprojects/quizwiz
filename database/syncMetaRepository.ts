@@ -14,6 +14,7 @@ const KEY_SYNC_DIRTY_AT = (userId: number) =>
   `sync_dirty_at_${userId}`
 
 const syncMetaListeners = new Set<() => void>()
+const permissionMetaListeners = new Set<() => void>()
 
 function notifySyncMetaListeners() {
   for (const listener of syncMetaListeners) {
@@ -28,6 +29,22 @@ export function subscribeSyncMetaChanges(
 
   return () => {
     syncMetaListeners.delete(listener)
+  }
+}
+
+function notifyPermissionMetaListeners() {
+  for (const listener of permissionMetaListeners) {
+    listener()
+  }
+}
+
+export function subscribePermissionMetaChanges(
+  listener: () => void
+) {
+  permissionMetaListeners.add(listener)
+
+  return () => {
+    permissionMetaListeners.delete(listener)
   }
 }
 
@@ -171,6 +188,19 @@ export async function markSyncDirty(
     timestamp
   )
   notifySyncMetaListeners()
+}
+
+export async function markPermissionsDirty(
+  db: SQLiteDatabase,
+  userId: number,
+  timestamp = Date.now()
+): Promise<void> {
+  await writeValue(
+    db,
+    `permissions_dirty_at_${userId}`,
+    timestamp
+  )
+  notifyPermissionMetaListeners()
 }
 
 export async function clearSyncDirty(

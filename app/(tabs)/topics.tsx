@@ -20,6 +20,7 @@ import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { getAllTopics } from "../../database/contentRepository"
 import { useUsers } from "../../hooks/useUsers"
 import { UserSubjectRepository } from "../../database/userSubjectRepository"
+import { subscribePermissionMetaChanges } from "../../database/syncMetaRepository"
 import { getThemeColors } from "../../styles/theme"
 
 type Subject = {
@@ -138,6 +139,46 @@ export default function TopicsScreen() {
 
     loadOptions()
 
+  }, [db, activeUser])
+
+  useEffect(() => {
+    if (!db || !activeUser) {
+      return
+    }
+
+    const reload = () => {
+      void (async () => {
+        const loadedSubjects =
+          await db.getAllAsync<Subject>(
+            `
+            SELECT id, name
+            FROM subjects
+            ORDER BY name
+            `
+          )
+
+        const loadedTopics =
+          await getAllTopics(db)
+        const accessRepo =
+          new UserSubjectRepository(db)
+        const allowedTopics =
+          await accessRepo.getAllowedTopics(
+            activeUser
+          )
+
+        setSubjects(loadedSubjects)
+        setTopics(loadedTopics)
+        setAllowedTopicIds(
+          new Set(
+            allowedTopics.map((topic) => topic.id)
+          )
+        )
+      })()
+    }
+
+    return subscribePermissionMetaChanges(
+      reload
+    )
   }, [db, activeUser])
 
   useEffect(() => {

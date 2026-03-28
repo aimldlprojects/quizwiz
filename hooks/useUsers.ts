@@ -8,6 +8,7 @@ import {
   DEFAULT_CURRICULUM_SUBJECTS,
   DEFAULT_CURRICULUM_TOPIC_KEYS
 } from "@/config/curriculum"
+import { markPermissionsDirty } from "@/database/syncMetaRepository"
 
 export interface User {
   id: number
@@ -214,6 +215,10 @@ export function useUsers(
       subjectId,
       enabled
     )
+    await markPermissionsDirty(
+      db,
+      userId
+    )
   }
 
   async function getTopicsForUser(
@@ -248,6 +253,10 @@ export function useUsers(
       userId,
       topicId,
       enabled
+    )
+    await markPermissionsDirty(
+      db,
+      userId
     )
   }
 
