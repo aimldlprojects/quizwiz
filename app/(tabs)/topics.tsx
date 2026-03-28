@@ -17,10 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
-import {
-  getAllTopics,
-  getTopicLineage
-} from "../../database/contentRepository"
+import { getAllTopics } from "../../database/contentRepository"
 import { useUsers } from "../../hooks/useUsers"
 import { UserSubjectRepository } from "../../database/userSubjectRepository"
 import { getThemeColors } from "../../styles/theme"
@@ -47,7 +44,6 @@ export default function TopicsScreen() {
   } = useUsers(db)
   const {
     selectedSubjectId,
-    selectedTopicId,
     selectedSubjectIds,
     selectedTopicLevel1Ids,
     selectedTopicLevel2Ids,
@@ -95,17 +91,9 @@ export default function TopicsScreen() {
     useState<number | null>(null)
   const [activeTopicPath, setActiveTopicPath] =
     useState<number[]>([])
-  const lineage =
-    getTopicLineage(
-      topics,
-      selectedTopicId
-    )
-  const derivedSubjectIdFromLineage =
-    lineage[0]?.subject_id ?? null
   const navigationSubjectId =
     activeSubjectId ??
-    selectedSubjectId ??
-    derivedSubjectIdFromLineage
+    selectedSubjectId
   const previousNavigationSubjectId =
     useRef<number | null>(null)
 
@@ -165,9 +153,7 @@ export default function TopicsScreen() {
   }, [navigationSubjectId])
 
   const displayedActiveTopicPath =
-    activeTopicPath.length > 0
-      ? activeTopicPath
-      : lineage.map((topic) => topic.id)
+    activeTopicPath
   const allowedTopicsList = useMemo(
     () =>
       topics.filter(
@@ -211,9 +197,6 @@ export default function TopicsScreen() {
   )
   const renderNavigationSubjectId = useMemo(
     () => {
-      const lineageSubjectId =
-        lineage[0]?.subject_id ?? null
-
       if (
         activeSubjectId != null &&
         displayTopicsList.some(
@@ -225,18 +208,18 @@ export default function TopicsScreen() {
       }
 
       if (
-        lineageSubjectId != null &&
+        selectedSubjectId != null &&
         displayTopicsList.some(
           (topic) =>
-            topic.subject_id === lineageSubjectId
+            topic.subject_id === selectedSubjectId
         )
       ) {
-        return lineageSubjectId
+        return selectedSubjectId
       }
 
       return null
     },
-    [activeSubjectId, displayTopicsList, lineage]
+    [activeSubjectId, displayTopicsList, selectedSubjectId]
   )
   const renderSubjectTopics = useMemo(
     () =>
@@ -256,30 +239,6 @@ export default function TopicsScreen() {
       ),
     [renderSubjectTopics]
   )
-  const savedTopicPath = useMemo(
-    () => lineage.map((topic) => topic.id),
-    [lineage]
-  )
-
-  useEffect(() => {
-    if (selectedSubjectId == null) {
-      return
-    }
-
-    if (savedTopicPath.length === 0) {
-      return
-    }
-
-    if (activeSubjectId == null) {
-      setActiveSubjectId(selectedSubjectId)
-      setActiveTopicPath(savedTopicPath)
-    }
-  }, [
-    activeSubjectId,
-    savedTopicPath,
-    selectedSubjectId
-  ])
-
   const topicLevels = useMemo(() => {
     const levels: Topic[][] = []
 
@@ -287,10 +246,7 @@ export default function TopicsScreen() {
       return levels
     }
 
-    const renderTopicPath =
-      activeSubjectId != null
-        ? activeTopicPath
-        : lineage.map((topic) => topic.id)
+    const renderTopicPath = activeTopicPath
     const fallbackTopics =
       renderRootTopics.length > 0
         ? renderRootTopics
@@ -327,10 +283,8 @@ export default function TopicsScreen() {
 
     return levels
   }, [
-    activeSubjectId,
     activeTopicPath,
     displayTopicsList,
-    lineage,
     renderNavigationSubjectId,
     renderRootTopics,
     renderSubjectTopics
@@ -677,9 +631,11 @@ export default function TopicsScreen() {
       .map((topic) => topic!.name)
   const pathText =
     activeSubjectName != null
-      ? [activeSubjectName, ...activePathNames]
-          .filter(Boolean)
-          .join(" -> ") || "Choose a topic"
+      ? activePathNames.length > 0
+        ? [activeSubjectName, ...activePathNames]
+            .filter(Boolean)
+            .join(" -> ")
+        : activeSubjectName
       : "Select any subject to show topics"
 
   return (

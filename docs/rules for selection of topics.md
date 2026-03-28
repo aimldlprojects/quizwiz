@@ -208,6 +208,8 @@ Notes:
 - Reset the navigation path and derived UI (topic levels, path text) whenever the active subject switches.
 - `topicLevels` should be recalculated for the new subject so chips from the previous subject never remain after the switch.
 - `activePathNames` and the "Path:" summary must always start from the newly focused subject, and they should not display topics that belonged to the prior subject until the user drills into them again.
+- The active path must never mix topics from different subjects; when the subject changes, the displayed topic chain must belong only to that subject.
+- All displayed topic levels must belong to the currently active subject.
 
 
 ## Color Schema
