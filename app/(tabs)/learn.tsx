@@ -27,6 +27,10 @@ import {
   getTopicById,
   TopicRecord
 } from "../../database/contentRepository"
+import {
+  getLearnProgress,
+  setLearnProgress
+} from "../../database/learnProgressRepository"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
@@ -114,6 +118,36 @@ export default function LearnScreen() {
       : colors.iconInactive
   })
 
+  const persistLearnProgress =
+    useCallback(async () => {
+      if (!db || !activeUser || !selectedTopicId) {
+        return
+      }
+
+      const currentCard =
+        controller.getCurrentCard()
+      const progressSnapshot =
+        controller.getProgress()
+
+      if (!currentCard || progressSnapshot.total === 0) {
+        return
+      }
+
+      await setLearnProgress(
+        db,
+        activeUser,
+        {
+          topicId: selectedTopicId,
+          cardId: currentCard.id,
+          cardIndex: Math.max(
+            0,
+            progressSnapshot.current - 1
+          ),
+          totalCards: progressSnapshot.total
+        }
+      )
+    }, [db, activeUser, selectedTopicId, controller])
+
   function clearLearnTimers() {
 
     if (autoFlipTimeoutRef.current) {
@@ -138,8 +172,9 @@ export default function LearnScreen() {
     setCard(next)
     setRevealed(false)
     setProgress(controller.getProgress())
+    void persistLearnProgress()
 
-  }, [controller])
+  }, [controller, persistLearnProgress])
 
   const prevCard = useCallback(() => {
 
@@ -151,8 +186,9 @@ export default function LearnScreen() {
     setCard(previous)
     setRevealed(false)
     setProgress(controller.getProgress())
+    void persistLearnProgress()
 
-  }, [controller])
+  }, [controller, persistLearnProgress])
 
   const rateCard = useCallback((
     feedback: LearnFeedback
@@ -169,14 +205,21 @@ export default function LearnScreen() {
     setCard(next)
     setRevealed(false)
     setProgress(controller.getProgress())
+    void persistLearnProgress()
 
-  }, [controller, learnRandomOrderEnabled])
+  }, [
+    controller,
+    learnRandomOrderEnabled,
+    persistLearnProgress
+  ])
 
   useEffect(() => {
 
+    let cancelled = false
+
     async function loadCards() {
 
-      if (!db || !selectedTopicId) {
+      if (!db || !activeUser || !selectedTopicId) {
         controller.reset()
         setCard(null)
         setRevealed(false)
@@ -194,8 +237,16 @@ export default function LearnScreen() {
           selectedTopicId
         )
 
+      if (cancelled) {
+        return
+      }
+
       const topics =
         await getAllTopics(db)
+
+      if (cancelled) {
+        return
+      }
 
       setTopic(selectedTopic ?? null)
 
@@ -207,9 +258,38 @@ export default function LearnScreen() {
 
       if (generatedCards.length > 0) {
         controller.loadCards(generatedCards)
+        const savedProgress =
+          await getLearnProgress(
+            db,
+            activeUser,
+            selectedTopicId
+          )
+
+        if (cancelled) {
+          return
+        }
+
+        if (savedProgress) {
+          const restoredIndex =
+            savedProgress.cardId != null
+              ? generatedCards.findIndex(
+                  (generatedCard) =>
+                    generatedCard.id ===
+                    savedProgress.cardId
+                )
+              : -1
+
+          controller.setCurrentIndex(
+            restoredIndex >= 0
+              ? restoredIndex
+              : savedProgress.cardIndex
+          )
+        }
+
         setCard(controller.getCurrentCard())
         setRevealed(false)
         setProgress(controller.getProgress())
+        void persistLearnProgress()
         return
       }
 
@@ -226,6 +306,10 @@ export default function LearnScreen() {
           undefined,
           "sequence"
         )
+
+      if (cancelled) {
+        return
+      }
 
       if (rows.length === 0) {
         controller.reset()
@@ -250,19 +334,61 @@ export default function LearnScreen() {
 
       controller.loadCards(loadedCards)
 
+      const savedProgress =
+        await getLearnProgress(
+          db,
+          activeUser,
+          selectedTopicId
+        )
+
+      if (cancelled) {
+        return
+      }
+
+      if (savedProgress) {
+        const restoredIndex =
+          savedProgress.cardId != null
+            ? loadedCards.findIndex(
+                (loadedCard) =>
+                  loadedCard.id ===
+                  savedProgress.cardId
+              )
+            : -1
+
+        controller.setCurrentIndex(
+          restoredIndex >= 0
+            ? restoredIndex
+            : savedProgress.cardIndex
+        )
+      }
+
       setCard(controller.getCurrentCard())
       setRevealed(false)
       setProgress(controller.getProgress())
+      void persistLearnProgress()
 
     }
 
     loadCards()
 
+    return () => {
+      cancelled = true
+    }
+
   }, [
     db,
     selectedTopicId,
-    controller
+    controller,
+    activeUser,
+    persistLearnProgress
   ])
+
+  useEffect(() => {
+    return () => {
+      void persistLearnProgress()
+      clearLearnTimers()
+    }
+  }, [selectedTopicId, persistLearnProgress])
 
   useEffect(() => {
 

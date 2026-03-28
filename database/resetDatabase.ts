@@ -51,6 +51,15 @@ export async function resetUserData(
 
     await db.runAsync(
       `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND key LIKE 'learn_progress_topic_%'
+      `,
+      [userId]
+    )
+
+    await db.runAsync(
+      `
       DELETE FROM sync_meta
       WHERE key = ?
       `,

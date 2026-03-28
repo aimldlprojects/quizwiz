@@ -273,6 +273,15 @@ export class UserRepository {
 
     await this.db.runAsync(
       `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND key LIKE 'learn_progress_topic_%'
+      `,
+      [userId]
+    )
+
+    await this.db.runAsync(
+      `
       DELETE FROM sync_meta
       WHERE key = ?
       `,

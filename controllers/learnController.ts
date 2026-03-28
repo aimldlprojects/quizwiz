@@ -33,6 +33,38 @@ export class LearnController {
 
   }
 
+  setCurrentIndex(index: number) {
+
+    if (this.cards.length === 0) {
+      this.index = 0
+      return
+    }
+
+    const normalizedIndex =
+      Math.max(
+        0,
+        Math.min(
+          Math.floor(index),
+          this.cards.length - 1
+        )
+      )
+
+    this.index = normalizedIndex
+
+  }
+
+  getCurrentIndex() {
+
+    return this.index
+
+  }
+
+  getCurrentCardId() {
+
+    return this.getCurrentCard()?.id ?? null
+
+  }
+
   loadTables(table: number) {
 
     const questions =
