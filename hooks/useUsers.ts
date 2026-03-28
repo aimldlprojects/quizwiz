@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native"
 
 import { UserController } from "../controllers/userController"
 import { UserSubjectRepository } from "@/database/userSubjectRepository"
+import { SyncService } from "@/services/syncService"
 import {
   DEFAULT_CURRICULUM_SUBJECTS,
   DEFAULT_CURRICULUM_TOPIC_KEYS
@@ -195,6 +196,20 @@ export function useUsers(
 
     const controller =
       new UserController(db)
+
+    if (activeUser != null && activeUser !== id) {
+      try {
+        await new SyncService(
+          db,
+          activeUser
+        ).sync()
+      } catch (error) {
+        console.warn(
+          "User switch sync timed out or failed, continuing with switch:",
+          error
+        )
+      }
+    }
 
     await controller.setActiveUser(id)
 

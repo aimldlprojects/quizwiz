@@ -2,6 +2,8 @@ import { SQLiteDatabase } from "expo-sqlite"
 
 import {
   clearSyncDirty,
+  beginSyncActivity,
+  endSyncActivity,
   setSyncStatus as setSyncMetaStatus
 } from "../../database/syncMetaRepository"
 import { pullReviews } from "./pullReviews"
@@ -39,6 +41,7 @@ export async function syncReviews(
 
   let stage: "push" | "pull" | "overall" = "overall"
 
+  beginSyncActivity()
   try {
 
     stage = "push"
@@ -117,6 +120,8 @@ export async function syncReviews(
 
     throw err
 
+  } finally {
+    endSyncActivity()
   }
 
 }

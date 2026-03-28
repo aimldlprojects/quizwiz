@@ -2,6 +2,8 @@ import { SQLiteDatabase } from "expo-sqlite"
 import {
   getLastPushRev,
   setLastPushRev,
+  beginSyncActivity,
+  endSyncActivity,
   setSyncStatus,
 } from "../../database/syncMetaRepository"
 import { syncConfig } from "@/config/sync"
@@ -214,7 +216,12 @@ export async function pushReviews(
 
   let finalRev = lastSync
   let firstRequest = true
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, syncConfig.pullTimeoutMs)
 
+  beginSyncActivity()
   try {
     while (true) {
       const changes = await getLocalReviewChanges(
@@ -252,7 +259,8 @@ export async function pushReviews(
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: controller.signal
         }
       )
 
@@ -290,6 +298,9 @@ export async function pushReviews(
       err instanceof Error ? err.message : String(err)
     )
     throw err
+  } finally {
+    clearTimeout(timeoutId)
+    endSyncActivity()
   }
 
   await setLastPushRev(db, userId, finalRev)

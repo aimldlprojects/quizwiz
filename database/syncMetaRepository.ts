@@ -15,6 +15,8 @@ const KEY_SYNC_DIRTY_AT = (userId: number) =>
 
 const syncMetaListeners = new Set<() => void>()
 const permissionMetaListeners = new Set<() => void>()
+const syncActivityListeners = new Set<() => void>()
+let syncActivityCount = 0
 
 function notifySyncMetaListeners() {
   for (const listener of syncMetaListeners) {
@@ -50,6 +52,39 @@ export function subscribePermissionMetaChanges(
   return () => {
     permissionMetaListeners.delete(listener)
   }
+}
+
+function notifySyncActivityListeners() {
+  for (const listener of syncActivityListeners) {
+    listener()
+  }
+}
+
+export function subscribeSyncActivityChanges(
+  listener: () => void
+) {
+  syncActivityListeners.add(listener)
+
+  return () => {
+    syncActivityListeners.delete(listener)
+  }
+}
+
+export function beginSyncActivity(): void {
+  syncActivityCount += 1
+  notifySyncActivityListeners()
+}
+
+export function endSyncActivity(): void {
+  syncActivityCount = Math.max(
+    0,
+    syncActivityCount - 1
+  )
+  notifySyncActivityListeners()
+}
+
+export function isSyncActivityActive(): boolean {
+  return syncActivityCount > 0
 }
 
 /*

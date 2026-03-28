@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
+import { AppState, type AppStateStatus } from "react-native"
 import { SQLiteDatabase } from "expo-sqlite"
 
 import { SyncService } from "@/services/syncService"
@@ -7,6 +8,7 @@ import { SyncLifecycle } from "@/services/sync/syncLifecycle"
 export function useSyncLifecycle(
   db: SQLiteDatabase | null,
   activeUser: number | null,
+  userIds: number[],
   intervalMs: number,
   minGapMs: number
 ) {
@@ -15,6 +17,14 @@ export function useSyncLifecycle(
     useRef<SyncLifecycle | null>(null)
   const intervalRef =
     useRef<ReturnType<typeof setInterval> | null>(null)
+  const userIdsRef =
+    useRef<number[]>(userIds)
+  const appStateRef =
+    useRef<AppStateStatus>(AppState.currentState)
+
+  useEffect(() => {
+    userIdsRef.current = userIds
+  }, [userIds])
 
   useEffect(() => {
 
@@ -31,8 +41,12 @@ export function useSyncLifecycle(
     const syncService =
       new SyncService(db, activeUser)
     const lifecycle = new SyncLifecycle(
-      db,
       syncService,
+      () => userIdsRef.current.length > 0
+        ? userIdsRef.current
+        : activeUser
+          ? [activeUser]
+          : [],
       intervalMs,
       minGapMs
     )
@@ -51,12 +65,44 @@ export function useSyncLifecycle(
       }, intervalMs)
     }
 
+    const appStateSubscription =
+      AppState.addEventListener(
+        "change",
+        (nextState) => {
+          const previousState =
+            appStateRef.current
+          appStateRef.current = nextState
+
+          const becameActive =
+            /inactive|background/.test(
+              previousState
+            ) && nextState === "active"
+
+          const goingInactive =
+            nextState === "background" ||
+            nextState === "inactive"
+
+          if (becameActive) {
+            lifecycle.requestSync("appstate")
+          }
+
+          if (goingInactive) {
+            lifecycle.requestSync("background")
+          }
+        }
+      )
+
+    if (appStateRef.current === "active") {
+      lifecycle.requestSync("startup")
+    }
+
     return () => {
       lifecycle.stop()
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
+      appStateSubscription.remove()
       lifecycleRef.current = null
     }
 

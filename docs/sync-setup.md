@@ -56,35 +56,21 @@ The table below follows the screen order in the app and shows what each screen c
 | Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen shows data that came from sync. |
 | Badges | See earned badges | Yes | Yes | Badge progress is saved on the device and synced with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen also contains the main sync controls. |
+| Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app tries to save the current user first, then changes to the new user. |
+| App opens or comes back to the front | Resume the current learner profile | No new change by itself | Yes, if the sync starts and finishes in time | The app makes a quick best-effort sync while loading or resuming. |
+| App goes to the background | Leave the app or move away from it | No new change by itself | Yes, if the sync starts and finishes in time | The app tries one last sync before it is backgrounded. |
 | Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Sends current user changes between the device and the global database, including admin visibility rules. |
 | `Push` in Profile | Upload local changes only | No new change by itself | Yes, but only from device to global | Use this when you only want to upload local changes, including admin visibility rules. |
 | `Pull` in Profile | Refresh the device only | No new change by itself | Yes, but only from global to device | Use this when you only want to refresh the device, including admin visibility rules. |
 | Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | These changes are saved locally first and travel with the same sync flow as the rest of the user data. |
 
-## What Each Sync Control Does
-
-| Sync control | Where it appears | What it does | What data it sends or refreshes |
-| --- | --- | --- | --- |
-| Top-right sync icon | Every screen header | Syncs the current user | Sends and refreshes the current user's practice data, progress, Learn card position, badges, topic selections, profile preferences, and admin visibility rules |
-| `Push` | Profile screen | Upload only | Sends local user changes, including Learn progress and admin visibility rules, to the global database without refreshing from the global database first |
-| `Sync` | Profile screen | Full sync | Sends local user changes first, then refreshes the device from the global database, including admin visibility rules |
-| `Pull` | Profile screen | Download only | Refreshes the device from the global database without uploading local changes first, including admin visibility rules |
-| Sync button after Practice | Practice screen | Save practice progress right away | Sends the latest practice data and refreshes the user sync status |
-
 ### Top-right sync icon
 
-The sync icon is always available in the screen header.
-
-- tap it to sync the current user
-- it uses the current sync state to show whether anything needs attention
+The sync icon is always available in the screen header. Tap it to sync the current user. The table above explains what it affects.
 
 ### Profile screen
 
-The Profile screen gives you the full sync controls:
-
-- `Push` sends only the changes saved on this device to the global database
-- `Sync` sends changes first and then refreshes the device from the global database
-- `Pull` refreshes the device from the global database without sending local changes first
+The Profile screen gives you the full sync controls. Use `Push`, `Sync`, or `Pull` depending on whether you want to upload, do both steps, or refresh only.
 
 The Profile screen also shows:
 
@@ -96,9 +82,7 @@ The Profile screen also shows:
 
 ### Practice screen
 
-After answering a question, the Practice screen shows a sync button near the answer controls.
-
-Use it when you want to save practice progress right away.
+After answering a question, the Practice screen shows a sync button near the answer controls. This is a quick way to save practice progress right away.
 
 ## Color Meaning
 

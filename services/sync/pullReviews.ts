@@ -2,6 +2,8 @@ import { SQLiteDatabase } from "expo-sqlite"
 
 import {
   getLastPullRev,
+  beginSyncActivity,
+  endSyncActivity,
   setLastPullRev,
   setSyncStatus,
   notifyPermissionMetaChanges
@@ -215,6 +217,7 @@ export async function pullReviews(
     controller.abort()
   }, timeoutMs)
 
+  beginSyncActivity()
   try {
     const res = await fetch(
       `${serverUrl}/reviews/pull?user_id=${userId}&since_rev_id=${lastPull}`,
@@ -239,6 +242,7 @@ export async function pullReviews(
     throw err
   } finally {
     clearTimeout(timeoutId)
+    endSyncActivity()
   }
 
   const reviews =

@@ -1,5 +1,3 @@
-import { SQLiteDatabase } from "expo-sqlite"
-
 import { SyncService } from "../syncService"
 
 export class SyncLifecycle {
@@ -7,8 +5,8 @@ export class SyncLifecycle {
   private syncInProgress = false
 
   constructor(
-    private db: SQLiteDatabase,
     private syncService: SyncService,
+    private getUserIds: () => number[] = () => [],
     private intervalMs: number = 0,
     private minGapMs: number = 0
   ) {}
@@ -30,7 +28,13 @@ export class SyncLifecycle {
     this.syncInProgress = true
 
     try {
-      await this.syncService.sync()
+      const userIds = this.getUserIds()
+
+      if (userIds.length === 0) {
+        return
+      }
+
+      await this.syncService.syncUsers(userIds)
     } catch (err) {
       console.warn(
         `Sync (${source}) failed:`,
