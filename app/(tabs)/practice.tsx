@@ -342,7 +342,10 @@ export default function PracticeScreen() {
       await syncReviews(
         db,
         syncServerUrl,
-        activeUser
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
       )
       await refreshSyncStatus()
       await refreshSyncIndicators()

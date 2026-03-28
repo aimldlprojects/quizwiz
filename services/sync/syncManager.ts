@@ -21,7 +21,10 @@ export function startSyncScheduler(
       await syncReviews(
         db,
         serverUrl,
-        userId
+        userId,
+        {
+          showOverlay: false
+        }
       )
 
     } catch (err) {

@@ -31,7 +31,13 @@ export class SyncService {
     await this.syncUser(this.userId)
   }
 
-  async syncUser(userId: number): Promise<void> {
+  async syncUser(
+    userId: number,
+    options?: {
+      showOverlay?: boolean
+      overlayLabel?: string
+    }
+  ): Promise<void> {
 
     const mode =
       await getSyncMode(this.db)
@@ -54,7 +60,13 @@ export class SyncService {
       await syncReviews(
         this.db,
         serverUrl,
-        userId
+        userId,
+        {
+          ...options,
+          overlayLabel:
+            options?.overlayLabel ??
+            "Syncing current profile..."
+        }
       )
     } catch (err) {
       console.error("Background sync failed:", err)
@@ -65,7 +77,13 @@ export class SyncService {
 
   }
 
-  async syncUsers(userIds: number[]): Promise<void> {
+  async syncUsers(
+    userIds: number[],
+    options?: {
+      showOverlay?: boolean
+      overlayLabel?: string
+    }
+  ): Promise<void> {
     const uniqueUserIds = Array.from(
       new Set(
         userIds.filter((userId) =>
@@ -88,24 +106,61 @@ export class SyncService {
       return
     }
 
-    beginSyncActivity()
-    try {
+    const showOverlay =
+      options?.showOverlay !== false
+
+    if (showOverlay) {
+      beginSyncActivity(
+        options?.overlayLabel ?? "Syncing all profiles..."
+      )
+      try {
+        for (const userId of uniqueUserIds) {
+          try {
+            await syncReviews(
+              this.db,
+              serverUrl,
+              userId,
+              {
+                ...options,
+                overlayLabel:
+                  options?.overlayLabel ??
+                  "Syncing all profiles...",
+                showOverlay: false
+              }
+            )
+          } catch (err) {
+            console.warn(
+              `Sync skipped for user ${userId}:`,
+              err
+            )
+          }
+        }
+      } finally {
+        endSyncActivity()
+      }
+      return
+    }
+
       for (const userId of uniqueUserIds) {
         try {
-          await syncReviews(
-            this.db,
-            serverUrl,
-            userId
-          )
+        await syncReviews(
+          this.db,
+          serverUrl,
+          userId,
+          {
+            ...options,
+            overlayLabel:
+              options?.overlayLabel ??
+              "Syncing all profiles...",
+            showOverlay: false
+          }
+        )
         } catch (err) {
-          console.warn(
-            `Sync skipped for user ${userId}:`,
-            err
-          )
-        }
+        console.warn(
+          `Sync skipped for user ${userId}:`,
+          err
+        )
       }
-    } finally {
-      endSyncActivity()
     }
   }
 

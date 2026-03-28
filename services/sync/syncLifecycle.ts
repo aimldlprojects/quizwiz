@@ -34,7 +34,16 @@ export class SyncLifecycle {
         return
       }
 
-      await this.syncService.syncUsers(userIds)
+      await this.syncService.syncUsers(
+        userIds,
+        {
+          showOverlay: source !== "timer",
+          overlayLabel:
+            source === "timer"
+              ? "Syncing current profile..."
+              : "Syncing all profiles..."
+        }
+      )
     } catch (err) {
       console.warn(
         `Sync (${source}) failed:`,

@@ -82,6 +82,15 @@ The Profile screen also shows:
 
 After answering a question, the Practice screen shows a sync button near the answer controls. Use it to save practice progress right away.
 
+### Syncing Overlay
+
+The full-screen `Syncing...` overlay appears when the app is doing a manual sync, a user change sync, or an app open/background sync pass.
+
+- manual syncs show `Syncing current profile...`
+- app open/background sync passes show `Syncing all profiles...`
+
+The scheduled timer sync runs quietly and does not show the overlay.
+
 ## Color Meaning
 
 The sync icon and badges use color to show what is happening:
@@ -102,8 +111,9 @@ Auto sync is controlled from the Profile screen.
 When auto sync is on:
 
 - the app checks sync on a timer while the app is open and syncs all loaded users
+- the timer sync runs quietly without the full-screen `Syncing...` overlay
 - the next sync time is shown next to the sync icon
-- the Profile screen also shows the sync interval and minimum gap settings
+- the Profile screen also shows the sync interval and sync gap settings
 
 If auto sync is off, the header still shows the sync icon and you can still sync manually.
 
@@ -148,7 +158,7 @@ If you are maintaining the app, these settings control sync behavior:
 | `syncPullTimeoutMs` | How long the app waits for the server response when sending or receiving data | `15000` |
 | `syncPushChunkSize` | How many review rows are sent in one push batch | `128` |
 | `syncIntervalMs` | How often auto sync checks for changes in Hybrid mode | `60000` |
-| `syncMinGapMs` | A sync setting shown in the Profile screen | `30000` |
+| `syncMinGapMs` | A sync setting shown in the Profile screen as the sync gap | `30000` |
 | `syncServerUrl` | The global database server address | `http://localhost:8000` |
 | `syncDebugLogs` | Turns extra sync logs on or off | `false` |
 

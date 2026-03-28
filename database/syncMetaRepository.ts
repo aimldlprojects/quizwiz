@@ -17,6 +17,7 @@ const syncMetaListeners = new Set<() => void>()
 const permissionMetaListeners = new Set<() => void>()
 const syncActivityListeners = new Set<() => void>()
 let syncActivityCount = 0
+let syncActivityLabel = "Syncing..."
 
 function notifySyncMetaListeners() {
   for (const listener of syncMetaListeners) {
@@ -70,8 +71,11 @@ export function subscribeSyncActivityChanges(
   }
 }
 
-export function beginSyncActivity(): void {
+export function beginSyncActivity(
+  label = "Syncing..."
+): void {
   syncActivityCount += 1
+  syncActivityLabel = label
   notifySyncActivityListeners()
 }
 
@@ -80,11 +84,18 @@ export function endSyncActivity(): void {
     0,
     syncActivityCount - 1
   )
+  if (syncActivityCount === 0) {
+    syncActivityLabel = "Syncing..."
+  }
   notifySyncActivityListeners()
 }
 
 export function isSyncActivityActive(): boolean {
   return syncActivityCount > 0
+}
+
+export function getSyncActivityLabel(): string {
+  return syncActivityLabel
 }
 
 /*

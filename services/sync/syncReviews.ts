@@ -36,16 +36,29 @@ async function recordGlobalStatus(
 export async function syncReviews(
   db: SQLiteDatabase,
   serverUrl: string,
-  userId: number
+  userId: number,
+  options?: {
+    showOverlay?: boolean
+    overlayLabel?: string
+  }
 ): Promise<void> {
 
   let stage: "push" | "pull" | "overall" = "overall"
+  const showOverlay =
+    options?.showOverlay !== false
+  const overlayLabel =
+    options?.overlayLabel ?? "Syncing current profile..."
 
-  beginSyncActivity()
+  if (showOverlay) {
+    beginSyncActivity(overlayLabel)
+  }
+
   try {
 
     stage = "push"
-    await pushReviews(db, serverUrl, userId)
+    await pushReviews(db, serverUrl, userId, {
+      showOverlay: false
+    })
     await setSyncMetaStatus(
       db,
       userId,
@@ -60,7 +73,9 @@ export async function syncReviews(
     )
 
     stage = "pull"
-    await pullReviews(db, serverUrl, userId)
+    await pullReviews(db, serverUrl, userId, {
+      showOverlay: false
+    })
     await setSyncMetaStatus(
       db,
       userId,
@@ -121,7 +136,10 @@ export async function syncReviews(
     throw err
 
   } finally {
-    endSyncActivity()
+    if (showOverlay) {
+      endSyncActivity()
+    }
+
   }
 
 }

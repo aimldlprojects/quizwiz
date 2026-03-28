@@ -253,7 +253,10 @@ export default function ProfileScreen() {
       await syncReviews(
         db,
         serverUrl,
-        activeUser
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
       )
 
       Alert.alert(
@@ -292,7 +295,14 @@ export default function ProfileScreen() {
     setSyncing(true)
 
     try {
-      await pushReviews(db, serverUrl, activeUser)
+      await pushReviews(
+        db,
+        serverUrl,
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
+      )
       await clearSyncDirty(db, activeUser)
       Alert.alert(
         "Push complete",
@@ -330,7 +340,14 @@ export default function ProfileScreen() {
     setSyncing(true)
 
     try {
-      await pullReviews(db, serverUrl, activeUser)
+      await pullReviews(
+        db,
+        serverUrl,
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
+      )
       Alert.alert(
         "Pull complete",
         "Your device was refreshed from the global database."
@@ -778,7 +795,7 @@ export default function ProfileScreen() {
                 { color: colors.text }
               ]}
             >
-              Scheduler tuning
+              Scheduler sync
             </Text>
             <Text
               style={[
@@ -786,7 +803,7 @@ export default function ProfileScreen() {
                 { color: colors.muted }
               ]}
             >
-              Control how often background syncs trigger.
+              Set how often the scheduler sync runs.
             </Text>
             <View style={styles.tunerRow}>
               <View style={styles.tunerColumn}>
@@ -796,7 +813,7 @@ export default function ProfileScreen() {
                     { color: colors.muted }
                   ]}
                 >
-                  Interval
+                  Sync interval
                 </Text>
                 <Text
                   style={[
@@ -840,7 +857,7 @@ export default function ProfileScreen() {
                     { color: colors.muted }
                   ]}
                 >
-                  Min gap
+                  Sync gap
                 </Text>
                 <Text
                   style={[

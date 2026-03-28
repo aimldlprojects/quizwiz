@@ -183,7 +183,11 @@ function hasMeta(
 export async function pushReviews(
   db: SQLiteDatabase,
   serverUrl: string,
-  userId: number
+  userId: number,
+  options?: {
+    showOverlay?: boolean
+    overlayLabel?: string
+  }
 ): Promise<void> {
 
   const lastSync = await getLastPushRev(db, userId)
@@ -221,7 +225,15 @@ export async function pushReviews(
     controller.abort()
   }, syncConfig.pullTimeoutMs)
 
-  beginSyncActivity()
+  const showOverlay =
+    options?.showOverlay !== false
+  const overlayLabel =
+    options?.overlayLabel ?? "Syncing current profile..."
+
+  if (showOverlay) {
+    beginSyncActivity(overlayLabel)
+  }
+
   try {
     while (true) {
       const changes = await getLocalReviewChanges(
@@ -300,7 +312,9 @@ export async function pushReviews(
     throw err
   } finally {
     clearTimeout(timeoutId)
-    endSyncActivity()
+    if (showOverlay) {
+      endSyncActivity()
+    }
   }
 
   await setLastPushRev(db, userId, finalRev)

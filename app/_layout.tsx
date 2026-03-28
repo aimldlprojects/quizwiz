@@ -15,6 +15,7 @@ import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useSyncLifecycle } from "@/hooks/useSyncLifecycle"
 import { useUsers } from "@/hooks/useUsers"
 import {
+  getSyncActivityLabel,
   isSyncActivityActive,
   subscribeSyncActivityChanges
 } from "@/database/syncMetaRepository"
@@ -42,6 +43,8 @@ export default function RootLayout() {
   )
   const [syncOverlayVisible, setSyncOverlayVisible] =
     useState(isSyncActivityActive())
+  const [syncOverlayLabel, setSyncOverlayLabel] =
+    useState(getSyncActivityLabel())
 
   useEffect(() => {
     const unsubscribe = subscribeSyncActivityChanges(
@@ -49,11 +52,17 @@ export default function RootLayout() {
         setSyncOverlayVisible(
           isSyncActivityActive()
         )
+        setSyncOverlayLabel(
+          getSyncActivityLabel()
+        )
       }
     )
 
     setSyncOverlayVisible(
       isSyncActivityActive()
+    )
+    setSyncOverlayLabel(
+      getSyncActivityLabel()
     )
 
     return unsubscribe
@@ -117,7 +126,7 @@ export default function RootLayout() {
                   { color: colors.text }
                 ]}
               >
-                Syncing...
+                {syncOverlayLabel}
               </Text>
             </View>
           </View>

@@ -311,7 +311,10 @@ export default function GlobalSyncButton({
       await syncReviews(
         db,
         syncServerUrl,
-        activeUser
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
       )
       await clearSyncDirty(db, activeUser)
       await refreshSyncStatus()

@@ -201,7 +201,11 @@ async function upsertSettings(
 export async function pullReviews(
   db: SQLiteDatabase,
   serverUrl: string,
-  userId: number
+  userId: number,
+  options?: {
+    showOverlay?: boolean
+    overlayLabel?: string
+  }
 ): Promise<void> {
 
   const lastPull = await getLastPullRev(
@@ -217,7 +221,15 @@ export async function pullReviews(
     controller.abort()
   }, timeoutMs)
 
-  beginSyncActivity()
+  const showOverlay =
+    options?.showOverlay !== false
+  const overlayLabel =
+    options?.overlayLabel ?? "Syncing current profile..."
+
+  if (showOverlay) {
+    beginSyncActivity(overlayLabel)
+  }
+
   try {
     const res = await fetch(
       `${serverUrl}/reviews/pull?user_id=${userId}&since_rev_id=${lastPull}`,
@@ -242,7 +254,9 @@ export async function pullReviews(
     throw err
   } finally {
     clearTimeout(timeoutId)
-    endSyncActivity()
+    if (showOverlay) {
+      endSyncActivity()
+    }
   }
 
   const reviews =
