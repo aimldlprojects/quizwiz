@@ -7,7 +7,7 @@ QuizWiz keeps your data in two places:
 - your device database
 - the global database
 
-Your changes are saved on the device first. Sync is what copies those changes between the device and the global database.
+Your changes are saved on the device first. Sync copies those changes between the device and the global database.
 
 The app shows sync status in a few places:
 
@@ -34,35 +34,33 @@ These are part of sync too:
 
 When you use the same profile on more than one device, sync keeps the newer change.
 
-The app does this with a saved time stamp on each synced item.
-
 | Situation | What happens |
 | --- | --- |
 | You change something on Device A and tap sync | The change is saved on Device A first, then sent to the global database. |
-| You open Device B and tap sync later | Device B pulls the newer data from the global database. |
-| The same item changed on two devices | The newer time stamp wins, so the latest change becomes the final one. |
+| You open Device B and tap sync later | Device B gets the newer data from the global database. |
+| The same item changes on two devices | The newer timestamp wins. |
 
-This is how the app keeps progress, badges, topic selections, Learn progress, preferences, and admin visibility rules in step across devices.
+This keeps progress, badges, topic selections, Learn progress, preferences, and admin visibility rules in step across devices.
 
 ## Device Vs Global
 
-The table below follows the screen order in the app and shows what each screen can do, what saves locally first, and what sync sends to the global database.
+This table follows the screen order in the app and shows what each screen can do, what saves locally first, and what sync sends to the global database.
 
 | Screen | Actions possible in the screen | Saved on this device right away? | Sent to the global database by sync? | Notes |
 | --- | --- | --- | --- | --- |
-| Topics | Choose subjects and topics | Yes | Yes | Topic selections are stored on the device first and can be synced later. |
-| Learn | Study flash cards and learning content | Yes | Yes | Learn keeps your last card position for each topic so you can come back later and continue where you left off. |
-| Practice | Answer questions and build progress | Yes | Yes | Practice answers update review history, progress, and accuracy. |
-| Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen shows data that came from sync. |
-| Badges | See earned badges | Yes | Yes | Badge progress is saved on the device and synced with the user data. |
-| Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen also contains the main sync controls. |
-| Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app tries to save the current user first, then changes to the new user. |
-| App opens or comes back to the front | Resume the current learner profile | No new change by itself | Yes, if the sync starts and finishes in time | The app makes a quick best-effort sync while loading or resuming. |
-| App goes to the background | Leave the app or move away from it | No new change by itself | Yes, if the sync starts and finishes in time | The app tries one last sync before it is backgrounded. |
-| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Sends current user changes between the device and the global database, including admin visibility rules. |
-| `Push` in Profile | Upload local changes only | No new change by itself | Yes, but only from device to global | Use this when you only want to upload local changes, including admin visibility rules. |
-| `Pull` in Profile | Refresh the device only | No new change by itself | Yes, but only from global to device | Use this when you only want to refresh the device, including admin visibility rules. |
-| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | These changes are saved locally first and travel with the same sync flow as the rest of the user data. |
+| Topics | Select subjects and topics | Yes | Yes | Topic selections save on the device first, then sync later. |
+| Learn | Study flash cards and learning content | Yes | Yes | Learn keeps the last card position for each topic. |
+| Practice | Answer questions and build progress | Yes | Yes | Practice updates review history, progress, and accuracy. |
+| Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen only displays synced practice data. |
+| Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
+| Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls. |
+| Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles. |
+| App opens or comes back to the front | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app makes a best-effort sync pass while loading or resuming. |
+| App goes to the background | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app tries one last sync pass before it backgrounds. |
+| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user changes, including admin visibility rules. |
+| `Push` in Profile | Upload the current user's local changes only | No new change by itself | Yes, but only from device to global | Uploads local changes for the active user, including admin visibility rules. |
+| `Pull` in Profile | Refresh the current user from the global database only | No new change by itself | Yes, but only from global to device | Refreshes the active user, including admin visibility rules. |
+| Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | Saves locally first and follows the same sync flow as user data. |
 
 ### Top-right sync icon
 
@@ -70,7 +68,7 @@ The sync icon is always available in the screen header. Tap it to sync the curre
 
 ### Profile screen
 
-The Profile screen gives you the full sync controls. Use `Push`, `Sync`, or `Pull` depending on whether you want to upload, do both steps, or refresh only.
+The Profile screen gives you the full sync controls. Use `Push`, `Sync`, or `Pull` to upload, do both steps, or refresh only.
 
 The Profile screen also shows:
 
@@ -82,7 +80,7 @@ The Profile screen also shows:
 
 ### Practice screen
 
-After answering a question, the Practice screen shows a sync button near the answer controls. This is a quick way to save practice progress right away.
+After answering a question, the Practice screen shows a sync button near the answer controls. Use it to save practice progress right away.
 
 ## Color Meaning
 
@@ -103,9 +101,9 @@ Auto sync is controlled from the Profile screen.
 
 When auto sync is on:
 
-- the app checks sync on a timer while the app is open
+- the app checks sync on a timer while the app is open and syncs all loaded users
 - the next sync time is shown next to the sync icon
-- the Profile screen also lets you tune the sync interval and minimum gap
+- the Profile screen also shows the sync interval and minimum gap settings
 
 If auto sync is off, the header still shows the sync icon and you can still sync manually.
 
@@ -122,36 +120,13 @@ Examples:
 
 If the timer says `Off`, auto sync is not running for that profile.
 
-## When Sync Runs
-
-The app can try to sync at a few important moments:
-
-| Trigger | What happens | Timeout rule |
-| --- | --- | --- |
-| User taps `Change User` | The app tries to sync the current user first, then switches to the new user. | If the sync does not finish in time, the app skips that sync step and continues switching users. |
-| App opens or comes back to the front | The app tries a quick sync for the current user. | If the sync times out, the app skips that step and continues loading normally. |
-| App goes to the background | The app tries one last sync for the current user. | If the sync times out, the app skips that step and lets the app close normally. |
-| Manual sync buttons | The app runs the chosen sync action for the current user. | Each sync action waits only up to the configured timeout, then skips the step if the server does not answer in time. |
-
-This means sync is helpful, but it should not block the app for too long.
-
 ## How Sync Works
 
-When you tap `Sync`:
+`Sync` sends local changes first, then refreshes the device from the global database.
 
-1. the app sends your local changes to the global database
-2. the app refreshes the device from the global database
-3. the sync status updates to show success or failure
+`Push` sends local changes only.
 
-When you tap `Push`:
-
-1. the app sends your local changes to the global database
-2. it does not do the refresh step
-
-When you tap `Pull`:
-
-1. the app refreshes the device from the global database
-2. it does not send local changes first
+`Pull` refreshes the device from the global database only.
 
 ## When To Use Sync
 
@@ -170,10 +145,10 @@ If you are maintaining the app, these settings control sync behavior:
 
 | Setting | What it controls | Default |
 | --- | --- | --- |
-| `syncPullTimeoutMs` | How long the app waits for the server response when pulling data | `15000` |
+| `syncPullTimeoutMs` | How long the app waits for the server response when sending or receiving data | `15000` |
 | `syncPushChunkSize` | How many review rows are sent in one push batch | `128` |
 | `syncIntervalMs` | How often auto sync checks for changes in Hybrid mode | `60000` |
-| `syncMinGapMs` | A sync tuning value shown in the Profile screen | `30000` |
+| `syncMinGapMs` | A sync setting shown in the Profile screen | `30000` |
 | `syncServerUrl` | The global database server address | `http://localhost:8000` |
 | `syncDebugLogs` | Turns extra sync logs on or off | `false` |
 
