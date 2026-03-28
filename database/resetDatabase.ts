@@ -57,6 +57,20 @@ export async function resetUserData(
       [`reviews_last_rev_${userId}`]
     )
 
+    await db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND key IN (?, ?, ?)
+      `,
+      [
+        userId,
+        `streak_current_user_${userId}`,
+        `streak_longest_user_${userId}`,
+        `streak_last_practice_date_user_${userId}`
+      ]
+    )
+
     const activeUser =
       await db.getFirstAsync<{ value: string }>(
         `

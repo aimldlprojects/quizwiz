@@ -4,6 +4,7 @@ import {
     BadgeEngine,
     BadgeMetrics
 } from "../engine/gamification/badgeEngine"
+import { markSyncDirty } from "../database/syncMetaRepository"
 
 export class BadgeController {
 
@@ -101,6 +102,12 @@ export class BadgeController {
         ]
       )
 
+      await markSyncDirty(
+        this.db,
+        userId,
+        Date.now()
+      )
+
     }
 
     return badges
@@ -168,6 +175,12 @@ export class BadgeController {
           badge.unlockedAt ?? null,
           Date.now()
         ]
+      )
+
+      await markSyncDirty(
+        this.db,
+        userId,
+        Date.now()
       )
 
     }

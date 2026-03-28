@@ -1,4 +1,5 @@
 import * as SQLite from "expo-sqlite"
+import { markSyncDirty } from "./syncMetaRepository"
 
 export class StatsRepository {
 
@@ -29,6 +30,12 @@ export class StatsRepository {
         Date.now(),
         Date.now()
       ]
+    )
+
+    await markSyncDirty(
+      this.db,
+      userId,
+      Date.now()
     )
 
   }
@@ -476,16 +483,12 @@ export class StatsRepository {
 
   async debugTopics() {
 
-  const rows = await this.db.getAllAsync(
-    `
+    return await this.db.getAllAsync(
+      `
       SELECT *
       FROM topics
       `
-  )
-
-  console.log("TOPICS TABLE:", rows)
-
-  return rows
+    )
 
 }
 

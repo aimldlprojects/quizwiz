@@ -61,7 +61,7 @@ These constants are consumed by `server/bootstrap.py` (for schema/reset) and by 
    The script already creates a timestamped backup before any destructive action.
 
 4. **Run the mobile app**  
-   Launch `expo start`, press “Sync From Master DB,” and confirm the log shows `pullReviews parsed json ...` and the status badge turns green. If the backend takes longer than the config’s `pullTimeoutMs`, increase that value or break the payload into smaller batches.
+   Launch `expo start`, open the profile screen, and tap the sync icon when it turns orange or red. The icon should turn green after the sync completes. If the backend takes longer than the config’s `pullTimeoutMs`, increase that value or break the payload into smaller batches.
 
 ## Additional tips
 

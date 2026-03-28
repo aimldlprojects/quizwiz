@@ -10,6 +10,26 @@ const KEY_LAST_TIMESTAMP = (userId: number) =>
   `sync_last_time_${userId}`
 const KEY_LAST_ERROR = (userId: number) =>
   `sync_last_error_${userId}`
+const KEY_SYNC_DIRTY_AT = (userId: number) =>
+  `sync_dirty_at_${userId}`
+
+const syncMetaListeners = new Set<() => void>()
+
+function notifySyncMetaListeners() {
+  for (const listener of syncMetaListeners) {
+    listener()
+  }
+}
+
+export function subscribeSyncMetaChanges(
+  listener: () => void
+) {
+  syncMetaListeners.add(listener)
+
+  return () => {
+    syncMetaListeners.delete(listener)
+  }
+}
 
 /*
 --------------------------------------------------
@@ -128,6 +148,41 @@ export async function setSyncStatus(
     )
   }
 
+}
+
+export async function getSyncDirtyAt(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<number> {
+  return readValue(
+    db,
+    KEY_SYNC_DIRTY_AT(userId)
+  )
+}
+
+export async function markSyncDirty(
+  db: SQLiteDatabase,
+  userId: number,
+  timestamp = Date.now()
+): Promise<void> {
+  await writeValue(
+    db,
+    KEY_SYNC_DIRTY_AT(userId),
+    timestamp
+  )
+  notifySyncMetaListeners()
+}
+
+export async function clearSyncDirty(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<void> {
+  await writeValue(
+    db,
+    KEY_SYNC_DIRTY_AT(userId),
+    0
+  )
+  notifySyncMetaListeners()
 }
 
 export async function getSyncMeta(

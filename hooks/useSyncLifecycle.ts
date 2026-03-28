@@ -13,11 +13,17 @@ export function useSyncLifecycle(
 
   const lifecycleRef =
     useRef<SyncLifecycle | null>(null)
+  const intervalRef =
+    useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
 
     if (!db || !activeUser) {
       lifecycleRef.current?.stop()
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       lifecycleRef.current = null
       return
     }
@@ -34,8 +40,23 @@ export function useSyncLifecycle(
     lifecycleRef.current = lifecycle
     lifecycle.start(activeUser)
 
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+
+    if (intervalMs > 0) {
+      intervalRef.current = setInterval(() => {
+        lifecycle.requestSync("timer")
+      }, intervalMs)
+    }
+
     return () => {
       lifecycle.stop()
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       lifecycleRef.current = null
     }
 

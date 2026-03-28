@@ -1,17 +1,46 @@
-### ✅ Context for Codex (Clean & Structured)
+﻿### Context for Codex (Clean & Structured)
 
 ---
 
-## 🧩 Current Issue
+## Final Selection Rule
+
+Use this rule for implementation:
+
+```text
+For any subject/topic node:
+
+If the node has children:
+Click 1 -> expand and show child nodes
+Click 2 -> toggle selection
+
+If the node has no children:
+Click 1 -> set active path only
+Click 2 -> toggle selection
+No child nodes are shown
+```
+
+Notes:
+- active path controls what is expanded and shown
+- selected set controls learning selection
+- visibility stays separate from selection
+- leaf nodes must not auto-expand into children because they have none
+
+Leaf topic selection:
+- Leaf topics can be selected independently.
+- Multiple leaf topics may be selected across branches.
+- Selecting a leaf topic must not clear other selected leaf topics.
+- Only the clicked leaf node toggles its own selected state.
+
+## Current Issue
 
 * **User selection is not working**
 * Selecting/deselecting **subjects or topics has no effect**
 
 ---
 
-## 🎯 Expected Behavior
+## Expected Behavior
 
-### 1️⃣ Admin Permissions (Visibility Control)
+### 1. Admin Permissions (Visibility Control)
 
 * Admin can:
   * View **all subjects & topics per user**
@@ -24,19 +53,19 @@ What user can SEE (not what they learn)
 
 ---
 
-### 2️⃣ Topics Tab (User View)
+### 2. Topics Tab (User View)
 
 * User should see **only subjects & topics permitted by admin**
 * Non-permitted items should **not appear at all**
 
 ---
 
-### 3️⃣ User Selection (Learning Control)
+### 3. User Selection (Learning Control)
 
 * Within visible (permitted) topics:
   * User can:
-    * ✅ Select
-    * ❌ Deselect
+    *  Select
+    *  Deselect
 * This defines:
 
 ```text
@@ -45,19 +74,19 @@ What user wants to LEARN / PRACTICE
 
 ---
 
-### 4️⃣ Important Rule (Separation of Concerns)
+### 4. Important Rule (Separation of Concerns)
 
 | Layer | Responsibility                            |
 | ----- | ----------------------------------------- |
 | Admin | Controls**visibility (permission)** |
 | User  | Controls**learning selection**      |
 
-* ❗ User selection **must NOT overwrite admin permissions**
-* ❗ Admin permissions **must NOT auto-select topics for learning**
+*  User selection **must NOT overwrite admin permissions**
+*  Admin permissions **must NOT auto-select topics for learning**
 
 ---
 
-### 5️⃣ Behavior Rules
+### 5. Behavior Rules
 
 * All  **admin-permitted topics** :
   * Always visible in Topics tab
@@ -67,7 +96,7 @@ What user wants to LEARN / PRACTICE
 
 ---
 
-## 🚀 Initial State (After Install / Reset)
+## Initial State (After Install / Reset)
 
 ### Default Permissions (Admin Level)
 
@@ -98,23 +127,23 @@ Deselected
 
 ---
 
-## 🔁 Lifecycle Flow
+## Lifecycle Flow
 
 ```text
 1. Install / Reset
-   ↓
+   
 2. Seed default permissions (Math + Multiplication Tables)
-   ↓
+   
 3. Admin assigns more permissions (optional)
-   ↓
+   
 4. User sees only permitted topics
-   ↓
+   
 5. User selects topics for learning
 ```
 
 ---
 
-## ❗ Key Constraints
+## Key Constraints
 
 * Admin permission = **visibility only**
 * User selection = **learning only**
@@ -125,11 +154,11 @@ Deselected
 
 ---
 
-## ✅ Summary
+## Summary
 
 ```text
-Admin → controls WHAT IS VISIBLE
-User  → controls WHAT TO LEARN
+Admin  controls WHAT IS VISIBLE
+User   controls WHAT TO LEARN
 ```
 
 Both must remain  **independent but consistent** .
@@ -143,193 +172,72 @@ If you want, I can next:
 
 ---
 
-### 🔧 Refined Requirement for Codex (Multi-Level Selection Logic)
+## Selection Rules
 
----
-
-## 🧩 Core Concept
-
-There are  **3 levels** :
+Use this rule for implementation:
 
 ```text
-Subjects → Topics Level 1 → Topics Level 2
+For any subject/topic node:
+
+If the node has children:
+Click 1 -> expand and show child nodes
+Click 2 -> toggle selection
+
+If the node has no children:
+Click 1 -> set active path only
+Click 2 -> toggle selection
+No child nodes are shown
 ```
 
-User interaction has  **2 different behaviors** :
+Notes:
+- active path controls what is expanded and shown
+- selected set controls learning selection
+- visibility stays separate from selection
+- leaf nodes must not auto-expand into children because they have none
 
-1. **Navigation / Filtering (first click)**
-2. **Selection for learning (second click)**
+### Admin and topics tab permissions and selection schema
 
----
+- Admin visibility (the subjects/topics surfaced in the UI) must stay independent from the learning selections.
+- Only the `selected*` sets should drive the color/highlighting states.
+- These selections must be allowed strictly within the currently visible (admin-permitted) subset.
+- Clearing any learning state must never change the underlying permissions.
+- Topic visibility is solely determined by admin configuration, and user selections should never modify the admin-permitted list.
 
-## 🎯 Expected Behavior
+### Selected Path text requirement
 
-### 1️⃣ First Click = Filter / Expand (NOT selection)
-
-* When user clicks a  **Subject** :
-  * It becomes **active (focused)**
-  * Shows its **Level 1 topics**
-  * ❌ Does NOT select for learning
-* When user clicks a  **Level 1 Topic** :
-  * Shows its **Level 2 topics**
-  * ❌ Does NOT select for learning
-
-👉 First click is only for:
-
-```text
-Navigation / drilling down hierarchy
-```
-
----
-
-### 2️⃣ Second Click = Toggle Selection (Learning)
-
-* Clicking the **same item again** should:
-
-```text
-If not selected → select for learning
-If selected → deselect
-```
-
-* This applies to:
-  * Subjects
-  * Level 1 topics
-  * Level 2 topics
-
----
-
-## 🔁 Interaction Flow Example
-
-### Subject Level
-
-```text
-Click 1 → expand subject → show topics
-Click 2 → toggle subject selection (learn ON/OFF)
-```
-
----
-
-### Topic Level 1
-
-```text
-Click 1 → expand → show level 2 topics
-Click 2 → toggle selection
-```
-
----
-
-### Topic Level 2
-
-```text
-Click 1 → (no further expansion)
-Click 2 → toggle selection
-```
-
----
-
-## ⚠️ Important Rules
-
-### Separation of Responsibilities
-
-| Action       | Purpose                |
-| ------------ | ---------------------- |
-| First click  | Navigation / filtering |
-| Second click | Selection for learning |
-
----
-
-### State Separation
-
-* Maintain  **two independent states** :
-
-```text
-activeSubjectId / activeTopicId   → controls UI expansion
-selectedSubjectIds / selectedTopicIds → controls learning selection
-```
+- Reset the navigation path and derived UI (topic levels, path text) whenever the active subject switches.
+- `topicLevels` should be recalculated for the new subject so chips from the previous subject never remain after the switch.
+- `activePathNames` and the "Path:" summary must always start from the newly focused subject, and they should not display topics that belonged to the prior subject until the user drills into them again.
 
 
+## Color Schema
 
- * **Admin and topics tab permissions and selection schema**
-   * The documented two-click pattern (first click = navigation/focus, second click = learning selection) must remain enforced: navigation interactions only adjust focus, while toggling learning state occurs only when the already-focused node is clicked again.
-   * Admin visibility (the subjects/topics surfaced in the UI) must stay independent from the learning selections; only the `selected*` sets should drive the color/highlighting states, and these selections should be allowed strictly within the currently visible (admin-permitted) subset.
-   * Clearing any learning state must never change the underlying permissions—topic visibility is solely determined by admin configuration, and user selections should never modify the admin-permitted list.
- * **Selected Path text requirement**
-* Reset the navigation path and derived UI (topic levels, path text) whenever the active subject switches.
-  * `topicLevels` should be recalculated for the new subject so chips from the previous subject never remain after the switch.
-  * `activePathNames` and the “Path:” summary must always start from the newly focused subject, and they should not display topics that belonged to the prior subject until the user drills into them again.
----
-
-### Constraints
-
-* ❌ First click must NOT change selection state
-* ❌ Selection must NOT affect visibility
-* ✅ Selection only applies within **admin-permitted items**
-
----
-
-## 🔍 Current Issue
-
-* First click works (filtering works)
-* ❌ Second click does NOT toggle selection
-* Likely cause:
-  * Same handler is used for both behaviors
-  * No distinction between **active vs selected state**
-
----
-
-## ✅ Required Fix
-
-* Separate logic:
-
-```text
-If clicked item is NOT active:
-    → set as active (expand)
-Else:
-    → toggle selection
-```
-
----
-
-## 📍 File to Update
-
-```text
-app/(tabs)/topics.tsx
-```
-
-Focus:
-
-```text
-handleSubjectPress
-handleTopicPress
-```
-
----
-
-# Color schema
-
-### 🎨 Subject Chips Styling (Admin Tab)
+### Subject Chips Styling (Admin Tab)
 
 | State         | Background Color | Border Color | Color Names           | Meaning                     |
 | ------------- | ---------------- | ------------ | --------------------- | --------------------------- |
-| Default       | `#ffffff`      | `#ffffff`  | White / White         | Neutral, no emphasis        |
-| Fully Allowed | `#16a34a`      | `#ffffff`  | Green / White         | Fully permitted subject     |
-| Partial       | `#fde68a`      | `#f59e0b`  | Light Yellow / Orange | Partially permitted subject |
+| Default       | `#ffffff`        | `#ffffff`    | White / White         | Neutral, no emphasis        |
+| Fully Allowed | `#16a34a`        | `#ffffff`    | Green / White         | Fully permitted subject     |
+| Partial       | `#fde68a`        | `#f59e0b`    | Light Yellow / Orange | Partially permitted subject |
 
 ---
 
-### 🎨 Topic Chips Styling (Admin Tab)
+### Topic Chips Styling (Admin Tab)
 
-| State          | Background Color | Border Color | Color Names           | Meaning                      |
-| -------------- | ---------------- | ------------ | --------------------- | ---------------------------- |
-| Default        | `#ffffff`      | `#ffffff`  | White / White         | Neutral topic                |
-| Fully Allowed  | `#16a34a`      | `#ffffff`  | Green / White         | Fully permitted topic        |
-| Partial        | `#fde68a`      | `#f59e0b`  | Light Yellow / Orange | Partially permitted topic    |
-| Selected Path  | `—`           | `#93c5fd`  | Light Blue            | Active navigation path       |
-| Pending Toggle | Light Blue BG    | `#93c5fd`  | Light Blue            | User interaction in progress |
+| State         | Background Color | Border Color | Color Names           | Meaning                    |
+| ------------- | ---------------- | ------------ | --------------------- | -------------------------- |
+| Default       | `#ffffff`        | `#ffffff`    | White / White         | Neutral topic              |
+| Fully Allowed | `#16a34a`        | `#ffffff`    | Green / White         | Fully permitted topic      |
+| Partial       | `#fde68a`        | `#f59e0b`    | Light Yellow / Orange | Partially permitted topic  |
+| Selected Path | none             | `#93c5fd`    | Light Blue            | Active navigation path     |
+| Pending Toggle | Light Blue BG    | `#93c5fd`    | Light Blue            | User interaction in flight |
 
 ---
 
-### 🎨 Subjects – Topics Tab Color Schema
+### Subjects and Topics Tab Color Schema
+
+---
+
 
 | State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                   |
 | ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ------------------------- |
@@ -340,7 +248,7 @@ handleTopicPress
 
 ---
 
-### 🎨 Topics – Topics Tab Color Schema
+### Topics Tab Color Schema
 
 | State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                 |
 | ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ----------------------- |
@@ -351,7 +259,7 @@ handleTopicPress
 
 ---
 
-🎯 Key Pattern
+## Key Pattern
 
 | Color       | Name         | Purpose                      |
 | ----------- | ------------ | ---------------------------- |
@@ -363,13 +271,16 @@ handleTopicPress
 
 ---
 
-### 🧠 Summary
+### Summary
 
 ```text
-White → default / clean UI
-Green → fully allowed
-Yellow + Orange → partial state
-Blue → active / user interaction
+White -> default / clean UI
+Green -> fully allowed
+Yellow + Orange -> partial state
+Blue -> active / user interaction
 ```
 
 ---
+
+
+

@@ -1,3 +1,4 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import {
   useCallback,
   useEffect,
@@ -12,7 +13,6 @@ import {
   Text,
   View
 } from "react-native"
-import { useFocusEffect } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../../hooks/useDatabase"
@@ -77,15 +77,11 @@ export default function TopicsScreen() {
     () =>
       new Set([
         ...selectedTopicLevel1Ids,
-        ...selectedTopicLevel2Ids,
-        ...(selectedTopicId == null
-          ? []
-          : [selectedTopicId])
+        ...selectedTopicLevel2Ids
       ]),
     [
       selectedTopicLevel1Ids,
-      selectedTopicLevel2Ids,
-      selectedTopicId
+      selectedTopicLevel2Ids
     ]
   )
 
@@ -93,72 +89,27 @@ export default function TopicsScreen() {
     useState<Subject[]>([])
   const [topics, setTopics] =
     useState<Topic[]>([])
-  const [topicQuestionCounts, setTopicQuestionCounts] =
-    useState<Record<number, number>>({})
   const [allowedTopicIds, setAllowedTopicIds] =
     useState<Set<number>>(new Set())
   const [activeSubjectId, setActiveSubjectId] =
     useState<number | null>(null)
   const [activeTopicPath, setActiveTopicPath] =
     useState<number[]>([])
+  const lineage =
+    getTopicLineage(
+      topics,
+      selectedTopicId
+    )
+  const derivedSubjectIdFromLineage =
+    lineage[0]?.subject_id ?? null
   const navigationSubjectId =
-    activeSubjectId ?? selectedSubjectId
+    activeSubjectId ??
+    selectedSubjectId ??
+    derivedSubjectIdFromLineage
   const previousNavigationSubjectId =
     useRef<number | null>(null)
 
-  const logTopicsState = useCallback(
-    (reason: string) => {
-      console.log("[topics-state] selected", {
-        reason,
-        userId: activeUser,
-        selectedSubjectId,
-        selectedSubjectIds: Array.from(
-          selectedSubjectIdsSet
-        ),
-        selectedTopicId,
-        selectedTopicIds: Array.from(
-          selectedTopicIdsSet
-        ),
-        selectedTopicLevel1Ids: Array.from(
-          selectedTopicLevel1IdsSet
-        ),
-        selectedTopicLevel2Ids: Array.from(
-          selectedTopicLevel2IdsSet
-        ),
-        navigationSubjectId,
-        activeSubjectId,
-        activeTopicPath: [...activeTopicPath]
-      })
-    },
-    [
-      activeUser,
-      activeSubjectId,
-      activeTopicPath,
-      navigationSubjectId,
-      selectedSubjectId,
-      selectedSubjectIdsSet,
-      selectedTopicId,
-      selectedTopicIdsSet,
-      selectedTopicLevel1IdsSet,
-      selectedTopicLevel2IdsSet
-    ]
-  )
-
-  useFocusEffect(
-    useCallback(() => {
-      logTopicsState("focus")
-    }, [logTopicsState])
-  )
-
   useEffect(() => {
-    logTopicsState("state-change")
-  }, [logTopicsState])
-
-  useEffect(() => {
-
-    setActiveSubjectId(null)
-    setActiveTopicPath([])
-
     async function loadOptions() {
 
       if (!db) return
@@ -186,33 +137,12 @@ export default function TopicsScreen() {
         await accessRepo.getAllowedTopics(
           activeUser
         )
-      const questionCountRows =
-        await db.getAllAsync<{
-          topic_id: number
-          count: number
-        }>(
-          `
-          SELECT
-            topic_id,
-            COUNT(*) as count
-          FROM questions
-          GROUP BY topic_id
-          `
-        )
 
       setSubjects(loadedSubjects)
       setTopics(loadedTopics)
       setAllowedTopicIds(
         new Set(
           allowedTopics.map((topic) => topic.id)
-        )
-      )
-      setTopicQuestionCounts(
-        Object.fromEntries(
-          questionCountRows.map((row) => [
-            row.topic_id,
-            row.count
-          ])
         )
       )
 
@@ -234,57 +164,178 @@ export default function TopicsScreen() {
       navigationSubjectId
   }, [navigationSubjectId])
 
-  const lineage =
-    getTopicLineage(
-      topics,
-      selectedTopicId
-    )
-  const availableTopicIds =
-    getAvailableTopicIds(
-      topics,
-      topicQuestionCounts
-    )
+  const displayedActiveTopicPath =
+    activeTopicPath.length > 0
+      ? activeTopicPath
+      : lineage.map((topic) => topic.id)
   const allowedTopicsList = useMemo(
     () =>
       topics.filter(
-        (topic) =>
-          availableTopicIds.has(topic.id) &&
-          allowedTopicIds.has(topic.id)
+        (topic) => allowedTopicIds.has(topic.id)
       ),
-    [topics, availableTopicIds, allowedTopicIds]
+    [topics, allowedTopicIds]
+  )
+  const displayTopicsList = useMemo(
+    () =>
+      allowedTopicsList.length > 0
+        ? allowedTopicsList
+        : topics,
+    [allowedTopicsList, topics]
   )
   const selectedTopicsSort = useMemo(() => {
     const byId = new Map(
       topics.map((topic) => [topic.id, topic])
     )
-    return [
-      ...Array.from(selectedTopicLevel1IdsSet).map(
-        (id) => byId.get(id)
-      ),
-      ...Array.from(selectedTopicLevel2IdsSet).map(
-        (id) => byId.get(id)
-      ),
-      ...(selectedTopicId == null
-        ? []
-        : [byId.get(selectedTopicId)])
+    const orderedIds = [
+      ...Array.from(selectedTopicLevel1IdsSet),
+      ...Array.from(selectedTopicLevel2IdsSet)
     ]
+
+    return Array.from(new Set(orderedIds))
+      .map((id) => byId.get(id))
       .filter(Boolean)
       .map((topic) => topic!.name)
   }, [
     selectedTopicLevel1IdsSet,
     selectedTopicLevel2IdsSet,
-    topics,
-    selectedTopicId
+    topics
   ])
   const visibleSubjects = useMemo(
     () =>
       subjects.filter((subject) =>
-        allowedTopicsList.some(
+        displayTopicsList.some(
           (topic) => topic.subject_id === subject.id
         )
       ),
-    [subjects, allowedTopicsList]
+    [subjects, displayTopicsList]
   )
+  const renderNavigationSubjectId = useMemo(
+    () => {
+      const lineageSubjectId =
+        lineage[0]?.subject_id ?? null
+
+      if (
+        activeSubjectId != null &&
+        displayTopicsList.some(
+          (topic) =>
+            topic.subject_id === activeSubjectId
+        )
+      ) {
+        return activeSubjectId
+      }
+
+      if (
+        lineageSubjectId != null &&
+        displayTopicsList.some(
+          (topic) =>
+            topic.subject_id === lineageSubjectId
+        )
+      ) {
+        return lineageSubjectId
+      }
+
+      return null
+    },
+    [activeSubjectId, displayTopicsList, lineage]
+  )
+  const renderSubjectTopics = useMemo(
+    () =>
+      renderNavigationSubjectId == null
+        ? []
+        : displayTopicsList.filter(
+            (topic) =>
+              topic.subject_id ===
+              renderNavigationSubjectId
+          ),
+    [displayTopicsList, renderNavigationSubjectId]
+  )
+  const renderRootTopics = useMemo(
+    () =>
+      renderSubjectTopics.filter(
+        (topic) => topic.parent_topic_id == null
+      ),
+    [renderSubjectTopics]
+  )
+  const savedTopicPath = useMemo(
+    () => lineage.map((topic) => topic.id),
+    [lineage]
+  )
+
+  useEffect(() => {
+    if (selectedSubjectId == null) {
+      return
+    }
+
+    if (savedTopicPath.length === 0) {
+      return
+    }
+
+    if (activeSubjectId == null) {
+      setActiveSubjectId(selectedSubjectId)
+      setActiveTopicPath(savedTopicPath)
+    }
+  }, [
+    activeSubjectId,
+    savedTopicPath,
+    selectedSubjectId
+  ])
+
+  const topicLevels = useMemo(() => {
+    const levels: Topic[][] = []
+
+    if (renderNavigationSubjectId == null) {
+      return levels
+    }
+
+    const renderTopicPath =
+      activeSubjectId != null
+        ? activeTopicPath
+        : lineage.map((topic) => topic.id)
+    const fallbackTopics =
+      renderRootTopics.length > 0
+        ? renderRootTopics
+        : renderSubjectTopics
+    let parentId: number | null = null
+
+    for (let levelIndex = 0; ; levelIndex++) {
+      const levelTopics =
+        levelIndex === 0 &&
+        renderRootTopics.length === 0
+          ? fallbackTopics
+          : displayTopicsList.filter(
+              (topic) =>
+                topic.subject_id ===
+                  renderNavigationSubjectId &&
+                topic.parent_topic_id === parentId
+            )
+
+      if (levelTopics.length === 0) {
+        break
+      }
+
+      levels.push(levelTopics)
+
+      const nextActiveId =
+        renderTopicPath[levelIndex] ?? null
+
+      if (nextActiveId == null) {
+        break
+      }
+
+      parentId = nextActiveId
+    }
+
+    return levels
+  }, [
+    activeSubjectId,
+    activeTopicPath,
+    displayTopicsList,
+    lineage,
+    renderNavigationSubjectId,
+    renderRootTopics,
+    renderSubjectTopics
+  ])
+
   const subjectMap = useMemo(
     () =>
       new Map(subjects.map((subject) => [
@@ -296,7 +347,7 @@ export default function TopicsScreen() {
   const subjectRootTopicsMap = useMemo(() => {
     const map = new Map<number, Topic[]>()
 
-    for (const topic of allowedTopicsList) {
+    for (const topic of displayTopicsList) {
       if (topic.parent_topic_id != null) {
         continue
       }
@@ -308,14 +359,14 @@ export default function TopicsScreen() {
     }
 
     return map
-  }, [allowedTopicsList])
+  }, [displayTopicsList])
   const topicChildrenByParent = useMemo(() => {
     const map = new Map<
       number | null,
       Topic[]
     >()
 
-    for (const topic of allowedTopicsList) {
+    for (const topic of displayTopicsList) {
       const parentId =
         topic.parent_topic_id ?? null
       const siblings =
@@ -326,7 +377,7 @@ export default function TopicsScreen() {
     }
 
     return map
-  }, [allowedTopicsList])
+  }, [displayTopicsList])
   const topicDepthMap = useMemo(() => {
     const depthMap = new Map<number, number>()
 
@@ -341,14 +392,14 @@ export default function TopicsScreen() {
       }
     }
 
-    for (const topic of allowedTopicsList) {
+    for (const topic of displayTopicsList) {
       if (topic.parent_topic_id == null) {
         visit(topic, 0)
       }
     }
 
     return depthMap
-  }, [allowedTopicsList, topicChildrenByParent])
+  }, [displayTopicsList, topicChildrenByParent])
   const topicSelectionStatus = useMemo(() => {
     const status: Record<
       number,
@@ -371,22 +422,11 @@ export default function TopicsScreen() {
         (childStatus) =>
           childStatus !== "none"
       )
-      const hasUnselectedChild =
-        children.length > 0 &&
-        childStatuses.some(
-          (childStatus) =>
-            childStatus === "none"
-        )
 
       const selfSelected =
         selectedTopicIdsSet.has(topic.id)
 
       if (selfSelected) {
-        if (hasUnselectedChild) {
-          status[topic.id] = "partial"
-          return "partial"
-        }
-
         status[topic.id] = "selected"
         return "selected"
       }
@@ -400,7 +440,7 @@ export default function TopicsScreen() {
       return "none"
     }
 
-    for (const topic of allowedTopicsList) {
+    for (const topic of displayTopicsList) {
       if (!status[topic.id]) {
         calculate(topic)
       }
@@ -408,7 +448,7 @@ export default function TopicsScreen() {
 
     return status
   }, [
-    allowedTopicsList,
+    displayTopicsList,
     selectedTopicIdsSet,
     topicChildrenByParent
   ])
@@ -428,7 +468,7 @@ export default function TopicsScreen() {
 
     for (const subject of visibleSubjects) {
       const subjectTopics =
-        allowedTopicsList.filter(
+        displayTopicsList.filter(
           (topic) =>
             topic.subject_id === subject.id
         )
@@ -463,7 +503,7 @@ export default function TopicsScreen() {
 
     return status
   }, [
-    allowedTopicsList,
+    displayTopicsList,
     topicSelectionStatus,
     visibleSubjects,
     selectedSubjectIdsSet
@@ -549,14 +589,6 @@ export default function TopicsScreen() {
   const handleSubjectPress = useCallback(
     async (subjectId: number) => {
       const isActive = activeSubjectId === subjectId
-      console.log("[topics-click] subject", {
-        subjectId,
-        isActive,
-        selectedSubjectIds: Array.from(
-          selectedSubjectIdsSet
-        )
-      })
-
       if (!isActive) {
         setActiveSubjectId(subjectId)
         setActiveTopicPath([])
@@ -583,15 +615,6 @@ export default function TopicsScreen() {
     async (levelIndex: number, topicId: number) => {
       const isActive =
         activeTopicPath[levelIndex] === topicId
-      console.log("[topics-click] topic", {
-        levelIndex,
-        topicId,
-        isActive,
-        selectedTopicIds: Array.from(
-          selectedTopicIdsSet
-        )
-      })
-
       if (!isActive) {
         setActiveTopicPath((current) => {
           const next = current.slice(0, levelIndex)
@@ -625,55 +648,6 @@ export default function TopicsScreen() {
       topicChildrenByParent
     ]
   )
-  useEffect(() => {
-
-    if (
-      visibleSubjects.length > 0 &&
-      selectedSubjectId != null &&
-      !visibleSubjects.some(
-        (subject) =>
-          subject.id === selectedSubjectId
-      )
-    ) {
-      if (activeSubjectId != null) {
-        setActiveSubjectId(null)
-      }
-
-      if (activeTopicPath.length > 0) {
-        setActiveTopicPath([])
-      }
-    }
-
-  }, [
-    visibleSubjects,
-    selectedSubjectId,
-    activeSubjectId,
-    activeTopicPath.length
-  ])
-
-  useEffect(() => {
-    if (
-      activeTopicPath.length === 0 &&
-      selectedTopicId != null
-    ) {
-      setActiveTopicPath(
-        lineage.map((topic) => topic.id)
-      )
-    }
-  }, [activeTopicPath.length, lineage, selectedTopicId])
-
-  useEffect(() => {
-    if (
-      selectedSubjectId != null &&
-      activeSubjectId !== selectedSubjectId
-    ) {
-      setActiveSubjectId(selectedSubjectId)
-    }
-  }, [
-    selectedSubjectId,
-    activeSubjectId
-  ])
-
   if (
     loading ||
     usersLoading ||
@@ -692,10 +666,10 @@ export default function TopicsScreen() {
   const activeSubjectName =
     visibleSubjects.find(
       (subject) =>
-        subject.id === navigationSubjectId
+        subject.id === renderNavigationSubjectId
     )?.name ?? null
   const activePathNames =
-    activeTopicPath
+    displayedActiveTopicPath
       .map((topicId) =>
         topics.find((topic) => topic.id === topicId)
       )
@@ -706,35 +680,7 @@ export default function TopicsScreen() {
       ? [activeSubjectName, ...activePathNames]
           .filter(Boolean)
           .join(" -> ") || "Choose a topic"
-      : "Activate a subject first"
-  const topicLevels: Topic[][] = []
-
-  if (navigationSubjectId != null) {
-    let parentId: number | null = null
-
-    for (let levelIndex = 0; ; levelIndex++) {
-      const levelTopics = allowedTopicsList.filter(
-        (topic) =>
-          topic.subject_id === navigationSubjectId &&
-          topic.parent_topic_id === parentId
-      )
-
-      if (levelTopics.length === 0) {
-        break
-      }
-
-      topicLevels.push(levelTopics)
-
-      const nextActiveId =
-        activeTopicPath[levelIndex] ?? null
-
-      if (nextActiveId == null) {
-        break
-      }
-
-      parentId = nextActiveId
-    }
-  }
+      : "Select any subject to show topics"
 
   return (
     <SafeAreaView
@@ -769,11 +715,21 @@ export default function TopicsScreen() {
         {activeUser && visibleSubjects.length === 0 ? (
           <View style={styles.noticeCard}>
             <Text style={styles.noticeTitle}>
-              No playable subjects
+              No permitted subjects
             </Text>
 
             <Text style={styles.noticeText}>
-              Ask the admin to enable a subject that has at least one playable topic.
+              Ask the admin to enable at least one subject/topic for this user.
+            </Text>
+          </View>
+        ) : renderNavigationSubjectId == null ? (
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>
+              Select a subject
+            </Text>
+
+            <Text style={styles.noticeText}>
+              Pick any subject above to reveal the available topics for this user.
             </Text>
           </View>
         ) : null}
@@ -845,14 +801,23 @@ export default function TopicsScreen() {
           </Text>
 
           {navigationSubjectId == null ? (
-            <Text
-              style={[
-                styles.helperText,
-                { color: colors.muted }
-              ]}
-            >
-              Activate a subject first.
-            </Text>
+            <View style={styles.noticeCard}>
+              <View style={styles.noticeIcon}>
+                <MaterialIcons
+                  name="category"
+                  size={20}
+                  color="#ffffff"
+                />
+              </View>
+
+              <Text style={styles.noticeTitle}>
+                Select a subject
+              </Text>
+
+              <Text style={styles.noticeText}>
+                Tap any subject above to reveal the available topics for this user.
+              </Text>
+            </View>
           ) : (
             topicLevels.map(
               (levelTopics, levelIndex) => (
@@ -873,7 +838,7 @@ export default function TopicsScreen() {
                       const chipVisual =
                         getChipVisualStyles(
                           topicStatus,
-                          activeTopicPath[levelIndex] ===
+                          displayedActiveTopicPath[levelIndex] ===
                             topic.id
                         )
 
@@ -1007,6 +972,16 @@ const styles = StyleSheet.create({
     padding: 18
   },
 
+  noticeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fb923c",
+    marginBottom: 10
+  },
+
   noticeTitle: {
     fontSize: 18,
     fontWeight: "800",
@@ -1106,79 +1081,6 @@ const styles = StyleSheet.create({
   }
 
 })
-
-const GENERATOR_TOPIC_KEYS = new Set([
-  "multiplication_tables",
-  "tables_1_5",
-  "tables_6_10",
-  "tables_11_15",
-  "tables_16_20",
-  "addition",
-  "subtraction",
-  "division",
-  "word_problems"
-])
-
-function getAvailableTopicIds(
-  topics: Topic[],
-  questionCounts: Record<number, number>
-) {
-
-  const available = new Set<number>()
-  const childrenByParent = new Map<
-    number | null,
-    Topic[]
-  >()
-
-  for (const topic of topics) {
-    const parentId =
-      topic.parent_topic_id ?? null
-    const siblings =
-      childrenByParent.get(parentId) ?? []
-
-    siblings.push(topic)
-    childrenByParent.set(parentId, siblings)
-  }
-
-  function hasPlayableContent(
-    topic: Topic
-  ): boolean {
-
-    if (
-      (questionCounts[topic.id] ?? 0) > 0 ||
-      (topic.key != null &&
-        GENERATOR_TOPIC_KEYS.has(topic.key))
-    ) {
-      available.add(topic.id)
-      return true
-    }
-
-    const children =
-      childrenByParent.get(topic.id) ?? []
-
-    let childPlayable = false
-
-    for (const child of children) {
-      if (hasPlayableContent(child)) {
-        childPlayable = true
-      }
-    }
-
-    if (childPlayable) {
-      available.add(topic.id)
-    }
-
-    return childPlayable
-
-  }
-
-  for (const rootTopic of topics) {
-    hasPlayableContent(rootTopic)
-  }
-
-  return available
-
-}
 
 function getChipVisualStyles(
   status: "selected" | "partial" | "none",

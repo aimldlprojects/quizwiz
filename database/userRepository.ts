@@ -291,6 +291,20 @@ export class UserRepository {
       ]
     )
 
+    await this.db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND key IN (?, ?, ?)
+      `,
+      [
+        userId,
+        `streak_current_user_${userId}`,
+        `streak_longest_user_${userId}`,
+        `streak_last_practice_date_user_${userId}`
+      ]
+    )
+
     const adminPathKeys =
       await this.db.getAllAsync<{
         key: string

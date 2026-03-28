@@ -7,6 +7,7 @@ import {
   useState
 } from "react"
 
+import { markSyncDirty } from "@/database/syncMetaRepository"
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
 
@@ -393,64 +394,6 @@ export function useStudyPreferences(
       }
     }
 
-    if (updates.selectedTopicId != null) {
-      const topicRow =
-        await db.getFirstAsync<{
-          subject_id: number
-          parent_topic_id: number | null
-        }>(
-          `
-          SELECT subject_id, parent_topic_id
-          FROM topics
-          WHERE id = ?
-          LIMIT 1
-          `,
-          [updates.selectedTopicId]
-        )
-
-      if (topicRow) {
-        const derivedSubjectId = Number(
-          topicRow.subject_id
-        )
-
-        if (updates.selectedSubjectId == null) {
-          updates.selectedSubjectId = derivedSubjectId
-        }
-
-        if (
-          !updates.selectedSubjectIds ||
-          updates.selectedSubjectIds.length === 0
-        ) {
-          updates.selectedSubjectIds = [derivedSubjectId]
-        }
-
-        const isLevel1Topic =
-          topicRow.parent_topic_id == null
-        const selectedTopicArray = isLevel1Topic
-          ? updates.selectedTopicLevel1Ids ?? []
-          : updates.selectedTopicLevel2Ids ?? []
-
-        if (
-          !selectedTopicArray.includes(
-            updates.selectedTopicId
-          )
-        ) {
-          const nextTopicArray = [
-            ...selectedTopicArray,
-            updates.selectedTopicId
-          ]
-
-          if (isLevel1Topic) {
-            updates.selectedTopicLevel1Ids =
-              nextTopicArray
-          } else {
-            updates.selectedTopicLevel2Ids =
-              nextTopicArray
-          }
-        }
-      }
-    }
-
     const nextPreferences = {
       ...cachedBase,
       ...updates
@@ -516,20 +459,57 @@ export function useStudyPreferences(
 
   async function savePreference(
     key: string,
-    value: string | null
+    value: string | null,
+    updatedAt: number = Date.now()
   ) {
     if (!db || preferenceUserId == null) {
       return
     }
 
-    await db.runAsync(
+    const current = await db.getFirstAsync<{
+      updated_at: number | null
+    }>(
       `
-      INSERT INTO settings (user_id, key, value)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id, key)
-      DO UPDATE SET value = excluded.value
+      SELECT updated_at
+      FROM settings
+      WHERE user_id = ?
+        AND key = ?
+      LIMIT 1
       `,
-      [preferenceUserId, key, value]
+      [preferenceUserId, key]
+    )
+
+    if (
+      current?.updated_at != null &&
+      updatedAt < current.updated_at
+    ) {
+      return
+    }
+
+    if (current) {
+      await db.runAsync(
+        `
+        UPDATE settings
+        SET value = ?, updated_at = ?
+        WHERE user_id = ?
+          AND key = ?
+        `,
+        [value, updatedAt, preferenceUserId, key]
+      )
+    } else {
+      await db.runAsync(
+        `
+        INSERT INTO settings (user_id, key, value, updated_at)
+        VALUES (?, ?, ?, ?)
+        `,
+        [preferenceUserId, key, value, updatedAt]
+      )
+    }
+
+    await markSyncDirty(
+      db,
+      preferenceUserId,
+      updatedAt
     )
 
     if (key === selectedTopicKey) {
@@ -543,7 +523,8 @@ export function useStudyPreferences(
 
   async function persistIdArray(
     key: string,
-    ids: number[]
+    ids: number[],
+    updatedAt: number = Date.now()
   ) {
     if (
       key === selectedTopicLevel1IdsKey ||
@@ -556,12 +537,17 @@ export function useStudyPreferences(
       })
     }
 
-    await savePreference(key, JSON.stringify(ids))
+    await savePreference(
+      key,
+      JSON.stringify(ids),
+      updatedAt
+    )
   }
 
   async function toggleSubjectSelection(
     subjectId: number
   ) {
+    const updatedAt = Date.now()
     const current = preferencesRef.current
     const nextSet = new Set(
       current.selectedSubjectIds
@@ -597,13 +583,15 @@ export function useStudyPreferences(
 
     await persistIdArray(
       selectedSubjectIdsKey,
-      nextArray
+      nextArray,
+      updatedAt
     )
     await savePreference(
       selectedSubjectKey,
       nextPrimary == null
         ? null
-        : String(nextPrimary)
+        : String(nextPrimary),
+      updatedAt
     )
 
     logSelectionState(
@@ -621,6 +609,7 @@ export function useStudyPreferences(
     levelIndex: number,
     topicId: number
   ) {
+    const updatedAt = Date.now()
     const current = preferencesRef.current
     const targetArray =
       levelIndex === 0
@@ -668,12 +657,13 @@ export function useStudyPreferences(
         ? selectedTopicLevel1IdsKey
         : selectedTopicLevel2IdsKey
 
-    await persistIdArray(targetKey, nextArray)
+    await persistIdArray(targetKey, nextArray, updatedAt)
     await savePreference(
       selectedTopicKey,
       nextPrimary == null
         ? null
-        : String(nextPrimary)
+        : String(nextPrimary),
+      updatedAt
     )
 
     logSelectionState(
@@ -686,6 +676,7 @@ export function useStudyPreferences(
   async function setSelectedSubjectId(
     subjectId: number | null
   ) {
+    const updatedAt = Date.now()
     const current = preferencesRef.current
     const nextPreferences = {
       ...current,
@@ -701,9 +692,10 @@ export function useStudyPreferences(
 
     await savePreference(
       selectedSubjectKey,
-      subjectId == null ? null : String(subjectId)
+      subjectId == null ? null : String(subjectId),
+      updatedAt
     )
-    await savePreference(selectedTopicKey, null)
+    await savePreference(selectedTopicKey, null, updatedAt)
 
     logSelectionState(
       preferenceUserId,
@@ -719,6 +711,7 @@ export function useStudyPreferences(
   async function setSelectedTopicId(
     topicId: number | null
   ) {
+    const updatedAt = Date.now()
     const current = preferencesRef.current
     const nextPreferences = {
       ...current,
@@ -733,7 +726,8 @@ export function useStudyPreferences(
 
     await savePreference(
       selectedTopicKey,
-      topicId == null ? null : String(topicId)
+      topicId == null ? null : String(topicId),
+      updatedAt
     )
 
     logSelectionState(
@@ -747,6 +741,7 @@ export function useStudyPreferences(
   }
 
   async function setTtsEnabled(enabled: boolean) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       ttsEnabled: enabled
@@ -758,12 +753,17 @@ export function useStudyPreferences(
       nextPreferences
     )
 
-    await savePreference(ttsKey, enabled ? "1" : "0")
+    await savePreference(
+      ttsKey,
+      enabled ? "1" : "0",
+      updatedAt
+    )
   }
 
   async function setAutoNextEnabled(
     enabled: boolean
   ) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       autoNextEnabled: enabled
@@ -777,7 +777,8 @@ export function useStudyPreferences(
 
     await savePreference(
       autoNextEnabledKey,
-      enabled ? "1" : "0"
+      enabled ? "1" : "0",
+      updatedAt
     )
   }
 
@@ -785,6 +786,7 @@ export function useStudyPreferences(
     seconds: number
   ) {
     const nextValue = Math.max(1, seconds)
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       autoNextCorrectDelaySeconds: nextValue
@@ -798,7 +800,8 @@ export function useStudyPreferences(
 
     await savePreference(
       autoNextCorrectDelayKey,
-      String(nextValue)
+      String(nextValue),
+      updatedAt
     )
   }
 
@@ -806,6 +809,7 @@ export function useStudyPreferences(
     seconds: number
   ) {
     const nextValue = Math.max(1, seconds)
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       autoNextWrongDelaySeconds: nextValue
@@ -819,13 +823,15 @@ export function useStudyPreferences(
 
     await savePreference(
       autoNextWrongDelayKey,
-      String(nextValue)
+      String(nextValue),
+      updatedAt
     )
   }
 
   async function setLearnAutoPlayEnabled(
     enabled: boolean
   ) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       learnAutoPlayEnabled: enabled
@@ -839,7 +845,8 @@ export function useStudyPreferences(
 
     await savePreference(
       learnAutoPlayKey,
-      enabled ? "1" : "0"
+      enabled ? "1" : "0",
+      updatedAt
     )
   }
 
@@ -847,6 +854,7 @@ export function useStudyPreferences(
     seconds: number
   ) {
     const nextValue = Math.max(1, seconds)
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       learnFrontDelaySeconds: nextValue
@@ -860,7 +868,8 @@ export function useStudyPreferences(
 
     await savePreference(
       learnFrontDelayKey,
-      String(nextValue)
+      String(nextValue),
+      updatedAt
     )
   }
 
@@ -868,6 +877,7 @@ export function useStudyPreferences(
     seconds: number
   ) {
     const nextValue = Math.max(1, seconds)
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       learnBackDelaySeconds: nextValue
@@ -881,13 +891,15 @@ export function useStudyPreferences(
 
     await savePreference(
       learnBackDelayKey,
-      String(nextValue)
+      String(nextValue),
+      updatedAt
     )
   }
 
   async function setLearnRandomOrderEnabled(
     enabled: boolean
   ) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       learnRandomOrderEnabled: enabled
@@ -901,13 +913,15 @@ export function useStudyPreferences(
 
     await savePreference(
       learnRandomOrderKey,
-      enabled ? "1" : "0"
+      enabled ? "1" : "0",
+      updatedAt
     )
   }
 
   async function setPracticeRandomOrderEnabled(
     enabled: boolean
   ) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       practiceRandomOrderEnabled: enabled
@@ -921,11 +935,13 @@ export function useStudyPreferences(
 
     await savePreference(
       practiceRandomOrderKey,
-      enabled ? "1" : "0"
+      enabled ? "1" : "0",
+      updatedAt
     )
   }
 
   async function setThemeMode(mode: ThemeMode) {
+    const updatedAt = Date.now()
     const nextPreferences = {
       ...preferencesRef.current,
       themeMode: mode
@@ -937,7 +953,7 @@ export function useStudyPreferences(
       nextPreferences
     )
 
-    await savePreference(themeModeKey, mode)
+    await savePreference(themeModeKey, mode, updatedAt)
   }
 
   return {

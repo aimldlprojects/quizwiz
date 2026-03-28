@@ -9,7 +9,6 @@ import { ReviewScheduler } from "../engine/scheduler/reviewScheduler"
 import { ReviewRating } from "../engine/scheduler/spacedRepetition"
 import { SessionCache } from "../engine/sessionCache"
 import { registerAchievementListener } from "../services/events/achievementListener"
-import { registerBackupListener } from "../services/events/backupListener"
 import { SyncService } from "../services/syncService"
 export class PracticeController {
 
@@ -62,10 +61,6 @@ export class PracticeController {
       }
     )
 
-    registerBackupListener(
-      this.eventBus,
-      this.syncService
-    )
     registerAchievementListener(
       this.eventBus,
       this.repo.getDB(),
@@ -204,37 +199,7 @@ export class PracticeController {
       }
     )
 
-    this.triggerBackgroundSync()
-
     return result
-
-  }
-
-  /*
-  --------------------------------------------------
-  Background Sync
-  --------------------------------------------------
-  */
-
-  private triggerBackgroundSync() {
-
-    try {
-
-      // run sync asynchronously so UI is not blocked
-      setTimeout(() => {
-
-        this.syncService.sync()
-
-      }, 0)
-
-    } catch (err) {
-
-      console.log(
-        "Background sync failed:",
-        err
-      )
-
-    }
 
   }
 

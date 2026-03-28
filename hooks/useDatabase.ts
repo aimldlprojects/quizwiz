@@ -3,12 +3,6 @@ import { useEffect, useState } from "react"
 
 import { initDB } from "@/database/initDB"
 import { getSyncMode } from "@/database/settingsRepository"
-import { getSyncServerUrl } from "@/services/sync/config"
-import { pullReviews } from "@/services/sync/pullReviews"
-import {
-  logSyncConsole,
-  logSyncDebug
-} from "@/config/logging"
 
 let sharedDb: SQLite.SQLiteDatabase | null =
   null
@@ -46,9 +40,6 @@ function reportStage(index: number) {
     STAGE_LABELS.length - 1
   )
   stageReporter(clamped)
-  logSyncConsole(
-    `startup stage: ${STAGE_LABELS[clamped]} (${clamped})`
-  )
 }
 
 function reportConnectivity(message: string | null) {
@@ -57,60 +48,57 @@ function reportConnectivity(message: string | null) {
   }
 
   connectivityReporter(message)
-  logSyncConsole(
-    `connectivity: ${
-      message ?? "online"
-    }`
-  )
-}
-
-async function checkServerConnectivity(
-  serverUrl: string,
-  userId: number
-) {
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => {
-      controller.abort()
-    }, 2500)
-
-    const url = new URL(`${serverUrl}/reviews/status`)
-    url.searchParams.set("user_id", String(userId))
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      signal: controller.signal
-    })
-
-    clearTimeout(timeout)
-
-    return response.ok
-  } catch (err) {
-    return false
-  }
 }
 
 async function getSharedDatabase() {
 
   if (sharedDb) {
-    return sharedDb
+    const usable = await isDatabaseUsable(sharedDb)
+
+    if (usable) {
+      return sharedDb
+    }
+
+    sharedDb = null
+    sharedDbPromise = null
   }
 
   if (!sharedDbPromise) {
-    sharedDbPromise =
-      initializeDatabase()
+    sharedDbPromise = initializeDatabase().catch(
+      (err) => {
+        sharedDbPromise = null
+        throw err
+      }
+    )
   }
 
   sharedDb = await sharedDbPromise
+  const usable = await isDatabaseUsable(sharedDb)
+
+  if (!usable) {
+    sharedDb = null
+    sharedDbPromise = null
+    sharedDb = await initializeDatabase()
+  }
+
   return sharedDb
 
 }
 
-async function initializeDatabase() {
+async function isDatabaseUsable(
+  database: SQLite.SQLiteDatabase
+) {
+  try {
+    await database.getFirstAsync(
+      "SELECT 1 AS ok"
+    )
+    return true
+  } catch {
+    return false
+  }
+}
 
-  let serverUrl: string | null = null
-  let finalActiveUser = 0
-  let initialSyncPerformed = false
+async function initializeDatabase() {
 
   reportStage(StageIndex.OPEN)
   const database =
@@ -120,94 +108,8 @@ async function initializeDatabase() {
   await initDB(database)
 
   reportStage(StageIndex.SYNC_MODE)
-  const mode =
-    await getSyncMode(database)
+  await getSyncMode(database)
 
-  if (mode === "hybrid") {
-
-    const activeUserRow =
-      await database.getFirstAsync<{
-        value: string
-      }>(
-        `
-        SELECT value
-        FROM settings
-        WHERE key = 'active_user'
-        `
-      )
-
-      serverUrl =
-        getSyncServerUrl()
-
-    if (!serverUrl) {
-      console.log(
-        "Initial sync skipped: sync server URL is not configured."
-      )
-      reportConnectivity(
-        "Sync server not configured; falling back to offline mode."
-      )
-    } else {
-
-      try {
-
-        const activeUser =
-          Number(
-            activeUserRow?.value ?? "0"
-          ) || 0
-
-        if (activeUser) {
-          finalActiveUser = activeUser
-          reportStage(StageIndex.CHECK_SERVER)
-          const reachable =
-            await checkServerConnectivity(
-              serverUrl,
-              activeUser
-            )
-
-          if (!reachable) {
-            console.log(
-              "Remote server unreachable; skipping initial pull."
-            )
-            reportConnectivity(
-              "Remote server unreachable; continuing offline."
-            )
-          } else {
-            reportConnectivity(null)
-            reportStage(StageIndex.SYNC_REVIEWS)
-            logSyncDebug(
-              `initial sync pulling reviews for user ${activeUser}`
-            )
-            await pullReviews(
-              database,
-              serverUrl,
-              activeUser
-            )
-            logSyncDebug(
-              `initial sync @ user ${activeUser} finished`
-            )
-            initialSyncPerformed = true
-          }
-        }
-
-      } catch (err) {
-
-        console.log(
-          "Initial sync failed:",
-          err
-        )
-
-        throw err
-
-      }
-    }
-
-  }
-
-  logSyncConsole(
-    `startup finalizing: mode=${mode}, serverUrlConfigured=${Boolean(
-      serverUrl
-    )}, activeUser=${finalActiveUser}, initialSyncPerformed=${initialSyncPerformed}`
-  )
   reportConnectivity(null)
   reportStage(StageIndex.FINALIZE)
   return database

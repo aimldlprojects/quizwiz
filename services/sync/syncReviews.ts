@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
 import {
+  clearSyncDirty,
   setSyncStatus as setSyncMetaStatus
 } from "../../database/syncMetaRepository"
 import { pullReviews } from "./pullReviews"
@@ -83,6 +84,7 @@ export async function syncReviews(
       "Sync completed",
       "overall"
     )
+    await clearSyncDirty(db, userId)
 
   } catch (err) {
 

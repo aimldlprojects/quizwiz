@@ -79,11 +79,7 @@ export class NetworkMonitor {
       this.syncService.sync()
 
     } catch (err) {
-
-      console.log(
-        "Network sync failed:",
-        err
-      )
+      console.error("Network sync failed:", err)
 
     }
 

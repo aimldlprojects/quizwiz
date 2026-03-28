@@ -4,10 +4,6 @@ import {
   setLastPushRev,
   setSyncStatus,
 } from "../../database/syncMetaRepository"
-import {
-  logSyncConsole,
-  logSyncDebug
-} from "@/config/logging"
 import { syncConfig } from "@/config/sync"
 
 const CHUNK_SIZE = syncConfig.pushChunkSize
@@ -167,28 +163,7 @@ async function getSettingsForSync(
 ) {
   const rows = await getSettings(db, userId)
 
-  return rows.filter((row) => {
-    if (row.user_id !== userId) {
-      return false
-    }
-
-    return !isLocalStudySelectionKey(row.key)
-  })
-}
-
-function isLocalStudySelectionKey(key: string) {
-  return (
-    key === "selected_subject_id" ||
-    key === "selected_topic_id" ||
-    key === "selected_subject_ids" ||
-    key === "selected_topic_level1_ids" ||
-    key === "selected_topic_level2_ids" ||
-    key.startsWith("selected_subject_id_user_") ||
-    key.startsWith("selected_topic_id_user_") ||
-    key.startsWith("selected_subject_ids_user_") ||
-    key.startsWith("selected_topic_level1_ids_user_") ||
-    key.startsWith("selected_topic_level2_ids_user_")
-  )
+  return rows.filter((row) => row.user_id === userId)
 }
 
 function hasMeta(
@@ -217,10 +192,6 @@ export async function pushReviews(
     userId
   )
   const badges = await getUserBadges(db, userId)
-
-  logSyncConsole(
-    `pushReviews start for user ${userId}, lastSync=${lastSync}, stats=${stats.length}, badges=${badges.length}, settings=${settings.length}`
-  )
 
   const includeMeta = hasMeta(
     stats,
@@ -253,15 +224,7 @@ export async function pushReviews(
         CHUNK_SIZE
       )
 
-      logSyncConsole(
-        `pushReviews chunk for ${userId}: changes=${changes.length}, includeMeta=${includeMeta}, finalRev=${finalRev}`
-      )
-
       const hasChanges = changes.length > 0
-
-      logSyncDebug(
-        `pushReviews chunk for ${userId} since ${finalRev}, changes=${changes.length}`
-      )
 
       if (!hasChanges && !firstRequest && !includeMeta) {
         break
@@ -282,9 +245,6 @@ export async function pushReviews(
         payload.user_badges = badges
       }
 
-      logSyncDebug(
-        `pushReviews: POST ${serverUrl}/reviews/push chunk`
-      )
       const res = await fetch(
         `${serverUrl}/reviews/push`,
         {
@@ -311,10 +271,6 @@ export async function pushReviews(
 
       finalRev = Math.max(finalRev, serverMax)
 
-      logSyncConsole(
-        `pushReviews chunk completed for ${userId}, server_max=${serverMax}, new finalRev=${finalRev}`
-      )
-
       if (!hasChanges) {
         break
       }
@@ -336,12 +292,6 @@ export async function pushReviews(
     throw err
   }
 
-  logSyncDebug(
-    `pushReviews: finished for ${userId}, finalRev=${finalRev}`
-  )
-  logSyncConsole(
-    `pushReviews finished for ${userId}, finalRev=${finalRev}`
-  )
   await setLastPushRev(db, userId, finalRev)
   await setSyncStatus(db, userId, "success", Date.now())
 

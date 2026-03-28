@@ -22,7 +22,13 @@ import { useUsers } from "../hooks/useUsers"
 import { getThemeColors, type ThemeColors } from "../styles/theme"
 
 const ADMIN_PASSWORD = "0000"
-const SELECTION_BORDER_COLOR = "#38bdf8"
+const CHIP_DEFAULT_BG = "#ffffff"
+const CHIP_DEFAULT_BORDER = "#ffffff"
+const CHIP_ALLOWED_BG = "#16a34a"
+const CHIP_PARTIAL_BG = "#fde68a"
+const CHIP_PARTIAL_BORDER = "#f59e0b"
+const CHIP_ACTIVE_BORDER = "#93c5fd"
+const CHIP_PENDING_BG = "#e0f2fe"
 
 export default function AdminScreen() {
 
@@ -1263,22 +1269,22 @@ const styles = StyleSheet.create({
   },
 
   subjectChip: {
-    backgroundColor: "#ffffff",
+    backgroundColor: CHIP_DEFAULT_BG,
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 2,
-    borderColor: "#ffffff"
+    borderColor: CHIP_DEFAULT_BORDER
   },
 
   subjectChipAll: {
-    backgroundColor: "#16a34a",
-    borderColor: "#ffffff"
+    backgroundColor: CHIP_ALLOWED_BG,
+    borderColor: CHIP_DEFAULT_BORDER
   },
 
   subjectChipPartial: {
-    backgroundColor: "#fde68a",
-    borderColor: "#f59e0b",
+    backgroundColor: CHIP_PARTIAL_BG,
+    borderColor: CHIP_PARTIAL_BORDER,
     borderWidth: 3
   },
 
@@ -1303,34 +1309,34 @@ const styles = StyleSheet.create({
   },
 
   topicChip: {
-    backgroundColor: "#ffffff",
+    backgroundColor: CHIP_DEFAULT_BG,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderWidth: 2,
-    borderColor: "#ffffff"
+    borderColor: CHIP_DEFAULT_BORDER
   },
 
   topicChipAll: {
-    backgroundColor: "#16a34a",
-    borderColor: "#ffffff"
+    backgroundColor: CHIP_ALLOWED_BG,
+    borderColor: CHIP_DEFAULT_BORDER
   },
 
   topicChipPartial: {
-    backgroundColor: "#fde68a",
-    borderColor: "#f59e0b",
+    backgroundColor: CHIP_PARTIAL_BG,
+    borderColor: CHIP_PARTIAL_BORDER,
     borderWidth: 3
   },
 
   topicChipPathSelected: {
-    borderColor: "#93c5fd",
+    borderColor: CHIP_ACTIVE_BORDER,
     borderWidth: 3
   },
 
   pendingChip: {
-    borderColor: "#93c5fd",
+    borderColor: CHIP_ACTIVE_BORDER,
     borderWidth: 3,
-    backgroundColor: "#e0f2fe"
+    backgroundColor: CHIP_PENDING_BG
   },
 
   topicChipText: {

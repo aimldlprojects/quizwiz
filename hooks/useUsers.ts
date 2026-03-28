@@ -3,10 +3,6 @@ import { useCallback, useEffect, useState } from "react"
 import { useFocusEffect } from "@react-navigation/native"
 
 import { UserController } from "../controllers/userController"
-import { getSyncMode } from "@/database/settingsRepository"
-import { getSyncServerUrl } from "@/services/sync/config"
-import { pullReviews } from "@/services/sync/pullReviews"
-import { pushReviews } from "@/services/sync/pushReviews"
 import { UserSubjectRepository } from "@/database/userSubjectRepository"
 import {
   DEFAULT_CURRICULUM_SUBJECTS,
@@ -177,48 +173,7 @@ export function useUsers(
     const controller =
       new UserController(db)
 
-    const previousUser = activeUser
-
-    const mode =
-      await getSyncMode(db)
-    const serverUrl =
-      getSyncServerUrl()
-
-    if (
-      mode === "hybrid" &&
-      serverUrl &&
-      previousUser
-    ) {
-      try {
-        await pushReviews(
-          db,
-          serverUrl,
-          previousUser
-        )
-      } catch (error) {
-        console.error(
-          "Failed to push reviews before switching user:",
-          error
-        )
-      }
-    }
-
     await controller.setActiveUser(id)
-
-    if (mode === "hybrid" && serverUrl) {
-      try {
-        await pullReviews(
-          db,
-          serverUrl,
-          id
-        )
-      } catch (error) {
-        console.error(
-          "Failed to pull reviews after switching user:",
-          error
-        )
-      }
-    }
 
     setActiveUser(id)
 

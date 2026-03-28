@@ -1,9 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import { Tabs } from "expo-router"
+import { View } from "react-native"
+
+import GlobalSyncButton from "@/components/GlobalSyncButton"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
-import { useSyncLifecycle } from "@/hooks/useSyncLifecycle"
 import { useUsers } from "@/hooks/useUsers"
 import { getThemeColors } from "@/styles/theme"
 
@@ -12,18 +14,12 @@ export default function TabLayout() {
   const { db } = useDatabase()
   const { activeUser } = useUsers(db)
   const {
-    syncIntervalMs,
-    syncMinGapMs
+    syncMode,
+    syncIntervalMs
   } = useSettings(db)
   const { themeMode } = useStudyPreferences(
     db,
     activeUser
-  )
-  useSyncLifecycle(
-    db,
-    activeUser,
-    syncIntervalMs,
-    syncMinGapMs
   )
   const colors = getThemeColors(themeMode)
 
@@ -31,7 +27,28 @@ export default function TabLayout() {
     <Tabs
       key={themeMode}
       screenOptions={({ route }) => ({
-        headerShown: false,
+        headerShown: true,
+        headerTitle: getTabTitle(route.name),
+        headerTitleStyle: {
+          color: colors.text,
+          fontWeight: "800"
+        },
+        headerStyle: {
+          backgroundColor: colors.background
+        },
+        headerShadowVisible: false,
+        headerRight: () => (
+          <View style={{ marginRight: 8 }}>
+            <GlobalSyncButton
+              db={db}
+              activeUser={activeUser}
+              syncMode={syncMode}
+              syncIntervalMs={syncIntervalMs}
+              colors={colors}
+              variant="inline"
+            />
+          </View>
+        ),
         tabBarActiveTintColor: colors.iconActive,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
@@ -100,6 +117,27 @@ function getTabIcon(routeName: string) {
       return "face"
     default:
       return "circle"
+  }
+
+}
+
+function getTabTitle(routeName: string) {
+
+  switch (routeName) {
+    case "learn":
+      return "Learn"
+    case "topics":
+      return "Topics"
+    case "practice":
+      return "Practice"
+    case "progress":
+      return "Progress"
+    case "badges":
+      return "Badges"
+    case "profile":
+      return "Profile"
+    default:
+      return ""
   }
 
 }

@@ -1,5 +1,8 @@
 import { SQLiteDatabase } from "expo-sqlite"
 import { StreakEngine, StreakState } from "../engine/gamification/streakEngine"
+import {
+  markSyncDirty
+} from "../database/syncMetaRepository"
 
 export class StreakController {
 
@@ -18,6 +21,64 @@ export class StreakController {
   */
 
   async load(userId: number): Promise<void> {
+
+    const currentSetting =
+      await this.db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        `,
+        [userId, `streak_current_user_${userId}`]
+      )
+    const longestSetting =
+      await this.db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        `,
+        [userId, `streak_longest_user_${userId}`]
+      )
+    const dateSetting =
+      await this.db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        `,
+        [
+          userId,
+          `streak_last_practice_date_user_${userId}`
+        ]
+      )
+
+    if (
+      currentSetting?.value != null ||
+      longestSetting?.value != null ||
+      dateSetting?.value != null
+    ) {
+      this.engine =
+        new StreakEngine({
+          currentStreak:
+            Number(currentSetting?.value ?? 0) || 0,
+          longestStreak:
+            Number(longestSetting?.value ?? 0) || 0,
+          lastPracticeDate:
+            dateSetting?.value ?? ""
+        })
+
+      return
+    }
 
     const row =
       await this.db.getFirstAsync<{
@@ -82,6 +143,80 @@ export class StreakController {
         state.longestStreak,
         state.lastPracticeDate
       ]
+    )
+
+    const now = Date.now()
+
+    await Promise.all([
+      this.db.runAsync(
+        `
+        INSERT INTO settings (
+          user_id,
+          key,
+          value,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, key)
+        DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        `,
+        [
+          userId,
+          `streak_current_user_${userId}`,
+          String(state.currentStreak),
+          now
+        ]
+      ),
+      this.db.runAsync(
+        `
+        INSERT INTO settings (
+          user_id,
+          key,
+          value,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, key)
+        DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        `,
+        [
+          userId,
+          `streak_longest_user_${userId}`,
+          String(state.longestStreak),
+          now
+        ]
+      ),
+      this.db.runAsync(
+        `
+        INSERT INTO settings (
+          user_id,
+          key,
+          value,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, key)
+        DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        `,
+        [
+          userId,
+          `streak_last_practice_date_user_${userId}`,
+          state.lastPracticeDate,
+          now
+        ]
+      )
+    ])
+
+    await markSyncDirty(
+      this.db,
+      userId,
+      now
     )
 
   }

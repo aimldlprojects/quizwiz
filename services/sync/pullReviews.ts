@@ -134,10 +134,6 @@ async function upsertSettings(
   }
 
   for (const entry of entries) {
-    if (isLocalStudySelectionKey(entry.key)) {
-      continue
-    }
-
     const updatedAt =
       typeof entry.updated_at === "number"
         ? entry.updated_at
@@ -145,40 +141,57 @@ async function upsertSettings(
         ? Date.parse(String(entry.updated_at))
         : Date.now()
 
-    await db.runAsync(
+    const current = await db.getFirstAsync<{
+      updated_at: number | null
+    }>(
       `
-      INSERT INTO settings
-      (user_id, key, value, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(user_id, key)
-      DO UPDATE SET
-        value = excluded.value,
-        updated_at = excluded.updated_at
+      SELECT updated_at
+      FROM settings
+      WHERE user_id = ?
+        AND key = ?
+      LIMIT 1
       `,
-      [
-        entry.user_id,
-        entry.key,
-        entry.value,
-        updatedAt
-      ]
+      [entry.user_id, entry.key]
     )
+
+    if (
+      current?.updated_at != null &&
+      updatedAt < current.updated_at
+    ) {
+      continue
+    }
+
+    if (current) {
+      await db.runAsync(
+        `
+        UPDATE settings
+        SET value = ?, updated_at = ?
+        WHERE user_id = ?
+          AND key = ?
+        `,
+        [
+          entry.value,
+          updatedAt,
+          entry.user_id,
+          entry.key
+        ]
+      )
+    } else {
+      await db.runAsync(
+        `
+        INSERT INTO settings
+        (user_id, key, value, updated_at)
+        VALUES (?, ?, ?, ?)
+        `,
+        [
+          entry.user_id,
+          entry.key,
+          entry.value,
+          updatedAt
+        ]
+      )
+    }
   }
-
-}
-
-function isLocalStudySelectionKey(key: string) {
-  return (
-    key === "selected_subject_id" ||
-    key === "selected_topic_id" ||
-    key === "selected_subject_ids" ||
-    key === "selected_topic_level1_ids" ||
-    key === "selected_topic_level2_ids" ||
-    key.startsWith("selected_subject_id_user_") ||
-    key.startsWith("selected_topic_id_user_") ||
-    key.startsWith("selected_subject_ids_user_") ||
-    key.startsWith("selected_topic_level1_ids_user_") ||
-    key.startsWith("selected_topic_level2_ids_user_")
-  )
 }
 
 export async function pullReviews(
@@ -194,32 +207,16 @@ export async function pullReviews(
 
   let data: any
 
-  console.log(
-    "[sync-debug] pullReviews start",
-    { serverUrl, userId, since: lastPull }
-  )
-
   const controller = new AbortController()
   const timeoutMs = syncConfig.pullTimeoutMs
   const timeoutId = setTimeout(() => {
     controller.abort()
-    console.log(
-      "[sync-debug] pullReviews fetch timeout",
-      { timeoutMs }
-    )
   }, timeoutMs)
 
   try {
-    console.log(
-      "[sync-debug] pullReviews fetching"
-    )
     const res = await fetch(
       `${serverUrl}/reviews/pull?user_id=${userId}&since_rev_id=${lastPull}`,
       { signal: controller.signal }
-    )
-    console.log(
-      "[sync-debug] pullReviews response received",
-      { status: res.status }
     )
 
     if (!res.ok) {
@@ -229,15 +226,7 @@ export async function pullReviews(
     }
 
     data = await res.json()
-    console.log(
-      "[sync-debug] pullReviews parsed json",
-      { reviews: data?.reviews?.length ?? 0 }
-    )
   } catch (err) {
-    console.log(
-      "[sync-debug] pullReviews caught error",
-      err
-    )
     await setSyncStatus(
       db,
       userId,

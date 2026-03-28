@@ -14,9 +14,6 @@ export async function testMultiDeviceSync(
   serverUrl: string,
   userId: number
 ) {
-
-  console.log("Starting multi-device sync test")
-
   // push local changes
   await pushReviews(
     db,
@@ -24,17 +21,11 @@ export async function testMultiDeviceSync(
     userId
   )
 
-  console.log("Push completed")
-
   // pull remote changes
   await pullReviews(
     db,
     serverUrl,
     userId
   )
-
-  console.log("Pull completed")
-
-  console.log("Multi-device sync test finished")
 
 }

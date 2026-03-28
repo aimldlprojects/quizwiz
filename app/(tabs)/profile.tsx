@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router"
+import MaterialIcons from "@expo/vector-icons/MaterialIcons"
 import {
   ActivityIndicator,
   Alert,
@@ -13,17 +14,21 @@ import { SafeAreaView } from "react-native-safe-area-context"
 
 import {
   getSyncStatus,
-  setSyncStatus,
   type SyncStatusEntry,
   type SyncStatusRecord,
   type SyncStatusValue
 } from "@/database/syncStatusRepository"
+import {
+  clearSyncDirty,
+  getSyncDirtyAt
+} from "@/database/syncMetaRepository"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useUsers } from "@/hooks/useUsers"
 import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
+import { pushReviews } from "@/services/sync/pushReviews"
 import { syncReviews } from "@/services/sync/syncReviews"
 import { getThemeColors } from "@/styles/theme"
 import {
@@ -95,11 +100,13 @@ export default function ProfileScreen() {
   }
   const [syncing, setSyncing] =
     useState(false)
-  const [pulling, setPulling] =
-    useState(false)
 
   const [syncInfo, setSyncInfo] =
     useState<SyncStatusRecord | null>(null)
+  const [syncDirtyAt, setSyncDirtyAt] =
+    useState<number | null>(null)
+  const [remoteSyncTime, setRemoteSyncTime] =
+    useState<number | null>(null)
   const syncServerUrl =
     getSyncServerUrl()
 
@@ -113,37 +120,80 @@ export default function ProfileScreen() {
       setSyncInfo(info)
     }, [db])
 
+  const refreshSyncIndicators =
+    useCallback(async () => {
+      if (!db || !activeUser) {
+        setSyncDirtyAt(null)
+        setRemoteSyncTime(null)
+        return
+      }
+
+      const dirtyAt =
+        await getSyncDirtyAt(db, activeUser)
+      setSyncDirtyAt(dirtyAt || null)
+
+      if (!syncServerUrl) {
+        setRemoteSyncTime(null)
+        return
+      }
+
+      try {
+        const response = await fetch(
+          `${syncServerUrl}/reviews/status?user_id=${activeUser}`
+        )
+
+        if (!response.ok) {
+          setRemoteSyncTime(null)
+          return
+        }
+
+        const json = await response.json()
+        setRemoteSyncTime(
+          typeof json?.last_sync_time === "number"
+            ? json.last_sync_time
+            : null
+        )
+      } catch {
+        setRemoteSyncTime(null)
+      }
+    }, [db, activeUser, syncServerUrl])
+
   useEffect(() => {
     if (!db) return
-    if (syncing || pulling) return
+    if (syncing) return
 
     refreshSyncStatus()
-  }, [
-    db,
-    refreshSyncStatus,
-    syncing,
-    pulling
-  ])
+    refreshSyncIndicators()
+  }, [db, refreshSyncStatus, refreshSyncIndicators, syncing])
 
   const overallStatus =
     syncInfo?.overall ?? DEFAULT_SYNC_STATUS
-  const pushStatus =
-    syncInfo?.push ?? DEFAULT_SYNC_STATUS
-  const pullStatus =
-    syncInfo?.pull ?? DEFAULT_SYNC_STATUS
-
-  const getStatusColor = (
-    status: SyncStatusValue
-  ) => {
-    switch (status) {
-      case "success":
-        return "#22c55e"
-      case "failed":
-        return "#ef4444"
-      default:
-        return colors.border
-    }
-  }
+  const latestLocalSyncAt =
+    overallStatus.timestamp ?? 0
+  const localDirty =
+    syncDirtyAt != null &&
+    syncDirtyAt > latestLocalSyncAt
+  const remoteDirty =
+    remoteSyncTime != null &&
+    remoteSyncTime > latestLocalSyncAt
+  const syncNeedsAttention =
+    localDirty || remoteDirty
+  const syncTone =
+    overallStatus.status === "failed"
+      ? "#ef4444"
+      : syncNeedsAttention
+      ? "#f59e0b"
+      : overallStatus.status === "success"
+      ? "#22c55e"
+      : colors.border
+  const syncPushTone =
+    syncNeedsAttention && localDirty
+      ? "#ef4444"
+      : "#22c55e"
+  const syncPullTone =
+    syncNeedsAttention && remoteDirty
+      ? "#ef4444"
+      : "#22c55e"
 
   const getStatusLabel = (
     status: SyncStatusValue
@@ -220,21 +270,17 @@ export default function ProfileScreen() {
     } finally {
       setSyncing(false)
       await Promise.all([
-        refreshSyncStatus()
+        refreshSyncStatus(),
+        refreshSyncIndicators()
       ])
     }
   }
 
-  async function syncFromMaster() {
-    console.log(
-      "[sync-debug] Sync From Master button pressed"
-    )
+  async function syncPushOnly() {
 
     if (!db || !activeUser) return
 
-    const serverUrl =
-      getSyncServerUrl()
-
+    const serverUrl = getSyncServerUrl()
     if (!serverUrl) {
       Alert.alert(
         "Sync unavailable",
@@ -243,97 +289,66 @@ export default function ProfileScreen() {
       return
     }
 
-    console.log(
-      "[sync-debug] syncFromMaster: validated preconditions",
-      {
-        user: activeUser,
-        serverUrl
-      }
-    )
-
-    setPulling(true)
+    setSyncing(true)
 
     try {
-      console.log(
-        "[sync-debug] syncFromMaster: invoking pullReviews"
-      )
-      await pullReviews(
-        db,
-        serverUrl,
-        activeUser
-      )
-
-      console.log(
-        "[sync-debug] syncFromMaster: pullReviews completed"
-      )
-
-      await setSyncStatus(
-        db,
-        "success",
-        "Pull completed",
-        Date.now(),
-        "pull"
-      )
-
-      console.log(
-        "[sync-debug] syncFromMaster: sync status updated success (pull)"
-      )
-
-      await setSyncStatus(
-        db,
-        "success",
-        "Sync refreshed",
-        Date.now(),
-        "overall"
-      )
-
-      console.log(
-        "[sync-debug] syncFromMaster: sync status updated overall success"
-      )
-
+      await pushReviews(db, serverUrl, activeUser)
+      await clearSyncDirty(db, activeUser)
       Alert.alert(
-        "Sync complete",
-        "Your profile was refreshed from the master database."
+        "Push complete",
+        "Your local changes were saved to the global database."
       )
     } catch (error) {
-      console.log(
-        "[sync-debug] syncFromMaster: pull failed",
-        error
-      )
-      const message =
+      Alert.alert(
+        "Push failed",
         error instanceof Error
           ? error.message
-          : "We could not pull your profile data right now."
-
-      if (activeUser) {
-        await setSyncStatus(
-          db,
-          "failed",
-          message,
-          Date.now(),
-          "pull"
-        )
-      }
-
-      await setSyncStatus(
-        db,
-        "failed",
-        message,
-        Date.now(),
-        "overall"
+          : "We could not push your changes right now."
       )
-
-      Alert.alert("Sync failed", message)
     } finally {
-      console.log(
-        "[sync-debug] syncFromMaster: finally block firing"
-      )
-      setPulling(false)
+      setSyncing(false)
       await Promise.all([
-        refreshSyncStatus()
+        refreshSyncStatus(),
+        refreshSyncIndicators()
       ])
     }
+  }
 
+  async function syncPullOnly() {
+
+    if (!db || !activeUser) return
+
+    const serverUrl = getSyncServerUrl()
+    if (!serverUrl) {
+      Alert.alert(
+        "Sync unavailable",
+        "Global sync is not configured yet on this device."
+      )
+      return
+    }
+
+    setSyncing(true)
+
+    try {
+      await pullReviews(db, serverUrl, activeUser)
+      Alert.alert(
+        "Pull complete",
+        "Your device was refreshed from the global database."
+      )
+    } catch (error) {
+      Alert.alert(
+        "Pull failed",
+        error instanceof Error
+          ? error.message
+          : "We could not pull your changes right now."
+      )
+    } finally {
+      setSyncing(false)
+      await Promise.all([
+        refreshSyncStatus(),
+        refreshSyncIndicators()
+      ])
+    }
   }
 
   async function adjustDelay(
@@ -533,183 +548,159 @@ export default function ProfileScreen() {
               </Text>
             </View>
 
-            <View style={styles.syncButtonsGrid}>
-              <View
+            <View style={styles.syncActionRow}>
+              <Pressable
                 style={[
-                  styles.syncActionColumn,
-                  { marginRight: 8 }
+                  styles.syncActionChip,
+                  {
+                    borderColor: syncPushTone,
+                    backgroundColor: colors.surface
+                  }
                 ]}
+                onPress={syncPushOnly}
+                disabled={syncing}
               >
-                <Pressable
-                  style={[
-                    styles.secondaryButton,
-                    styles.syncActionButton,
-                    {
-                      borderColor: getStatusColor(
-                        pushStatus.status
-                      ),
-                      backgroundColor: colors.surface
-                    }
-                  ]}
-                  onPress={syncToMaster}
-                  disabled={syncing}
-                >
-                  {syncing ? (
-                    <ActivityIndicator color="#ffffff" />
-                  ) : (
-                  <Text
-                    style={[
-                      styles.secondaryButtonText,
-                      {
-                        color: getStatusColor(
-                          pushStatus.status
-                        )
-                      }
-                    ]}
-                  >
-                    Sync To Master DB
-                  </Text>
-                  )}
-                </Pressable>
+                <MaterialIcons
+                  name="north"
+                  size={20}
+                  color={syncPushTone}
+                />
+              </Pressable>
 
+              <Pressable
+                style={[
+                  styles.syncGlyphButton,
+                  {
+                    borderColor: syncTone,
+                    backgroundColor: colors.surface
+                  }
+                ]}
+                onPress={syncToMaster}
+                disabled={syncing}
+              >
                 <View
                   style={[
-                    styles.syncStatusMeta,
+                    styles.syncGlyphIcon,
                     {
-                      borderColor: getStatusColor(
-                        pushStatus.status
-                      )
+                      borderColor: syncTone,
+                      backgroundColor:
+                        syncNeedsAttention
+                          ? "rgba(245, 158, 11, 0.12)"
+                          : "rgba(34, 197, 94, 0.10)"
                     }
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.syncStatusMetaLabel,
-                      { color: colors.muted }
-                    ]}
-                  >
-                    Sync To Master status
-                  </Text>
-                  <Text
-                    style={[
-                      styles.syncStatusMetaText,
-                      { color: colors.text }
-                    ]}
-                  >
-                    {getStatusLabel(pushStatus.status)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.syncStatusMetaTimestamp,
-                      { color: colors.muted }
-                    ]}
-                  >
-                    Last update:{" "}
-                    {formatSyncTimestamp(
-                      pushStatus.timestamp
-                    )}
-                  </Text>
-                  {pushStatus.message ? (
-                    <Text
-                      style={[
-                        styles.syncStatusMetaMessage,
-                        { color: colors.muted }
-                      ]}
-                    >
-                      {pushStatus.message}
-                    </Text>
-                  ) : null}
-                </View>
+                {syncing ? (
+                  <ActivityIndicator color={syncTone} />
+                ) : (
+                  <MaterialIcons
+                    name="sync"
+                    size={24}
+                    color={syncTone}
+                  />
+                )}
               </View>
+              <View style={styles.syncGlyphCopy}>
+                <Text
+                  style={[
+                    styles.syncGlyphLabel,
+                    { color: colors.text }
+                  ]}
+                >
+                  {syncNeedsAttention
+                    ? "Sync"
+                    : "Synced"}
+                </Text>
+                <Text
+                  style={[
+                    styles.syncGlyphSubtext,
+                    { color: syncTone }
+                  ]}
+                >
+                  {syncNeedsAttention
+                    ? "!"
+                    : overallStatus.status === "failed"
+                    ? "x"
+                    : "✓"}
+                </Text>
+              </View>
+              </Pressable>
 
-              <View
+              <Pressable
                 style={[
-                  styles.syncActionColumn,
-                  { marginLeft: 8 }
+                  styles.syncActionChip,
+                  {
+                    borderColor: syncPullTone,
+                    backgroundColor: colors.surface
+                  }
+                ]}
+                onPress={syncPullOnly}
+                disabled={syncing}
+              >
+                <MaterialIcons
+                  name="south"
+                  size={20}
+                  color={syncPullTone}
+                />
+              </Pressable>
+            </View>
+
+            <View
+              style={[
+                styles.syncStatusMeta,
+                {
+                  borderColor: syncTone
+                }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.syncStatusMetaLabel,
+                  { color: colors.muted }
                 ]}
               >
-                <Pressable
+                Sync status
+              </Text>
+              <Text
+                style={[
+                  styles.syncStatusMetaText,
+                  { color: colors.text }
+                ]}
+              >
+                {syncNeedsAttention
+                  ? "Updates available"
+                  : getStatusLabel(overallStatus.status)}
+              </Text>
+              <Text
+                style={[
+                  styles.syncStatusMetaTimestamp,
+                  { color: colors.muted }
+                ]}
+              >
+                Last update:{" "}
+                {formatSyncTimestamp(
+                  overallStatus.timestamp
+                )}
+              </Text>
+              {syncNeedsAttention ? (
+                <Text
                   style={[
-                    styles.outlineButton,
-                    styles.syncActionButton,
-                    {
-                      borderColor: getStatusColor(
-                        pullStatus.status
-                      )
-                    }
-                  ]}
-                  onPress={syncFromMaster}
-                  disabled={pulling}
-                >
-                  {pulling ? (
-                    <ActivityIndicator
-                      color={colors.iconActive}
-                    />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.outlineButtonText,
-                        {
-                          color: getStatusColor(
-                            pullStatus.status
-                          )
-                        }
-                      ]}
-                    >
-                      Sync From Master DB
-                    </Text>
-                  )}
-                </Pressable>
-
-                <View
-                  style={[
-                    styles.syncStatusMeta,
-                    {
-                      borderColor: getStatusColor(
-                        pullStatus.status
-                      )
-                    }
+                    styles.syncStatusMetaMessage,
+                    { color: colors.muted }
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.syncStatusMetaLabel,
-                      { color: colors.muted }
-                    ]}
-                  >
-                    Sync From Master status
-                  </Text>
-                  <Text
-                    style={[
-                      styles.syncStatusMetaText,
-                      { color: colors.text }
-                    ]}
-                  >
-                    {getStatusLabel(pullStatus.status)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.syncStatusMetaTimestamp,
-                      { color: colors.muted }
-                    ]}
-                  >
-                    Last update:{" "}
-                    {formatSyncTimestamp(
-                      pullStatus.timestamp
-                    )}
-                  </Text>
-                  {pullStatus.message ? (
-                    <Text
-                      style={[
-                        styles.syncStatusMetaMessage,
-                        { color: colors.muted }
-                      ]}
-                    >
-                      {pullStatus.message}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
+                  Another device or local change is waiting to sync.
+                </Text>
+              ) : overallStatus.message ? (
+                <Text
+                  style={[
+                    styles.syncStatusMetaMessage,
+                    { color: colors.muted }
+                  ]}
+                >
+                  {overallStatus.message}
+                </Text>
+              ) : null}
             </View>
 
             <View style={styles.syncStatusRow}>
@@ -749,6 +740,8 @@ export default function ProfileScreen() {
                     color:
                       overallStatus.status === "failed"
                         ? "#f87171"
+                        : syncNeedsAttention
+                        ? "#f59e0b"
                         : colors.iconActive
                   }
                 ]}
@@ -756,6 +749,8 @@ export default function ProfileScreen() {
                 {syncServerUrl
                   ? overallStatus.status === "failed"
                     ? "Unstable"
+                    : syncNeedsAttention
+                    ? "Waiting"
                     : "Healthy"
                   : "Unavailable"}
               </Text>
@@ -1333,17 +1328,62 @@ const styles = StyleSheet.create({
     marginTop: 8
   },
 
-  syncButtonsGrid: {
+  syncActionRow: {
+    marginTop: 16,
     flexDirection: "row",
-    marginTop: 16
+    alignItems: "stretch",
+    gap: 10
   },
 
-  syncActionColumn: {
+  syncActionChip: {
+    width: 52,
+    borderWidth: 2,
+    borderRadius: 16,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4
+  },
+
+  syncActionLabel: {
+    fontSize: 12,
+    fontWeight: "800"
+  },
+
+  syncGlyphButton: {
+    flex: 1.4,
+    borderWidth: 2,
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+
+  syncGlyphIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  syncGlyphCopy: {
     flex: 1
   },
 
-  syncActionButton: {
-    borderWidth: 2
+  syncGlyphLabel: {
+    fontSize: 14,
+    fontWeight: "800"
+  },
+
+  syncGlyphSubtext: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 12
   },
 
   syncStatusMeta: {

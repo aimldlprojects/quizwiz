@@ -9,8 +9,6 @@ import HomeStats from "../components/HomeStats"
 import { StreakController } from "../controllers/streakController"
 import { StatsRepository } from "../database/statsRepository"
 
-import { useBackupManager } from "../hooks/useBackupManager"
-
 import { useDatabase } from "@/hooks/useDatabase"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useUsers } from "@/hooks/useUsers"
@@ -33,8 +31,6 @@ export default function HomeScreen() {
   const { themeMode } =
     useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
-
-  useBackupManager(db ?? null)
 
   const [streak, setStreak] =
     useState<number>(0)
