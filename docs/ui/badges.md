@@ -1,11 +1,26 @@
 # Badges
 
-What you can do:
+## Purpose
 
-- view medal badges
-- view unlocked stickers
+View progress rewards.
 
-Notes:
+## Status
 
-- badges are based on accuracy, streak, mastery, and learning volume
-- earned badges follow the active profile
+Read-only screen.
+
+## Actions
+
+- View medal badges
+- View unlocked stickers
+
+## Notes
+
+- Badges are based on accuracy, streak, mastery, and learning volume
+- Earned badges follow the active profile
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)

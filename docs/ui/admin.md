@@ -1,19 +1,33 @@
 # Admin
 
-What you can do:
+## Purpose
 
-- add a learner profile
-- enable or disable a learner
-- reset one learner
-- delete one learner
-- clear all progress with master reset
-- allow or hide subjects
-- allow or hide topics
-- choose the current admin topic path for a subject
+Manage learner access and visibility.
 
-Notes:
+## Status
 
-- admin changes save on the device first
-- permission changes and the current admin path are part of sync
-- disable or enable state is also part of sync
-- the screen is for managing what each learner can see
+Management screen.
+
+## Actions
+
+- Add a learner profile
+- Enable or disable a learner
+- Reset one learner
+- Delete one learner
+- Master reset
+- Allow or hide subjects
+- Allow or hide topics
+- Choose the current admin topic path
+
+## Notes
+
+- Admin changes save on the device first
+- Permissions, admin path, and disable state are part of sync
+- The screen manages what each learner can see
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)

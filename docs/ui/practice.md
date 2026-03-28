@@ -1,17 +1,36 @@
 # Practice
 
-What you can do:
+## Purpose
 
-- answer the current question
-- show the answer
-- mark the result
-- move to the next question
-- turn auto next on or off
-- change correct and wrong answer delays
-- turn practice random order on or off
-- tap the sync button after answering
+Answer questions for the selected topic.
 
-Notes:
+## Status
 
-- practice progress is saved for the active profile
-- the sync button near the answer controls saves progress to the global database
+Interactive screen.
+
+## Actions
+
+- Answer
+- Show answer
+- Mark result
+- Next question
+- Toggle auto next
+- Change delays
+- Toggle random order
+- Tap sync
+
+## Notes
+
+- Practice progress is saved for the active profile
+
+## Sync Notes
+
+- Practice answers and review progress save locally first
+- The sync button sends them to the global database
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)

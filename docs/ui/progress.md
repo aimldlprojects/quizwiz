@@ -1,13 +1,28 @@
 # Progress
 
-What you can do:
+## Purpose
 
-- review overall accuracy
-- view topic progress
-- view subject progress
-- see the current streak
+Review practice progress.
 
-Notes:
+## Status
 
-- this screen is read-only
-- it shows synced practice data
+Read-only screen.
+
+## Actions
+
+- Review accuracy
+- View topic progress
+- View subject progress
+- See the current streak
+
+## Notes
+
+- Read-only
+- Shows synced practice data
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)

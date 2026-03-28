@@ -1,15 +1,36 @@
 # Topics
 
-What you can do:
+## Purpose
 
-- select subjects
-- expand topic levels
-- select or deselect learning topics
-- see the current selection path
+Choose what the learner sees and studies.
 
-Notes:
+## Status
 
-- child topics are shown only for the active subject path
-- the path should not mix topics from different subjects
-- the current selection box shows what is selected, not just what is open
-- the sync icon in the header is available here too
+Interactive screen.
+
+## Actions
+
+- Select subjects
+- Expand topics
+- Select or deselect topics
+- See the current path
+
+## Notes
+
+- Child topics show only for the active subject path
+- The path stays within one subject
+- The selection box shows what is selected
+- See [Topic Selection Rules](../topic%20selection%20rules.md) for detailed selection rules
+
+## Sync Notes
+
+- Topic selections save on the device first
+- The top-right sync icon sends the current user's topic state to the global database
+- See [Sync Settings](../sync-settings.md) for detailed sync notes
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)

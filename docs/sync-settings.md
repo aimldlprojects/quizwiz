@@ -211,3 +211,13 @@ Use them like this:
 - `--both` resets both
 
 This is mainly for development or repair work. It is not part of normal app use.
+
+## Reference Docs
+
+- [Docs Index](./index.md)
+- [UI Reference](./ui/README.md)
+- [Glossary](./glossary.md)
+- [Data Ownership](./data-ownership.md)
+- [Topic Selection Rules](./topic%20selection%20rules.md)
+- [Change Log](./change-log.md)
+- [Maintenance](./maintenance.md)

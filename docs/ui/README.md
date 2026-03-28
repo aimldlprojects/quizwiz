@@ -1,21 +1,43 @@
 # UI Reference
 
-Use these notes as a short cross-check after each UI change.
+Use this as a short cross-check after each UI change.
 
-Shared across screens:
+## Start Here
 
-- the top-right sync icon appears in the header
-- the sync icon changes color when attention is needed
-- the sync overlay appears only for manual and lifecycle syncs
+- [docs/index.md](../index.md)
 
-Files:
+## Core References
 
-- [home.md](./home.md)
-- [users.md](./users.md)
-- [topics.md](./topics.md)
-- [learn.md](./learn.md)
-- [practice.md](./practice.md)
-- [progress.md](./progress.md)
-- [badges.md](./badges.md)
-- [profile.md](./profile.md)
-- [admin.md](./admin.md)
+- [change-log.md](../change-log.md)
+- [glossary.md](../glossary.md)
+- [data-ownership.md](../data-ownership.md)
+- [sync-settings.md](../sync-settings.md)
+- [topic selection rules.md](../topic%20selection%20rules.md)
+
+## Shared Across Screens
+
+- top-right sync icon appears in the header
+- sync icon changes color when attention is needed
+- sync overlay appears only for manual and lifecycle syncs
+
+## Pages
+
+- [Home](./home.md)
+- [Users](./users.md)
+- [Topics](./topics.md)
+- [Learn](./learn.md)
+- [Practice](./practice.md)
+- [Progress](./progress.md)
+- [Badges](./badges.md)
+- [Profile](./profile.md)
+- [Admin](./admin.md)
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [Glossary](../glossary.md)
+- [Data Ownership](../data-ownership.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)
+- [Change Log](../change-log.md)
+- [Maintenance](../maintenance.md)

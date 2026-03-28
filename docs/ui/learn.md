@@ -1,16 +1,36 @@
 # Learn
 
-What you can do:
+## Purpose
 
-- read the flash cards
-- flip the card
-- go to the next or previous card
-- turn autoplay on or off
-- change front and back delays
-- turn learn random order on or off
-- toggle text to speech from Profile settings
+Study flash cards for the selected topic.
 
-Notes:
+## Status
 
-- Learn resumes from the last saved card position for the topic
-- if no topic is selected, Learn asks you to choose one in Topics
+Interactive screen.
+
+## Actions
+
+- Read cards
+- Flip cards
+- Move next or previous
+- Toggle autoplay
+- Change delays
+- Toggle random order
+- Use text to speech
+
+## Notes
+
+- Resumes from the last saved card position
+- If no topic is selected, Learn asks you to choose one in Topics
+
+## Sync Notes
+
+- Learn progress is saved for the active profile
+- The saved card position can follow the user to another device after sync
+
+## Reference Docs
+
+- [Docs Index](../index.md)
+- [UI Reference](./README.md)
+- [Sync Settings](../sync-settings.md)
+- [Topic Selection Rules](../topic%20selection%20rules.md)
