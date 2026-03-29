@@ -833,7 +833,7 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    padding: 20
+    padding: 12
   },
 
   loadingContainer: {
@@ -851,7 +851,7 @@ const styles = StyleSheet.create({
   headerCard: {
     backgroundColor: "#ffffff",
     borderRadius: 24,
-    padding: 22
+    padding: 14
   },
 
   headerRow: {
@@ -888,11 +888,11 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: "800",
     color: "#1e3a5f",
-    marginTop: 8
+    marginTop: 4
   },
 
   scoreText: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 16,
     fontWeight: "700",
     color: "#1e3a5f"
@@ -901,8 +901,8 @@ const styles = StyleSheet.create({
   questionCard: {
     backgroundColor: "#ffffff",
     borderRadius: 24,
-    padding: 20,
-    marginTop: 18
+    padding: 16,
+    marginTop: 14
   },
 
   question: {
@@ -943,10 +943,10 @@ const styles = StyleSheet.create({
   },
 
   actionsCard: {
-    marginTop: 18,
+    marginTop: 14,
     backgroundColor: "#ffffff",
     borderRadius: 24,
-    padding: 18
+    padding: 14
   },
 
   emptyCard: {

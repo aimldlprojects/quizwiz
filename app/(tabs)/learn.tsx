@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    padding: 20,
+    padding: 12,
     paddingBottom: 32
   },
 
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: "#dcfce7",
     borderRadius: 26,
-    padding: 22
+    padding: 14
   },
 
   heroHeader: {
