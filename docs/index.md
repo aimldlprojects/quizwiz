@@ -23,6 +23,12 @@ The app starts by sending the user to `Users` if no profile is active, or to `To
 - [Topic selection rules](./topic%20selection%20rules.md)
 - [Sync settings](./sync-settings.md)
 
+## Business Logic
+
+- [Question requirements](./business-logic/question-requirements.md)
+- [Question flow](./business-logic/question-flow.md)
+- [Table topic flow](./business-logic/table-topic-flow.md)
+
 ## Reference
 
 - [Glossary](./glossary.md)
@@ -36,6 +42,9 @@ The app starts by sending the user to `Users` if no profile is active, or to `To
 | --- | --- |
 | Screen layout or buttons | [UI Reference](./ui/README.md) |
 | Topic selection behavior | [Topic selection rules](./topic%20selection%20rules.md) |
+| Question behavior or table decks | [Question requirements](./business-logic/question-requirements.md) |
+| General question flow | [Question flow](./business-logic/question-flow.md) |
+| Table topic behavior | [Table topic flow](./business-logic/table-topic-flow.md) |
 | Sync timing or sync buttons | [Sync settings](./sync-settings.md) |
 | Local vs global data | [Data ownership](./data-ownership.md) |
 | Word meanings | [Glossary](./glossary.md) |

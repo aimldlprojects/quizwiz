@@ -1,4 +1,5 @@
 import { ReviewRepository } from "../../database/reviewRepository"
+import { shuffleArray } from "../questions/shuffle"
 
 export interface Question {
   id: number
@@ -18,17 +19,27 @@ export class QuestionQueue {
   private reviewRepo?: ReviewRepository
   private userId?: number
   private loading: boolean = false
+  private seenIds = new Set<number>()
+  private dedupeWithinSession: boolean
+  private shuffleWithinSession: boolean
+  private topicIdsProvider?: () => Promise<number[]> | number[]
 
   constructor(
     loader: QuestionLoader,
     batchSize: number = 10,
     reviewRepo?: ReviewRepository,
-    userId?: number
+    userId?: number,
+    dedupeWithinSession: boolean = false,
+    shuffleWithinSession: boolean = false,
+    topicIdsProvider?: () => Promise<number[]> | number[]
   ) {
     this.loader = loader
     this.batchSize = batchSize
     this.reviewRepo = reviewRepo
     this.userId = userId
+    this.dedupeWithinSession = dedupeWithinSession
+    this.shuffleWithinSession = shuffleWithinSession
+    this.topicIdsProvider = topicIdsProvider
   }
 
   /*
@@ -63,10 +74,15 @@ export class QuestionQueue {
         this.reviewRepo &&
         this.userId !== undefined
       ) {
+        const topicIds =
+          this.topicIdsProvider
+            ? await this.topicIdsProvider()
+            : []
         const dueReviews =
           await this.reviewRepo.getDueReviews(
             this.userId,
-            this.batchSize
+            this.batchSize,
+            topicIds
           )
 
         const normalizedDueReviews =
@@ -76,9 +92,19 @@ export class QuestionQueue {
             answer: row.answer
           }))
 
-        this.queue.push(
-          ...normalizedDueReviews
-        )
+        for (const question of normalizedDueReviews) {
+          if (
+            this.dedupeWithinSession &&
+            this.seenIds.has(question.id)
+          ) {
+            continue
+          }
+
+          this.queue.push(question)
+          if (this.dedupeWithinSession) {
+            this.seenIds.add(question.id)
+          }
+        }
       }
 
       const remaining =
@@ -90,7 +116,23 @@ export class QuestionQueue {
             remaining
           )
 
-        this.queue.push(...loadedQuestions)
+        for (const question of loadedQuestions) {
+          if (
+            this.dedupeWithinSession &&
+            this.seenIds.has(question.id)
+          ) {
+            continue
+          }
+
+          this.queue.push(question)
+          if (this.dedupeWithinSession) {
+            this.seenIds.add(question.id)
+          }
+        }
+      }
+
+      if (this.shuffleWithinSession) {
+        this.queue = shuffleArray(this.queue)
       }
 
     } finally {
@@ -150,7 +192,33 @@ export class QuestionQueue {
   clear(): void {
 
     this.queue = []
+    this.seenIds.clear()
+    this.loading = false
 
+  }
+
+  snapshot() {
+    return {
+      queue: [...this.queue],
+      seenIds: [...this.seenIds]
+    }
+  }
+
+  restore(snapshot: {
+    queue: Question[]
+    seenIds: number[]
+  }) {
+    this.queue = [...snapshot.queue]
+    this.seenIds = new Set(snapshot.seenIds)
+    this.loading = false
+  }
+
+  shuffleQueue() {
+    if (this.queue.length < 2) {
+      return
+    }
+
+    this.queue = shuffleArray(this.queue)
   }
 
 }

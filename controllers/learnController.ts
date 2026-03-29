@@ -2,6 +2,7 @@
 
 import { TablesGenerator } from "../engine/questions/tablesGenerator"
 import { ttsService } from "../services/ttsService"
+import { shuffleArray } from "../engine/questions/shuffle"
 
 export interface LearnCard {
 
@@ -23,6 +24,7 @@ export class LearnController {
   private cards: LearnCard[] = []
 
   private index: number = 0
+  private completed: boolean = false
 
   // ---------- load cards ----------
 
@@ -30,6 +32,7 @@ export class LearnController {
 
     this.cards = cards
     this.index = 0
+    this.completed = false
 
   }
 
@@ -37,6 +40,7 @@ export class LearnController {
 
     if (this.cards.length === 0) {
       this.index = 0
+      this.completed = false
       return
     }
 
@@ -50,6 +54,7 @@ export class LearnController {
       )
 
     this.index = normalizedIndex
+    this.completed = false
 
   }
 
@@ -85,6 +90,7 @@ export class LearnController {
   getCurrentCard(): LearnCard | null {
 
     if (this.cards.length === 0) return null
+    if (this.completed) return null
 
     return this.cards[this.index]
 
@@ -94,11 +100,18 @@ export class LearnController {
 
   next(): LearnCard | null {
 
-    if (this.index < this.cards.length - 1) {
-      this.index += 1
+    if (this.cards.length === 0) {
+      return null
     }
 
-    return this.getCurrentCard()
+    if (this.index < this.cards.length - 1) {
+      this.index += 1
+      this.completed = false
+      return this.getCurrentCard()
+    }
+
+    this.completed = true
+    return null
 
   }
 
@@ -108,6 +121,7 @@ export class LearnController {
 
     if (this.index > 0) {
       this.index -= 1
+      this.completed = false
     }
 
     return this.getCurrentCard()
@@ -173,7 +187,29 @@ export class LearnController {
       )
     }
 
+    this.completed = false
+
     return this.getCurrentCard()
+
+  }
+
+  shuffleRemaining() {
+
+    if (this.index >= this.cards.length - 1) {
+      return
+    }
+
+    const completed = this.cards.slice(0, this.index)
+    const remaining = shuffleArray(
+      this.cards.slice(this.index)
+    )
+
+    this.cards = [
+      ...completed,
+      ...remaining
+    ]
+
+    this.index = completed.length
 
   }
 
@@ -182,7 +218,9 @@ export class LearnController {
   getProgress() {
 
     return {
-      current: this.index + 1,
+      current: this.completed
+        ? this.cards.length
+        : this.index + 1,
       total: this.cards.length
     }
 
@@ -194,6 +232,7 @@ export class LearnController {
 
     this.cards = []
     this.index = 0
+    this.completed = false
 
   }
 

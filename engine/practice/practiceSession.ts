@@ -16,6 +16,10 @@ export interface SessionStats {
   correct: number
 }
 
+export interface PracticeSessionSnapshot {
+  stats: SessionStats
+}
+
 export class PracticeSession {
 
   private scheduler: ReviewScheduler
@@ -172,6 +176,22 @@ export class PracticeSession {
     return Math.round(
       (this.stats.correct / this.stats.attempts) * 100
     )
+  }
+
+  snapshot(): PracticeSessionSnapshot {
+    return {
+      stats: {
+        attempts: this.stats.attempts,
+        correct: this.stats.correct
+      }
+    }
+  }
+
+  restore(snapshot: PracticeSessionSnapshot) {
+    this.stats = {
+      attempts: Math.max(0, snapshot.stats.attempts),
+      correct: Math.max(0, snapshot.stats.correct)
+    }
   }
 
   // ---------- reset session ----------

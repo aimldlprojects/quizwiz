@@ -274,8 +274,16 @@ export class ReviewRepository {
 
   async getDueReviews(
     userId: number,
-    limit: number = 20
+    limit: number = 20,
+    topicIds: number[] = []
   ) {
+
+    const topicFilterClause =
+      topicIds.length > 0
+        ? `AND q.topic_id IN (${topicIds
+            .map(() => "?")
+            .join(", ")})`
+        : ""
 
     const rows = await this.db.getAllAsync(
       `
@@ -287,11 +295,14 @@ export class ReviewRepository {
       WHERE r.user_id = ?
         AND r.next_review IS NOT NULL
         AND r.next_review <= ?
+        ${topicFilterClause}
 
       ORDER BY r.next_review ASC
       LIMIT ?
       `,
-      [userId, Date.now(), limit]
+      topicIds.length > 0
+        ? [userId, Date.now(), ...topicIds, limit]
+        : [userId, Date.now(), limit]
     )
 
     return rows

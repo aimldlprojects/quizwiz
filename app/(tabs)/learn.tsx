@@ -7,6 +7,8 @@ import {
   useState
 } from "react"
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,11 +33,15 @@ import {
   getLearnProgress,
   setLearnProgress
 } from "../../database/learnProgressRepository"
-import { generateLearnCardsForTopic } from "../../engine/questions/questionFactory"
+import {
+  getTableDeck,
+  isTableTopicKey
+} from "../../engine/questions/tableDeck"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { getThemeColors } from "../../styles/theme"
+import { restartButtonPadding } from "../../styles/restartButtonStyles"
 
 type Card = {
   id: number
@@ -111,12 +117,19 @@ export default function LearnScreen() {
     useRef<ReturnType<typeof setTimeout> | null>(
       null
     )
+  const completionAnim =
+    useRef(new Animated.Value(0)).current
+  const learnRandomOrderEnabledRef =
+    useRef(learnRandomOrderEnabled)
   const colors = getThemeColors(themeMode)
   const iconButtonStyle = (active: boolean) => ({
     backgroundColor: active
       ? colors.iconActive
       : colors.iconInactive
   })
+  const isTableTopic = Boolean(
+    isTableTopicKey(topic?.key)
+  )
 
   const persistLearnProgress =
     useCallback(async () => {
@@ -146,7 +159,12 @@ export default function LearnScreen() {
           totalCards: progressSnapshot.total
         }
       )
-    }, [db, activeUser, selectedTopicId, controller])
+  }, [db, activeUser, selectedTopicId, controller])
+
+  useEffect(() => {
+    learnRandomOrderEnabledRef.current =
+      learnRandomOrderEnabled
+  }, [learnRandomOrderEnabled])
 
   function clearLearnTimers() {
 
@@ -196,11 +214,15 @@ export default function LearnScreen() {
 
     clearLearnTimers()
 
-    const next = learnRandomOrderEnabled
-      ? (controller.rateCurrentCard(
-          feedback
-        ) as Card | null)
-      : (controller.next() as Card | null)
+    if (isTableTopic || learnRandomOrderEnabled) {
+      nextCard()
+      return
+    }
+
+    const next =
+      controller.rateCurrentCard(
+        feedback
+      ) as Card | null
 
     setCard(next)
     setRevealed(false)
@@ -209,7 +231,9 @@ export default function LearnScreen() {
 
   }, [
     controller,
+    isTableTopic,
     learnRandomOrderEnabled,
+    nextCard,
     persistLearnProgress
   ])
 
@@ -225,12 +249,8 @@ export default function LearnScreen() {
     controller.speak(spokenText)
   }, [ttsEnabled, card, revealed, controller])
 
-  useEffect(() => {
-
-    let cancelled = false
-
-    async function loadCards() {
-
+  const loadCardsForSelectedTopic =
+    useCallback(async (restart = false) => {
       if (!db || !activeUser || !selectedTopicId) {
         controller.reset()
         setCard(null)
@@ -249,16 +269,8 @@ export default function LearnScreen() {
           selectedTopicId
         )
 
-      if (cancelled) {
-        return
-      }
-
       const topics =
         await getAllTopics(db)
-
-      if (cancelled) {
-        return
-      }
 
       setTopic(selectedTopic ?? null)
 
@@ -266,36 +278,38 @@ export default function LearnScreen() {
         selectedTopic?.key ?? ""
 
       const generatedCards =
-        generateLearnCardsForTopic(topicKey)
+        getTableDeck(topicKey)
 
       if (generatedCards.length > 0) {
         controller.loadCards(generatedCards)
-        const savedProgress =
-          await getLearnProgress(
-            db,
-            activeUser,
-            selectedTopicId
-          )
+        if (restart) {
+          controller.setCurrentIndex(0)
+        } else {
+          const savedProgress =
+            await getLearnProgress(
+              db,
+              activeUser,
+              selectedTopicId
+            )
 
-        if (cancelled) {
-          return
-        }
+          if (savedProgress) {
+            const restoredIndex =
+              savedProgress.cardId != null
+                ? generatedCards.findIndex(
+                    (generatedCard) =>
+                      generatedCard.id ===
+                      savedProgress.cardId
+                  )
+                : -1
 
-        if (savedProgress) {
-          const restoredIndex =
-            savedProgress.cardId != null
-              ? generatedCards.findIndex(
-                  (generatedCard) =>
-                    generatedCard.id ===
-                    savedProgress.cardId
-                )
-              : -1
-
-          controller.setCurrentIndex(
-            restoredIndex >= 0
-              ? restoredIndex
-              : savedProgress.cardIndex
-          )
+            controller.setCurrentIndex(
+              restoredIndex >= 0
+                ? restoredIndex
+                : savedProgress.cardIndex
+            )
+          } else {
+            controller.setCurrentIndex(0)
+          }
         }
 
         setCard(controller.getCurrentCard())
@@ -318,10 +332,6 @@ export default function LearnScreen() {
           undefined,
           "sequence"
         )
-
-      if (cancelled) {
-        return
-      }
 
       if (rows.length === 0) {
         controller.reset()
@@ -346,53 +356,95 @@ export default function LearnScreen() {
 
       controller.loadCards(loadedCards)
 
-      const savedProgress =
-        await getLearnProgress(
-          db,
-          activeUser,
-          selectedTopicId
-        )
+      if (restart) {
+        controller.setCurrentIndex(0)
+      } else {
+        const savedProgress =
+          await getLearnProgress(
+            db,
+            activeUser,
+            selectedTopicId
+          )
 
-      if (cancelled) {
-        return
+        if (savedProgress) {
+          const restoredIndex =
+            savedProgress.cardId != null
+              ? loadedCards.findIndex(
+                  (loadedCard) =>
+                    loadedCard.id ===
+                    savedProgress.cardId
+                )
+              : -1
+
+          controller.setCurrentIndex(
+            restoredIndex >= 0
+              ? restoredIndex
+              : savedProgress.cardIndex
+          )
+        } else {
+          controller.setCurrentIndex(0)
+        }
       }
 
-      if (savedProgress) {
-        const restoredIndex =
-          savedProgress.cardId != null
-            ? loadedCards.findIndex(
-                (loadedCard) =>
-                  loadedCard.id ===
-                  savedProgress.cardId
-              )
-            : -1
-
-        controller.setCurrentIndex(
-          restoredIndex >= 0
-            ? restoredIndex
-            : savedProgress.cardIndex
-        )
+      if (learnRandomOrderEnabledRef.current) {
+        controller.shuffleRemaining()
       }
 
       setCard(controller.getCurrentCard())
       setRevealed(false)
       setProgress(controller.getProgress())
       void persistLearnProgress()
+    }, [
+      activeUser,
+      controller,
+      db,
+      persistLearnProgress,
+      selectedTopicId
+    ])
 
+  const restartLearnSession = useCallback(() => {
+    clearLearnTimers()
+    controller.reset()
+    setRevealed(false)
+    void loadCardsForSelectedTopic(true)
+  }, [controller, loadCardsForSelectedTopic])
+
+  const toggleLearnRandomOrder = useCallback(() => {
+    const nextEnabled = !learnRandomOrderEnabled
+    setLearnRandomOrderEnabled(nextEnabled)
+
+    if (!nextEnabled) {
+      return
     }
 
-    loadCards()
-
-    return () => {
-      cancelled = true
-    }
-
+    controller.shuffleRemaining()
+    setCard(controller.getCurrentCard())
+    setProgress(controller.getProgress())
+    setRevealed(false)
+    void persistLearnProgress()
   }, [
-    db,
-    selectedTopicId,
     controller,
-    activeUser,
-    persistLearnProgress
+    learnRandomOrderEnabled,
+    persistLearnProgress,
+    setLearnRandomOrderEnabled
+  ])
+
+  useEffect(() => {
+    Animated.timing(completionAnim, {
+      toValue:
+        !card && selectedTopicId && progress.total > 0
+          ? 1
+          : 0,
+      duration: 320,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start()
+  }, [card, completionAnim, progress.total, selectedTopicId])
+
+  useEffect(() => {
+    void loadCardsForSelectedTopic()
+  }, [
+    loadCardsForSelectedTopic
   ])
 
   useEffect(() => {
@@ -508,11 +560,7 @@ export default function LearnScreen() {
                   styles.iconButton,
                   iconButtonStyle(learnRandomOrderEnabled)
                 ]}
-                onPress={() =>
-                  setLearnRandomOrderEnabled(
-                    !learnRandomOrderEnabled
-                  )
-                }
+                onPress={toggleLearnRandomOrder}
               >
                 <MaterialIcons
                   name="shuffle"
@@ -612,13 +660,60 @@ export default function LearnScreen() {
                   colors={colors}
                 />
           ) : (
-            <Text
-              style={[styles.placeholder, { color: colors.muted }]}
+            <Animated.View
+              style={[
+                styles.completionWrap,
+                {
+                  opacity: completionAnim,
+                  transform: [
+                    {
+                      scale: completionAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.98, 1]
+                      })
+                    },
+                    {
+                      translateY: completionAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [10, 0]
+                      })
+                    }
+                  ]
+                }
+              ]}
             >
-              {selectedTopicId
-                ? "No cards are ready for this topic yet."
-                : "Choose a topic before learning."}
-            </Text>
+              <Text
+                style={[styles.placeholder, { color: colors.muted }]}
+              >
+                {selectedTopicId
+                  ? progress.total > 0
+                    ? "Topic complete"
+                    : "No cards are ready for this topic yet."
+                  : "Choose a topic before learning."}
+              </Text>
+              {selectedTopicId && progress.total > 0 ? (
+                <Pressable
+                  style={[
+                    styles.controlButton,
+                    {
+                      backgroundColor: colors.iconActive,
+                      marginTop: 16,
+                      ...restartButtonPadding
+                    }
+                  ]}
+                  onPress={restartLearnSession}
+                >
+                  <Text
+                    style={[
+                      styles.controlText,
+                      { color: "#ffffff" }
+                    ]}
+                  >
+                    Learn more
+                  </Text>
+                </Pressable>
+              ) : null}
+            </Animated.View>
           )}
         </View>
 
@@ -877,6 +972,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16
   },
 
+  completionWrap: {
+    alignItems: "center"
+  },
+
   controls: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -887,6 +986,7 @@ const styles = StyleSheet.create({
   controlButton: {
     flex: 1,
     borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 14,
     alignItems: "center"
   },

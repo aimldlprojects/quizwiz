@@ -30,6 +30,8 @@ export function usePractice(controller: PracticeController | null) {
     attempts: 0,
     correct: 0
   })
+  const [remainingCards, setRemainingCards] =
+    useState(0)
 
   const safeController = controller
 
@@ -44,6 +46,14 @@ export function usePractice(controller: PracticeController | null) {
     setQuestion(q)
     setAnswer("")
     setResult(null)
+    const currentStats = safeController.getStats()
+    setStats({
+      attempts: currentStats.attempts,
+      correct: currentStats.correct
+    })
+    setRemainingCards(
+      safeController.getRemainingCards()
+    )
 
     setLoading(false)
 
@@ -109,6 +119,9 @@ export function usePractice(controller: PracticeController | null) {
     setAnswer("")
     setResult(null)
     isSubmittingRef.current = false
+    setRemainingCards(
+      safeController.getRemainingCards()
+    )
 
   }, [safeController])
 
@@ -130,6 +143,11 @@ export function usePractice(controller: PracticeController | null) {
 
     if (!safeController) return
 
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+      autoNextTimeoutRef.current = null
+    }
+
     safeController.resetSession()
 
     setStats({
@@ -137,12 +155,20 @@ export function usePractice(controller: PracticeController | null) {
       correct: 0
     })
     setScore(0)
+    setRemainingCards(
+      safeController.getRemainingCards()
+    )
 
     setAnswer("")
     setResult(null)
     isSubmittingRef.current = false
 
   }, [safeController])
+
+  const restartPractice = useCallback(async () => {
+    resetSession()
+    await startPractice()
+  }, [resetSession, startPractice])
 
   useEffect(() => {
 
@@ -151,6 +177,12 @@ export function usePractice(controller: PracticeController | null) {
     startPractice()
 
   }, [safeController, startPractice])
+
+  useEffect(() => {
+    return () => {
+      void safeController?.persistSessionState()
+    }
+  }, [safeController])
 
   useEffect(() => () => {
 
@@ -177,10 +209,12 @@ export function usePractice(controller: PracticeController | null) {
         : Math.round(
             (stats.correct / stats.attempts) * 100
           ),
+    remainingCards,
 
     loading,
 
     startPractice,
+    restartPractice,
     submitAnswer,
     nextQuestion,
     autoNext,

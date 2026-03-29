@@ -1,3 +1,5 @@
+import { shuffleArray } from "./questions/shuffle"
+
 export class SessionCache<T> {
 
   private items: T[] = []
@@ -27,6 +29,47 @@ export class SessionCache<T> {
 
     return this.items.length - this.index
 
+  }
+
+  snapshot() {
+    return {
+      items: [...this.items],
+      index: this.index
+    }
+  }
+
+  restore(
+    snapshot: {
+      items: T[]
+      index: number
+    }
+  ) {
+    this.items = [...snapshot.items]
+    this.index = Math.max(
+      0,
+      Math.min(snapshot.index, this.items.length)
+    )
+  }
+
+  shuffleRemaining() {
+    if (this.index >= this.items.length - 1) {
+      return
+    }
+
+    const completed = this.items.slice(0, this.index)
+    const remaining = shuffleArray(
+      this.items.slice(this.index)
+    )
+
+    this.items = [
+      ...completed,
+      ...remaining
+    ]
+  }
+
+  clear() {
+    this.items = []
+    this.index = 0
   }
 
 }

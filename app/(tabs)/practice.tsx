@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react"
 import {
@@ -28,11 +29,20 @@ import {
 } from "../../database/contentRepository"
 import { ReviewRepository } from "../../database/reviewRepository"
 import { StatsRepository } from "../../database/statsRepository"
-import { getSyncDirtyAt } from "../../database/syncMetaRepository"
+import {
+  getSyncDirtyAt,
+  subscribeSyncMetaChanges
+} from "../../database/syncMetaRepository"
 import { getSyncStatus, type SyncStatusRecord } from "../../database/syncStatusRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
-import { BatchLoader } from "../../engine/questions/batchLoader"
-import { generateQuestionBatch } from "../../engine/questions/questionFactory"
+import {
+  generateQuestionBatch
+} from "../../engine/questions/questionFactory"
+import {
+  getTableDeck,
+  isTableTopicKey,
+  TableDeckSession
+} from "../../engine/questions/tableDeck"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 import { useDatabase } from "../../hooks/useDatabase"
 import { usePractice } from "../../hooks/usePractice"
@@ -42,6 +52,8 @@ import { getSyncServerUrl } from "../../services/sync/config"
 import { syncReviews } from "../../services/sync/syncReviews"
 import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
+import { restartButtonPadding } from "../../styles/restartButtonStyles"
+import { shuffleArray } from "../../engine/questions/shuffle"
 
 function getKeyboardType(answer: unknown) {
 
@@ -82,6 +94,36 @@ export default function PracticeScreen() {
 
   const [selectedTopic, setSelectedTopic] =
     useState<TopicRecord | null>(null)
+  const [practiceDeckTotal, setPracticeDeckTotal] =
+    useState(0)
+  const tableDeckSessionRef =
+    useRef(new TableDeckSession())
+
+  const isTableTopic = Boolean(
+    selectedTopic?.key &&
+      [
+        "multiplication_tables",
+        "tables_1_5",
+        "tables_6_10",
+        "tables_11_15",
+        "tables_16_20"
+      ].includes(selectedTopic.key)
+  )
+
+  const getPracticeTopicIds = useCallback(
+    async () => {
+      if (!db || !selectedTopicId) {
+        return []
+      }
+
+      const topics = await getAllTopics(db)
+      return getDescendantTopicIds(
+        topics,
+        selectedTopicId
+      )
+    },
+    [db, selectedTopicId]
+  )
 
   useEffect(() => {
 
@@ -89,6 +131,7 @@ export default function PracticeScreen() {
 
       if (!db || !selectedTopicId) {
         setSelectedTopic(null)
+        setPracticeDeckTotal(0)
         return
       }
 
@@ -96,9 +139,36 @@ export default function PracticeScreen() {
         await getTopicById(
           db,
           selectedTopicId
-        )
+      )
 
       setSelectedTopic(topic ?? null)
+
+      if (!topic) {
+        setPracticeDeckTotal(0)
+        return
+      }
+
+      if (isTableTopicKey(topic.key ?? "")) {
+        setPracticeDeckTotal(
+          getTableDeck(topic.key ?? "").length
+        )
+        return
+      }
+
+      const topics = await getAllTopics(db)
+      const topicIds = getDescendantTopicIds(
+        topics,
+        selectedTopicId
+      )
+
+      const rows = await getQuestionsForTopicTree(
+        db,
+        topicIds,
+        undefined,
+        "sequence"
+      )
+
+      setPracticeDeckTotal(rows.length)
 
     }
 
@@ -127,6 +197,18 @@ export default function PracticeScreen() {
               db,
               selectedTopicId
             )
+          const topicKey = topic?.key ?? ""
+
+          if (isTableTopicKey(topicKey)) {
+            tableDeckSessionRef.current.load(topicKey)
+            const tableCards =
+              tableDeckSessionRef.current.take(limit)
+
+            return practiceRandomOrderEnabled
+              ? shuffleArray(tableCards)
+              : tableCards
+          }
+
           const topics =
             await getAllTopics(db)
           const topicIds =
@@ -155,30 +237,26 @@ export default function PracticeScreen() {
               type: row.type ?? undefined
             }))
 
-            return mappedRows
+            return practiceRandomOrderEnabled
+              ? shuffleArray(mappedRows)
+              : mappedRows
           }
 
-          if (topic?.key) {
+          if (topicKey) {
             const generated =
               generateQuestionBatch(
-                topic.key,
+                topicKey,
                 limit
               )
 
             if (generated.length > 0) {
-              return generated
+              return practiceRandomOrderEnabled
+                ? shuffleArray(generated)
+                : generated
             }
           }
 
-          const batchLoader = new BatchLoader({
-            batchSize: limit,
-            source: "mixed"
-          })
-
-          const batch =
-            await batchLoader.loadBatch()
-
-          return batch
+          return []
         }
       },
       10,
@@ -187,7 +265,10 @@ export default function PracticeScreen() {
         : undefined,
       practiceRandomOrderEnabled
         ? activeUser
-        : undefined
+        : undefined,
+      true,
+      practiceRandomOrderEnabled,
+      getPracticeTopicIds
     )
 
     return new PracticeController(
@@ -195,14 +276,16 @@ export default function PracticeScreen() {
       scheduler,
       queue,
       repo,
-      selectedTopicId
+      selectedTopicId,
+      practiceRandomOrderEnabled
     )
 
   }, [
     db,
     activeUser,
     selectedTopicId,
-    practiceRandomOrderEnabled
+    practiceRandomOrderEnabled,
+    getPracticeTopicIds
   ])
 
   const practice = usePractice(controller)
@@ -214,6 +297,8 @@ export default function PracticeScreen() {
     practice.answered
   const autoNextQuestion =
     practice.autoNext
+  const practiceRemainingCards =
+    practice.remainingCards
   const colors = getThemeColors(themeMode)
   const iconButtonStyle = (active: boolean) => ({
     backgroundColor: active
@@ -236,6 +321,32 @@ export default function PracticeScreen() {
   const [remoteSyncTime, setRemoteSyncTime] =
     useState<number | null>(null)
   const syncServerUrl = getSyncServerUrl()
+
+  const handlePracticeMore = useCallback(async () => {
+    if (isTableTopic) {
+      tableDeckSessionRef.current.reset()
+    }
+
+    await practice.restartPractice()
+  }, [isTableTopic, practice])
+
+  const togglePracticeRandomOrder =
+    useCallback(() => {
+      const nextEnabled =
+        !practiceRandomOrderEnabled
+
+      setPracticeRandomOrderEnabled(nextEnabled)
+
+      if (!nextEnabled || !controller) {
+        return
+      }
+
+      controller.shuffleRemainingCards()
+    }, [
+      controller,
+      practiceRandomOrderEnabled,
+      setPracticeRandomOrderEnabled
+    ])
 
   const refreshSyncStatus =
     useCallback(async () => {
@@ -297,6 +408,23 @@ export default function PracticeScreen() {
     practice.result,
     selectedTopicId,
     activeUser
+  ])
+
+  useEffect(() => {
+    if (!db) return
+
+    const unsubscribe = subscribeSyncMetaChanges(
+      () => {
+        void refreshSyncStatus()
+        void refreshSyncIndicators()
+      }
+    )
+
+    return unsubscribe
+  }, [
+    db,
+    refreshSyncIndicators,
+    refreshSyncStatus
   ])
 
   const overallStatus =
@@ -393,20 +521,6 @@ export default function PracticeScreen() {
               (totals.correct / totals.attempts) * 100
             )
       )
-
-      console.log("[practice-accuracy] refreshed", {
-        userId: activeUser,
-        selectedTopicId,
-        attempts: totals.attempts,
-        correct: totals.correct,
-        accuracy:
-          totals.attempts === 0
-            ? 0
-            : Math.round(
-                (totals.correct / totals.attempts) *
-                  100
-              )
-      })
     }, [db, activeUser, selectedTopicId])
 
   useFocusEffect(
@@ -524,6 +638,94 @@ export default function PracticeScreen() {
   function renderQuestion() {
 
     if (!practiceQuestion) {
+      if (isTableTopic && practiceRemainingCards === 0) {
+        return (
+          <View style={styles.emptyCard}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                { color: colors.text }
+              ]}
+            >
+              Topic complete
+            </Text>
+
+            <Text
+              style={[
+                styles.emptyText,
+                { color: colors.muted }
+              ]}
+            >
+              You have reached the end of this practice session.
+            </Text>
+
+            <Pressable
+              style={[
+                styles.restartButton,
+                {
+                  backgroundColor: colors.iconActive,
+                  ...restartButtonPadding
+                }
+              ]}
+              onPress={handlePracticeMore}
+            >
+              <Text
+                style={[
+                  styles.restartButtonText,
+                  { color: "#ffffff" }
+                ]}
+              >
+                Practice more
+              </Text>
+            </Pressable>
+          </View>
+        )
+      }
+
+      if (selectedTopicId && practice.stats.attempts > 0) {
+        return (
+          <View style={styles.emptyCard}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                { color: colors.text }
+              ]}
+            >
+              Topic complete
+            </Text>
+
+            <Text
+              style={[
+                styles.emptyText,
+                { color: colors.muted }
+              ]}
+            >
+              You have reached the end of this practice session.
+            </Text>
+
+            <Pressable
+              style={[
+                styles.restartButton,
+                {
+                  backgroundColor: colors.iconActive,
+                  ...restartButtonPadding
+                }
+              ]}
+              onPress={handlePracticeMore}
+            >
+              <Text
+                style={[
+                  styles.restartButtonText,
+                  { color: "#ffffff" }
+                ]}
+              >
+                Practice more
+              </Text>
+            </Pressable>
+          </View>
+        )
+      }
+
       return (
         <View style={styles.emptyCard}>
           <Text
@@ -544,26 +746,27 @@ export default function PracticeScreen() {
             This topic has no playable content yet.
           </Text>
 
-          <Pressable
-            style={[
-              styles.retryButton,
-              {
-                backgroundColor: colors.iconActive
-              }
-            ]}
-            onPress={practice.startPractice}
-          >
-            <Text
+            <Pressable
               style={[
-                styles.retryButtonText,
-                { color: "#ffffff" }
+                styles.restartButton,
+                {
+                  backgroundColor: colors.iconActive,
+                  ...restartButtonPadding
+                }
               ]}
+              onPress={practice.startPractice}
             >
-              Try Again
-            </Text>
-          </Pressable>
-        </View>
-      )
+              <Text
+                style={[
+                  styles.restartButtonText,
+                  { color: "#ffffff" }
+                ]}
+              >
+                Try Again
+              </Text>
+            </Pressable>
+          </View>
+        )
     }
 
     return (
@@ -571,6 +774,33 @@ export default function PracticeScreen() {
         style={[styles.question, { color: colors.text }]}
       >
         {practiceQuestion.question}
+      </Text>
+    )
+
+  }
+
+  function renderQuestionProgress() {
+
+    if (!practiceQuestion) return null
+
+    const currentQuestionNumber =
+      practiceAnswered
+        ? practice.stats.attempts
+        : practice.stats.attempts + 1
+
+    const totalQuestions = practiceDeckTotal
+
+    if (totalQuestions <= 0) return null
+
+    return (
+      <Text
+        style={[
+          styles.questionProgress,
+          { color: colors.muted }
+        ]}
+      >
+        Card {currentQuestionNumber} of{" "}
+        {totalQuestions}
       </Text>
     )
 
@@ -644,11 +874,7 @@ export default function PracticeScreen() {
                   styles.iconButton,
                   iconButtonStyle(practiceRandomOrderEnabled)
                 ]}
-                onPress={() =>
-                  setPracticeRandomOrderEnabled(
-                    !practiceRandomOrderEnabled
-                  )
-                }
+                onPress={togglePracticeRandomOrder}
               >
                 <MaterialIcons
                   name="shuffle"
@@ -754,6 +980,7 @@ export default function PracticeScreen() {
           ]}
         >
           {renderQuestion()}
+          {renderQuestionProgress()}
 
           {practiceQuestion ? (
             <>
@@ -913,6 +1140,13 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
 
+  questionProgress: {
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 16
+  },
+
   input: {
     borderWidth: 2,
     borderColor: "#93c5fd",
@@ -968,16 +1202,14 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
 
-  retryButton: {
-    backgroundColor: "#f97316",
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12
+  restartButton: {
+    borderRadius: 18,
+    alignItems: "center"
   },
 
-  retryButtonText: {
+  restartButtonText: {
     color: "#ffffff",
-    fontWeight: "800"
+    fontWeight: "700"
   }
 
 })

@@ -20,10 +20,11 @@ The app shows sync status in a few places:
 These user changes are part of sync:
 
 - practice answers and review history
-- progress and accuracy
+- progress, accuracy, and the current practice session card count
 - badges
 - topic selections
 - Learn screen progress, including the last card position for a topic
+- Practice session resume state, including the current card, remaining queue, and session stats
 - profile preferences such as theme, voice, and practice behavior
 - sync settings such as sync mode, sync interval, and sync gap
 
@@ -53,7 +54,7 @@ This table follows the screen order in the app and shows what each screen can do
 | --- | --- | --- | --- | --- |
 | Topics | Select subjects and topics | Yes | Yes | Topic selections save on the device first, then sync later. |
 | Learn | Study flash cards and learning content | Yes | Yes | Learn keeps the last card position for each topic. |
-| Practice | Answer questions and build progress | Yes | Yes | Practice updates review history, progress, and accuracy. |
+| Practice | Answer questions and build progress | Yes | Yes | Practice updates review history, progress, accuracy, and saved session state, including the current card count. |
 | Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen only displays synced practice data. |
 | Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls and shared sync settings. |
@@ -106,7 +107,7 @@ This table lists the settings that are saved right away on the device and also s
 
 ### Practice screen
 
-After answering a question, the Practice screen shows a sync button near the answer controls. Use it to save practice progress right away.
+After answering a question, the Practice screen shows a sync button near the answer controls. Use it to save practice progress and the current session state right away.
 
 ### Syncing Overlay
 

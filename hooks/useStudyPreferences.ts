@@ -86,20 +86,6 @@ function clonePreferences(prefs: Preferences) {
   }
 }
 
-function getSelectedTopicIds(
-  prefs: Preferences
-) {
-  return Array.from(
-    new Set([
-      ...prefs.selectedTopicLevel1Ids,
-      ...prefs.selectedTopicLevel2Ids,
-      ...(prefs.selectedTopicId == null
-        ? []
-        : [prefs.selectedTopicId])
-    ])
-  )
-}
-
 function cachePreferencesForUser(
   userId: number | null,
   prefs: Preferences
@@ -112,27 +98,6 @@ function cachePreferencesForUser(
     userId,
     clonePreferences(prefs)
   )
-}
-
-function logSelectionState(
-  userId: number | null,
-  action: string,
-  prefs: Preferences
-) {
-  console.log("[study-preferences] selection", {
-    action,
-    userId,
-    selectedSubjectId: prefs.selectedSubjectId,
-    selectedSubjectIds: [...prefs.selectedSubjectIds],
-    selectedTopicId: prefs.selectedTopicId,
-    selectedTopicLevel1Ids: [
-      ...prefs.selectedTopicLevel1Ids
-    ],
-    selectedTopicLevel2Ids: [
-      ...prefs.selectedTopicLevel2Ids
-    ],
-    selectedTopicIds: getSelectedTopicIds(prefs)
-  })
 }
 
 export function useStudyPreferences(
@@ -399,13 +364,6 @@ export function useStudyPreferences(
       ...updates
     }
 
-    if (rawTopicArrayRows.length > 0) {
-      console.log("[study-preferences] topic ids loaded", {
-        userId: preferenceUserId,
-        rows: rawTopicArrayRows
-      })
-    }
-
     if (loadToken !== loadTokenRef.current) {
       return
     }
@@ -416,11 +374,6 @@ export function useStudyPreferences(
     setPreferences(clonedPreferences)
     cachePreferencesForUser(
       preferenceUserId,
-      nextPreferences
-    )
-    logSelectionState(
-      preferenceUserId,
-      "loaded",
       nextPreferences
     )
     setLoading(false)
@@ -512,13 +465,6 @@ export function useStudyPreferences(
       updatedAt
     )
 
-    if (key === selectedTopicKey) {
-      console.log("[study-preferences] topic saved", {
-        userId: preferenceUserId,
-        selectedTopicId:
-          value == null ? null : Number(value)
-      })
-    }
   }
 
   async function persistIdArray(
@@ -526,17 +472,6 @@ export function useStudyPreferences(
     ids: number[],
     updatedAt: number = Date.now()
   ) {
-    if (
-      key === selectedTopicLevel1IdsKey ||
-      key === selectedTopicLevel2IdsKey
-    ) {
-      console.log("[study-preferences] topic ids saved", {
-        userId: preferenceUserId,
-        key,
-        ids: [...ids]
-      })
-    }
-
     await savePreference(
       key,
       JSON.stringify(ids),
@@ -594,15 +529,6 @@ export function useStudyPreferences(
       updatedAt
     )
 
-    logSelectionState(
-      preferenceUserId,
-      "subject-toggle",
-      {
-        ...nextPreferences,
-        selectedSubjectIds: nextArray,
-        selectedSubjectId: nextPrimary
-      }
-    )
   }
 
   async function toggleTopicSelection(
@@ -666,11 +592,6 @@ export function useStudyPreferences(
       updatedAt
     )
 
-    logSelectionState(
-      preferenceUserId,
-      "topic-toggle",
-      nextPreferences
-    )
   }
 
   async function setSelectedSubjectId(
@@ -697,15 +618,6 @@ export function useStudyPreferences(
     )
     await savePreference(selectedTopicKey, null, updatedAt)
 
-    logSelectionState(
-      preferenceUserId,
-      "set-subject",
-      {
-        ...nextPreferences,
-        selectedSubjectId: subjectId,
-        selectedTopicId: null
-      }
-    )
   }
 
   async function setSelectedTopicId(
@@ -730,14 +642,6 @@ export function useStudyPreferences(
       updatedAt
     )
 
-    logSelectionState(
-      preferenceUserId,
-      "set-topic",
-      {
-        ...nextPreferences,
-        selectedTopicId: topicId
-      }
-    )
   }
 
   async function setTtsEnabled(enabled: boolean) {

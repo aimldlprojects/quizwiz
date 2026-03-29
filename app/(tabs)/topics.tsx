@@ -45,6 +45,7 @@ export default function TopicsScreen() {
   } = useUsers(db)
   const {
     selectedSubjectId,
+    selectedTopicId,
     selectedSubjectIds,
     selectedTopicLevel1Ids,
     selectedTopicLevel2Ids,
@@ -97,6 +98,8 @@ export default function TopicsScreen() {
     selectedSubjectId
   const previousNavigationSubjectId =
     useRef<number | null>(null)
+  const hadSelectedSelectionRef =
+    useRef(false)
 
   useEffect(() => {
     async function loadOptions() {
@@ -192,6 +195,31 @@ export default function TopicsScreen() {
     previousNavigationSubjectId.current =
       navigationSubjectId
   }, [navigationSubjectId])
+
+  useEffect(() => {
+    const hasSelection =
+      selectedSubjectId != null ||
+      selectedTopicId != null ||
+      selectedSubjectIds.length > 0 ||
+      selectedTopicLevel1Ids.length > 0 ||
+      selectedTopicLevel2Ids.length > 0
+
+    if (
+      !hasSelection &&
+      hadSelectedSelectionRef.current
+    ) {
+      setActiveSubjectId(null)
+      setActiveTopicPath([])
+    }
+
+    hadSelectedSelectionRef.current = hasSelection
+  }, [
+    selectedSubjectId,
+    selectedTopicId,
+    selectedSubjectIds.length,
+    selectedTopicLevel1Ids.length,
+    selectedTopicLevel2Ids.length
+  ])
 
   const displayedActiveTopicPath =
     activeTopicPath

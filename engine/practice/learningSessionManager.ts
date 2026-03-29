@@ -11,6 +11,7 @@ export class LearningSessionManager {
 
   private cache = new SessionCache<Question>()
   private queue: QuestionQueue
+  private restored = false
 
   constructor(queue: QuestionQueue) {
     this.queue = queue
@@ -23,6 +24,11 @@ export class LearningSessionManager {
   */
 
   async startSession(batchSize: number = 20) {
+
+    if (this.restored) {
+      this.restored = false
+      return this.cache.next()
+    }
 
     await this.queue.init()
 
@@ -116,6 +122,29 @@ export class LearningSessionManager {
 
     return this.cache.remaining()
 
+  }
+
+  snapshot() {
+    return this.cache.snapshot()
+  }
+
+  restore(
+    snapshot: {
+      items: Question[]
+      index: number
+    }
+  ) {
+    this.cache.restore(snapshot)
+    this.restored = true
+  }
+
+  shuffleRemaining() {
+    this.cache.shuffleRemaining()
+  }
+
+  reset() {
+    this.cache.clear()
+    this.restored = false
   }
 
 }

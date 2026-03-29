@@ -10,6 +10,11 @@ import { ReviewRating } from "../engine/scheduler/spacedRepetition"
 import { SessionCache } from "../engine/sessionCache"
 import { registerAchievementListener } from "../services/events/achievementListener"
 import { SyncService } from "../services/syncService"
+import {
+  clearPracticeSession,
+  getPracticeSession,
+  setPracticeSession
+} from "../database/practiceSessionRepository"
 export class PracticeController {
 
   private session: PracticeSession
@@ -23,13 +28,15 @@ export class PracticeController {
   private topicId: number | null
   private sessionManager: LearningSessionManager
   private sessionCache = new SessionCache<any>()
+  private shuffleRemainingSession: boolean
 
   constructor(
     userId: number,
     scheduler: ReviewScheduler,
     queue: QuestionQueue,
     repo: ReviewRepository,
-    topicId: number | null = null
+    topicId: number | null = null,
+    shuffleRemainingSession: boolean = false
   ) {
 
     this.userId = userId
@@ -37,6 +44,7 @@ export class PracticeController {
     this.scheduler = scheduler
     this.queue = queue
     this.repo = repo
+    this.shuffleRemainingSession = shuffleRemainingSession
     this.statsRepo = new StatsRepository(
       repo.getDB()
     )
@@ -76,12 +84,20 @@ export class PracticeController {
 
   async startPractice() {
 
+    await this.restoreSessionState()
+
+    if (this.shuffleRemainingSession) {
+      this.shuffleRemainingCards()
+    }
+
     const question =
       await this.sessionManager.startSession()
 
     this.session.setCurrentQuestion(
       question
     )
+
+    await this.saveSessionState()
 
     return question
 
@@ -112,7 +128,12 @@ export class PracticeController {
 
     this.session.setCurrentQuestion(q)
 
-    if (!q) return null
+    if (!q) {
+      await this.clearSessionState()
+      return null
+    }
+
+    await this.saveSessionState()
 
     return q
 
@@ -199,6 +220,8 @@ export class PracticeController {
       }
     )
 
+    await this.saveSessionState()
+
     return result
 
   }
@@ -242,7 +265,112 @@ export class PracticeController {
   resetSession() {
 
     this.session.resetSession()
+    this.sessionManager.reset()
+    this.queue.clear()
+    this.sessionCache.clear()
+    void this.clearSessionState()
 
+  }
+
+  shuffleRemainingCards() {
+    this.sessionManager.shuffleRemaining()
+    this.queue.shuffleQueue()
+  }
+
+  async snapshotSessionState() {
+    return {
+      practice: this.session.snapshot(),
+      session: this.sessionManager.snapshot(),
+      queue: this.queue.snapshot()
+    }
+  }
+
+  async persistSessionState() {
+    await this.saveSessionState()
+  }
+
+  async restoreSessionState() {
+    if (this.topicId == null) {
+      return
+    }
+
+    const saved = await getPracticeSession(
+      this.repo.getDB(),
+      this.userId,
+      this.topicId
+    )
+
+    if (!saved) {
+      return
+    }
+
+    const sessionSnapshot =
+      saved.state.session
+    const queueSnapshot =
+      saved.state.queue
+    const practiceSnapshot =
+      saved.state.practice
+
+    if (
+      !sessionSnapshot?.items?.length ||
+      !queueSnapshot ||
+      !practiceSnapshot
+    ) {
+      return
+    }
+
+    this.queue.restore(queueSnapshot)
+
+    this.session.restore(practiceSnapshot)
+
+    this.sessionManager.restore({
+      items: sessionSnapshot.items,
+      index: Math.max(
+        0,
+        Math.min(
+          sessionSnapshot.index - 1,
+          sessionSnapshot.items.length - 1
+        )
+      )
+    })
+
+  }
+
+  private async saveSessionState() {
+    if (this.topicId == null) {
+      return
+    }
+
+    const snapshot =
+      await this.snapshotSessionState()
+
+    if (snapshot.session.items.length === 0) {
+      await clearPracticeSession(
+        this.repo.getDB(),
+        this.userId,
+        this.topicId
+      )
+      return
+    }
+
+    await setPracticeSession(
+      this.repo.getDB(),
+      this.userId,
+      this.topicId,
+      snapshot
+    )
+  }
+
+  private async clearSessionState() {
+    if (this.topicId == null) {
+      return
+    }
+
+    await clearPracticeSession(
+      this.repo.getDB(),
+      this.userId,
+      this.topicId
+    )
   }
 
 }

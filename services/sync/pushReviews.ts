@@ -179,6 +179,7 @@ async function getSettingsForSync(
       row.key === "sync_mode" ||
       row.key === "sync_interval_ms" ||
       row.key === "sync_min_gap_ms" ||
+      row.key.startsWith("practice_session_topic_") ||
       row.key.startsWith("admin_selected_topic_path_") ||
       row.key.startsWith("user_disabled_user_")
     )
