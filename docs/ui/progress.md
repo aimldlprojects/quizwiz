@@ -10,14 +10,14 @@ Review practice progress.
 - The main card shows overall accuracy.
 - The Topics section shows topic progress.
 - The Subjects section shows subject progress.
-- The streak area shows the current practice streak.
+- The streak area shows continuous practice days in a row.
 
 ## Controls
 
 - Review accuracy - see how many answers were correct overall.
 - View topic progress - check progress for each topic.
 - View subject progress - check progress for each subject.
-- See the current streak - see how many days in a row the user has practiced.
+- See continuous practice days in a row - see how many days in a row the user has practiced.
 
 ## Notes
 

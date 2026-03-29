@@ -171,14 +171,15 @@ export default function ProgressScreen() {
             {overallTotals.attempts}/{overallQuestionCount} seen
           </Text>
 
-          <Text
-            style={[
-              styles.heroSubtext,
-              { color: colors.muted }
-            ]}
-          >
-            Current streak: {streak} day{streak === 1 ? "" : "s"}
-          </Text>
+            <Text
+              style={[
+                styles.heroSubtext,
+                { color: colors.muted }
+              ]}
+            >
+              Continuous practice days in a row:{" "}
+              {streak} day{streak === 1 ? "" : "s"}
+            </Text>
         </View>
 
         <View
@@ -371,7 +372,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
     color: "#475569",
-    fontSize: 16,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "700"
   },
 
