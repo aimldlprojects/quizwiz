@@ -23,7 +23,7 @@ Review practice progress.
 
 - This is a read-only screen.
 - It shows synced practice data.
-- `Seen` shows how many questions were practiced out of the total available.
+- `Attempts` shows how many practice answers were recorded out of the total available questions.
 - If no user is active, the screen asks you to choose a profile first.
 - While loading, the screen shows `Loading progress...`.
 

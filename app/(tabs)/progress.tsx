@@ -168,7 +168,7 @@ export default function ProgressScreen() {
               { color: colors.muted }
             ]}
           >
-            {overallTotals.attempts}/{overallQuestionCount} seen
+            {overallTotals.attempts}/{overallQuestionCount} attempts
           </Text>
 
             <Text
@@ -243,7 +243,7 @@ export default function ProgressScreen() {
               >
                 {topic.correct}/{topic.practiced} correct
                 {"  "}•{"  "}
-                {topic.practiced}/{topic.totalQuestions} seen
+                {topic.practiced}/{topic.totalQuestions} attempts
               </Text>
             </View>
           ))}
@@ -297,7 +297,7 @@ export default function ProgressScreen() {
               >
                 {subject.correct}/{subject.practiced} correct
                 {"  "}•{"  "}
-                {subject.practiced}/{subject.totalQuestions} seen
+                {subject.practiced}/{subject.totalQuestions} attempts
               </Text>
             </View>
           ))}
