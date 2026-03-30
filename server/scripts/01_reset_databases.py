@@ -241,7 +241,54 @@ def backup_master():
     print("Master backup written to", destination)
 
 
+def terminate_master_connections():
+    conn = server_db.get_db()
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            SELECT pid, state, query
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid <> pg_backend_pid()
+            """
+        )
+        sessions = cur.fetchall()
+
+        if not sessions:
+            print("No other quizwiz connections are active.")
+            return
+
+        print(
+            "Terminating quizwiz PIDs:",
+            [session[0] for session in sessions]
+        )
+
+        print(
+            "Terminating",
+            len(sessions),
+            "other quizwiz connection(s) before reset..."
+        )
+
+        cur.execute(
+            """
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid <> pg_backend_pid()
+            """
+        )
+
+        print("Existing quizwiz connections were terminated.")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def reset_master():
+    terminate_master_connections()
     backup_master()
     run_subprocess(["python", "server/bootstrap.py"])
 

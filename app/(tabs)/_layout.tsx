@@ -1,6 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
-import { Tabs } from "expo-router"
-import { View } from "react-native"
+import { Tabs, useRouter } from "expo-router"
+import { useEffect } from "react"
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  View
+} from "react-native"
 
 import GlobalSyncButton from "@/components/GlobalSyncButton"
 import { useDatabase } from "@/hooks/useDatabase"
@@ -11,8 +17,12 @@ import { getThemeColors } from "@/styles/theme"
 
 export default function TabLayout() {
 
+  const router = useRouter()
   const { db } = useDatabase()
-  const { activeUser } = useUsers(db)
+  const {
+    activeUser,
+    loading: usersLoading
+  } = useUsers(db)
   const {
     syncMode,
     syncIntervalMs
@@ -22,6 +32,37 @@ export default function TabLayout() {
     activeUser
   )
   const colors = getThemeColors(themeMode)
+
+  useEffect(() => {
+    if (usersLoading) {
+      return
+    }
+
+    if (!activeUser) {
+      router.replace("/users")
+    }
+  }, [activeUser, router, usersLoading])
+
+  if (usersLoading || !activeUser) {
+    return (
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <ActivityIndicator color={colors.text} />
+        <Text
+          style={[
+            styles.loadingText,
+            { color: colors.text }
+          ]}
+        >
+          Loading profile...
+        </Text>
+      </View>
+    )
+  }
 
   return (
     <Tabs
@@ -99,6 +140,19 @@ export default function TabLayout() {
   )
 
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: "700"
+  }
+})
 
 function getTabIcon(routeName: string) {
 

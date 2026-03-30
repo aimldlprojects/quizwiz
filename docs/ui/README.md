@@ -17,7 +17,8 @@ Use this as a short cross-check after each UI change.
 
 ## Shared Across Screens
 
-- The app starts by redirecting to Users or Topics.
+- The app starts by redirecting to `Users` when no profile is active, or to `Topics` when a profile is already selected.
+- Selecting a profile syncs the previous profile first, then opens the new profile and refreshes the synced study state.
 - The top-right sync icon appears in the header.
 - The sync icon changes color when attention is needed.
 - The sync overlay appears only for manual and lifecycle syncs.

@@ -16,7 +16,7 @@ Use this as the main landing page for the non-coder reference docs.
 
 ## Startup Flow
 
-The app starts by sending the user to `Users` if no profile is active, or to `Topics` if a profile is already active. There is no separate landing screen.
+The app starts by sending the user to `Users` if no profile is active. If a profile is already active, it goes straight to `Topics`. There is no separate landing screen.
 
 ## Rules
 
