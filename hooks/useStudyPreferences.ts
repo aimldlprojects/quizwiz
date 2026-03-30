@@ -7,7 +7,10 @@ import {
   useState
 } from "react"
 
-import { markSyncDirty } from "@/database/syncMetaRepository"
+import {
+  markSyncDirty,
+  subscribeSyncMetaChanges
+} from "@/database/syncMetaRepository"
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
 
@@ -401,6 +404,16 @@ export function useStudyPreferences(
   useEffect(() => {
     void loadPreferences()
   }, [loadPreferences])
+
+  useEffect(() => {
+    if (!db || preferenceUserId == null) {
+      return
+    }
+
+    return subscribeSyncMetaChanges(() => {
+      void loadPreferences()
+    })
+  }, [db, loadPreferences, preferenceUserId])
 
   useEffect(() => {
     if (preferences.ttsEnabled) {

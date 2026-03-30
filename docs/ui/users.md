@@ -4,6 +4,13 @@
 
 Choose the active profile.
 
+## Startup Flow
+
+- If no profile is active, the app opens `Users` first.
+- If a profile is already active, the app skips `Users` and goes straight to `Topics`.
+- There is no separate landing screen.
+- Selecting a profile attempts to sync that profile right away, then refreshes the study screens from the synced data.
+
 ## Main Flow
 
 - The screen starts with `Pick your player`.
@@ -18,15 +25,16 @@ Choose the active profile.
 
 ## Notes
 
-- Switching profiles syncs the previous profile first.
 - Log out returns here after syncing the current profile.
 - If there are no profiles yet, the screen shows `No profiles yet`.
 - While loading, the screen shows `Loading profiles...`.
 
 ## Sync Notes
 
-- Selecting a new profile waits for the previous profile sync first.
+- Switching profiles syncs the previous profile first.
 - The new profile opens after that attempt finishes or times out.
+- The selected profile attempts to sync immediately after it becomes active.
+- After that sync completes, Topics, Learn, Practice, Progress, Badges, and Profile refresh from the synced profile state.
 - Log out syncs the current profile first, then returns to this screen.
 
 ## Reference Docs

@@ -21,7 +21,8 @@ Choose which subjects and topics are available for learning.
 
 - Child topics show only for the active subject path.
 - The path stays within one subject.
-- The selection box shows what is selected.
+- The selection box shows what is selected, including a subject when one of its topics is only partially selected.
+- A partially selected subject still opens its topic path in the Topics panel.
 - If there are no permitted subjects, the screen shows `No permitted subjects`.
 - See [Topic Selection Rules](../topic%20selection%20rules.md) for selection rules.
 

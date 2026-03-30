@@ -15,6 +15,8 @@ The app shows sync status in a few places:
 - a sync panel in the Profile screen
 - a sync button on the Practice screen after answering
 
+When you select a profile, the app attempts to sync that profile immediately and then refreshes all study screens from the synced data.
+
 ## What Gets Synced
 
 These user changes are part of sync:
@@ -58,11 +60,11 @@ This table follows the screen order in the app and shows what each screen can do
 | Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen only displays synced practice data. |
 | Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls and shared sync settings. |
-| Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles. |
+| Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles, then attempts to sync the new profile right away. |
 | Log out | Leave the current learner profile | Yes, for the current user before logout | Yes, if the current user sync finishes in time | The app syncs first, then returns to the user picker. |
 | App opens or comes back to the front | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app makes a best-effort sync pass while loading or resuming. |
 | App goes to the background | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app tries one last sync pass before it backgrounds. |
-| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings. |
+| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings, then refreshes all study screens from the synced preferences. |
 | `Push` in Profile | Upload the current user's local changes only | No new change by itself | Yes, but only from device to global | Uploads local changes for the active user and shared settings. |
 | `Pull` in Profile | Refresh the current user from the global database only | No new change by itself | Yes, but only from global to device | Refreshes the active user and shared settings. |
 | Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | Includes allowed subjects/topics, current admin topic path, and user disable / enable. |
@@ -159,7 +161,7 @@ If the timer says `Off`, auto sync is not running for that profile.
 
 ## How Sync Works
 
-`Sync` sends local changes first, then refreshes the device from the global database.
+`Sync` sends local changes first, then refreshes the device from the global database and reloads all study screens from the synced data.
 
 `Push` sends local changes only.
 

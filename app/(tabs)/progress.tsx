@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState
 } from "react"
@@ -12,6 +13,7 @@ import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
+import { subscribeSyncMetaChanges } from "../../database/syncMetaRepository"
 import { getThemeColors } from "../../styles/theme"
 
 export default function ProgressScreen() {
@@ -94,6 +96,16 @@ export default function ProgressScreen() {
       loadProgress()
     }, [loadProgress])
   )
+
+  useEffect(() => {
+    if (!db || !activeUser) {
+      return
+    }
+
+    return subscribeSyncMetaChanges(() => {
+      void loadProgress()
+    })
+  }, [db, activeUser, loadProgress])
 
   if (loading || usersLoading || !db) {
     return (
