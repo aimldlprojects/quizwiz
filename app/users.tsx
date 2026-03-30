@@ -1,5 +1,6 @@
 import { router } from "expo-router"
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -7,6 +8,7 @@ import {
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useState } from "react"
 
 import { useDatabase } from "../hooks/useDatabase"
 import { useStudyPreferences } from "../hooks/useStudyPreferences"
@@ -42,6 +44,8 @@ export default function UsersScreen() {
   const { themeMode } =
     useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
+  const [switchingUserId, setSwitchingUserId] =
+    useState<number | null>(null)
   const cardBaseStyle = {
     backgroundColor: colors.card,
     borderColor: colors.border
@@ -121,6 +125,7 @@ export default function UsersScreen() {
                   isActive && styles.activeCard
                 ]}
                 onPress={async () => {
+                  setSwitchingUserId(item.id)
                   try {
                     await selectUser(item.id)
                   } catch (error) {
@@ -129,6 +134,7 @@ export default function UsersScreen() {
                       error
                     )
                   } finally {
+                    setSwitchingUserId(null)
                     router.replace("/topics")
                   }
                 }}
@@ -195,6 +201,35 @@ export default function UsersScreen() {
           Open Admin
         </Text>
       </Pressable>
+
+      {switchingUserId != null ? (
+        <View
+          style={[
+            styles.syncOverlay,
+            { backgroundColor: colors.background }
+          ]}
+        >
+          <View
+            style={[
+              styles.syncOverlayCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border
+              }
+            ]}
+          >
+            <ActivityIndicator color={colors.text} />
+            <Text
+              style={[
+                styles.syncOverlayText,
+                { color: colors.text }
+              ]}
+            >
+              Syncing current and selected profile...
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
     </SafeAreaView>
   )
@@ -345,6 +380,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#ffffff"
+  },
+
+  syncOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(248, 251, 255, 0.92)"
+  },
+
+  syncOverlayCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 5
+    }
+  },
+
+  syncOverlayText: {
+    fontSize: 16,
+    fontWeight: "800"
   }
 
 })

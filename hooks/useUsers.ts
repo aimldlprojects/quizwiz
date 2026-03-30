@@ -204,10 +204,10 @@ export function useUsers(
 
     if (activeUser != null && activeUser !== id) {
       try {
-        await new SyncService(
-          db,
-          activeUser
-        ).sync()
+        await new SyncService(db, activeUser).syncUser(
+          activeUser,
+          { showOverlay: false }
+        )
       } catch (error) {
         console.warn(
           "User switch sync timed out or failed, continuing with switch:",
@@ -219,6 +219,17 @@ export function useUsers(
     await controller.setActiveUser(id)
 
     setActiveUser(id)
+
+    try {
+      await new SyncService(db, id).syncUser(id, {
+        showOverlay: false
+      })
+    } catch (error) {
+      console.warn(
+        "New profile sync timed out or failed, continuing into the profile:",
+        error
+      )
+    }
 
   }
 
