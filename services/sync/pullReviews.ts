@@ -25,6 +25,7 @@ async function upsertStats(
     id?: number
     user_id: number
     question_id?: number | null
+    topic_id?: number | null
     correct: number
     wrong: number
     practiced_at?: number | string | null
@@ -53,10 +54,11 @@ async function upsertStats(
     await db.runAsync(
       `
       INSERT INTO stats
-      (user_id, question_id, correct, wrong, practiced_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (user_id, question_id, topic_id, correct, wrong, practiced_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, question_id, practiced_at)
       DO UPDATE SET
+        topic_id = COALESCE(stats.topic_id, excluded.topic_id),
         correct = excluded.correct,
         wrong = excluded.wrong,
         updated_at = excluded.updated_at
@@ -64,6 +66,7 @@ async function upsertStats(
       [
         row.user_id,
         row.question_id ?? null,
+        row.topic_id ?? null,
         row.correct,
         row.wrong,
         practicedAt,

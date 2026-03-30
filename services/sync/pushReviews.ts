@@ -92,6 +92,7 @@ async function getStats(
     id: number
     user_id: number
     question_id: number | null
+    topic_id: number | null
     correct: number
     wrong: number
     practiced_at: number | string | null
@@ -102,6 +103,7 @@ async function getStats(
       id,
       user_id,
       question_id,
+      topic_id,
       correct,
       wrong,
       practiced_at,

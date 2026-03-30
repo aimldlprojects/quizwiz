@@ -33,7 +33,7 @@ Use this page as the canonical rule for when the app should refresh screen data.
 | Topics | focus, selected subject or topic change | Topics should read the current local profile state. |
 | Learn | focus, selected topic change, local learning progress change | Learn should update when the local learning state changes. |
 | Practice | focus, selected topic change, local answer or restart action | Practice score, accuracy, and session progress should update from its own local actions, not from sync completion. |
-| Progress | focus, local practice totals change | Progress should read the latest local stats when it becomes active. |
+| Progress | tab focus, then local practice totals after sync | When the Progress tab opens, it should sync the active profile first, then read the latest local stats and show the topic and subject breakdowns. |
 | Badges | focus, badge state change | Badges should update from local badge progress events. |
 | Profile | user action, manual sync button, sync settings change | Profile can update sync status indicators, but should not force full study screen reloads. |
 

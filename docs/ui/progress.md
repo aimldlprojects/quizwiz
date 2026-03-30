@@ -22,7 +22,8 @@ Review practice progress.
 ## Notes
 
 - This is a read-only screen.
-- It shows synced practice data.
+- When you open the tab, it syncs the active profile first, then shows the latest progress data.
+- It shows the local progress data after sync.
 - `Attempts` shows how many practice answers were recorded out of the total available questions.
 - If no user is active, the screen asks you to choose a profile first.
 - While loading, the screen shows `Loading progress...`.

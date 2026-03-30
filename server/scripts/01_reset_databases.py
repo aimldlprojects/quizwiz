@@ -290,6 +290,10 @@ def terminate_master_connections():
 def reset_master():
     terminate_master_connections()
     backup_master()
+    # bootstrap_env = os.environ.copy()
+    # # Never seed initial review/progress rows during a reset.
+    # bootstrap_env["SEED_INITIAL_REVIEWS"] = "false"
+    # run_subprocess(["python", "server/bootstrap.py"], env=bootstrap_env)
     run_subprocess(["python", "server/bootstrap.py"])
 
 

@@ -529,6 +529,13 @@ def migrate_stats_table(cur):
     cur.execute(
         """
         ALTER TABLE stats
+        ADD COLUMN IF NOT EXISTS topic_id BIGINT
+        """
+    )
+
+    cur.execute(
+        """
+        ALTER TABLE stats
         ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
         """
     )
@@ -537,6 +544,17 @@ def migrate_stats_table(cur):
         """
         ALTER TABLE stats
         ALTER COLUMN practiced_at SET DEFAULT NOW()
+        """
+    )
+
+    cur.execute(
+        """
+        UPDATE stats s
+        SET topic_id = q.topic_id
+        FROM questions q
+        WHERE s.topic_id IS NULL
+          AND s.question_id = q.id::text
+          AND q.topic_id IS NOT NULL
         """
     )
 

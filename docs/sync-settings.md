@@ -58,7 +58,7 @@ This table follows the screen order in the app and shows what each screen can do
 | Topics | Select subjects and topics | Yes | Yes | Topic selections save on the device first, then sync later. |
 | Learn | Study flash cards and learning content | Yes | Yes | Learn keeps the last card position for each topic. |
 | Practice | Answer questions and build progress | Yes | Yes | Practice updates review history, progress, accuracy, and saved session state, including the current card count. |
-| Progress | Review accuracy and progress | No new change by itself | Reads synced practice data | This screen only displays synced practice data. |
+| Progress | Review accuracy and progress | Yes, when the tab opens | Yes | The Progress tab syncs the active profile first, then shows the latest local progress data. |
 | Badges | See earned badges | Yes | Yes | Badge progress saves locally and syncs with the user data. |
 | Profile | Change sync mode, preferences, and sync manually | Yes | Yes | This screen has the main sync controls and shared sync settings. |
 | Change User | Switch to another learner profile | Yes, for the current user before switching | Yes, if the current user sync finishes in time | The app saves the current user first, then changes profiles, then attempts to sync the new profile right away. |

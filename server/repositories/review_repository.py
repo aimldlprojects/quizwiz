@@ -242,6 +242,7 @@ def get_stats_changes(
             id,
             user_id,
             question_id,
+            topic_id,
             correct,
             wrong,
             practiced_at,
@@ -386,10 +387,11 @@ def upsert_stats(
         cur.execute(
             """
             INSERT INTO stats
-            (user_id, question_id, correct, wrong, practiced_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            (user_id, question_id, topic_id, correct, wrong, practiced_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (user_id, question_id, practiced_at)
             DO UPDATE SET
+                topic_id = COALESCE(stats.topic_id, EXCLUDED.topic_id),
                 correct = EXCLUDED.correct,
                 wrong = EXCLUDED.wrong,
                 updated_at = EXCLUDED.updated_at
@@ -399,6 +401,7 @@ def upsert_stats(
             (
                 row["user_id"],
                 row.get("question_id"),
+                row.get("topic_id"),
                 row["correct"],
                 row["wrong"],
                 practiced_at,

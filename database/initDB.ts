@@ -642,6 +642,7 @@ async function createStatsTable(db: SQLiteDatabase) {
 
       user_id INTEGER NOT NULL,
       question_id INTEGER,
+      topic_id INTEGER,
       correct INTEGER DEFAULT 0,
       wrong INTEGER DEFAULT 0,
       practiced_at INTEGER DEFAULT (strftime('%s','now')*1000),
@@ -691,6 +692,13 @@ async function migrateStatsTable(
     `)
   }
 
+  if (!columnNames.has("topic_id")) {
+    await db.execAsync(`
+      ALTER TABLE stats
+      ADD COLUMN topic_id INTEGER
+    `)
+  }
+
   if (!columnNames.has("updated_at")) {
     await db.execAsync(`
       ALTER TABLE stats
@@ -714,5 +722,16 @@ async function migrateStatsTable(
       ON stats(user_id, question_id, practiced_at)
     `)
   }
+
+  await db.execAsync(`
+    UPDATE stats
+    SET topic_id = (
+      SELECT topic_id
+      FROM questions
+      WHERE questions.id = stats.question_id
+    )
+    WHERE topic_id IS NULL
+      AND question_id IS NOT NULL
+  `)
 
 }

@@ -13,18 +13,20 @@ export class StatsRepository {
     userId: number,
     correct: number,
     wrong: number,
-    questionId: number | null = null
+    questionId: number | null = null,
+    topicId: number | null = null
   ) {
 
     await this.db.runAsync(
       `
       INSERT INTO stats
-      (user_id, question_id, correct, wrong, practiced_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      (user_id, question_id, topic_id, correct, wrong, practiced_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
       [
         userId,
         questionId,
+        topicId,
         correct,
         wrong,
         Date.now(),
@@ -187,18 +189,18 @@ export class StatsRepository {
         }>(
           `
           SELECT
-            q.topic_id as topic_id,
+            COALESCE(s.topic_id, q.topic_id) as topic_id,
             SUM(
               COALESCE(s.correct, 0) +
               COALESCE(s.wrong, 0)
             ) as attempts,
             COALESCE(SUM(s.correct), 0) as correct
           FROM stats s
-          INNER JOIN questions q
+          LEFT JOIN questions q
             ON q.id = s.question_id
           WHERE s.user_id = ?
-            AND q.topic_id IS NOT NULL
-          GROUP BY q.topic_id
+            AND COALESCE(s.topic_id, q.topic_id) IS NOT NULL
+          GROUP BY COALESCE(s.topic_id, q.topic_id)
           `,
           [userId]
         )
@@ -324,12 +326,14 @@ export class StatsRepository {
     )
 
     const params: number[] = [userId]
+    const effectiveTopicExpr =
+      "COALESCE(s.topic_id, q.topic_id)"
     const topicFilter =
       topicIds == null
         ? ""
         : topicIds.length === 0
           ? "AND 1 = 0"
-          : `AND q.topic_id IN (${topicIds
+          : `AND ${effectiveTopicExpr} IN (${topicIds
               .map(() => "?")
               .join(", ")})`
 
@@ -349,7 +353,7 @@ export class StatsRepository {
         ), 0) as attempts,
         COALESCE(SUM(s.correct), 0) as correct
       FROM stats s
-      INNER JOIN questions q
+      LEFT JOIN questions q
         ON q.id = s.question_id
       WHERE s.user_id = ?
       ${topicFilter}

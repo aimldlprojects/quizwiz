@@ -72,6 +72,7 @@ def serialize_stats(rows: Iterable[Mapping[str, Any]]):
             "id": row["id"],
             "user_id": row["user_id"],
             "question_id": row.get("question_id"),
+            "topic_id": row.get("topic_id"),
             "correct": row["correct"],
             "wrong": row["wrong"],
             "practiced_at": _millis(row.get("practiced_at")),

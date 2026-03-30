@@ -209,7 +209,8 @@ export class PracticeController {
       this.userId,
       result.correct ? 1 : 0,
       result.correct ? 0 : 1,
-      current.id ?? null
+      current.id ?? null,
+      this.topicId
     )
 
     this.eventBus.emit(

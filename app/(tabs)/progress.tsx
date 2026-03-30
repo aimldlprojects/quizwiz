@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState
@@ -14,6 +13,8 @@ import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
+import { getSyncServerUrl } from "../../services/sync/config"
+import { syncReviews } from "../../services/sync/syncReviews"
 import { getThemeColors } from "../../styles/theme"
 
 export default function ProgressScreen() {
@@ -41,6 +42,7 @@ export default function ProgressScreen() {
     useState<any[]>([])
   const loadProgressInFlightRef = useRef(false)
   const loadProgressQueuedRef = useRef(false)
+  const syncInFlightRef = useRef(false)
 
   const aggregatedSubjects = useMemo(
     () => aggregateSubjects(subjects),
@@ -108,10 +110,49 @@ export default function ProgressScreen() {
 
   }, [db, activeUser])
 
+  const syncProgress = useCallback(async () => {
+    if (!db || !activeUser) {
+      return
+    }
+
+    if (syncInFlightRef.current) {
+      return
+    }
+
+    const syncServerUrl = getSyncServerUrl()
+
+    if (!syncServerUrl) {
+      return
+    }
+
+    syncInFlightRef.current = true
+
+    try {
+      await syncReviews(
+        db,
+        syncServerUrl,
+        activeUser,
+        {
+          overlayLabel: "Syncing current profile..."
+        }
+      )
+    } catch (error) {
+      console.warn(
+        "Progress sync skipped:",
+        error
+      )
+    } finally {
+      syncInFlightRef.current = false
+    }
+  }, [db, activeUser])
+
   useFocusEffect(
     useCallback(() => {
-      loadProgress()
-    }, [loadProgress])
+      void (async () => {
+        await syncProgress()
+        await loadProgress()
+      })()
+    }, [loadProgress, syncProgress])
   )
 
   if (loading || usersLoading || !db) {

@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS stats (
 
   user_id BIGINT NOT NULL,
   question_id TEXT,
+  topic_id BIGINT,
 
   correct INT DEFAULT 0,
   wrong INT DEFAULT 0,
