@@ -1,0 +1,3 @@
+- need a toggle in profile page to enable sync of all data. so that every toggle or selection or progress will reflect in all devices. This will be done using timestamp at each feature or progress.
+- if the enable sync all data is off the only progress data will be sync not topics selection or settings. so users can have multiple subjects selcted in multiple devices. this may need device info also along with feature and its date time.
+- practice tab and learn tab data is not in sync with progress bar.
