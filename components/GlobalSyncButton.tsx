@@ -118,8 +118,8 @@ export default function GlobalSyncButton({
     if (!db) return
     if (syncing) return
 
-    refreshSyncStatus()
-    refreshSyncIndicators()
+    void refreshSyncStatus()
+    void refreshSyncIndicators()
   }, [
     db,
     refreshSyncIndicators,
@@ -129,39 +129,12 @@ export default function GlobalSyncButton({
   ])
 
   useEffect(() => {
-    const unsubscribe = subscribeSyncMetaChanges(
-      () => {
-        if (!db || !activeUser) return
-        void refreshSyncStatus()
-        void refreshSyncIndicators()
-      }
-    )
+    if (!db) return
 
-    return unsubscribe
-  }, [
-    db,
-    activeUser,
-    refreshSyncIndicators,
-    refreshSyncStatus
-  ])
-
-  useEffect(() => {
-    if (!db || !activeUser) {
-      return
-    }
-
-    const timer = setInterval(() => {
-      void refreshSyncStatus()
+    return subscribeSyncMetaChanges(() => {
       void refreshSyncIndicators()
-    }, 3000)
-
-    return () => clearInterval(timer)
-  }, [
-    db,
-    activeUser,
-    refreshSyncIndicators,
-    refreshSyncStatus
-  ])
+    })
+  }, [db, refreshSyncIndicators])
 
   const overallStatus =
     syncInfo?.overall ?? DEFAULT_SYNC_STATUS

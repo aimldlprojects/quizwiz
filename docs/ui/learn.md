@@ -40,7 +40,8 @@ Study flash cards for the selected topic.
 ## Sync Notes
 
 - Learn progress, including the saved card position for the same topic, saves locally first.
-- The sync button sends that Learn progress to the global database.
+- The top-right sync icon or the Profile screen sync controls send that Learn progress to the global database.
+- Learn progress updates from card actions and from the next focus cycle, not from sync completion alone.
 - `Learn more` keeps history but restarts the same topic session from the first card.
 
 ## Reference Docs

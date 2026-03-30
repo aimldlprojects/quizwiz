@@ -5,8 +5,7 @@ import {
   beginSyncActivity,
   endSyncActivity,
   setLastPullRev,
-  setSyncStatus,
-  notifyPermissionMetaChanges
+  setSyncStatus
 } from "../../database/syncMetaRepository"
 
 import { Review } from "@/domain/entities/review"
@@ -322,7 +321,6 @@ export async function pullReviews(
   await permissionsRepo.restorePermissionSnapshots(
     userId
   )
-  notifyPermissionMetaChanges()
 
   const finalRev =
     data?.max_rev ?? maxRev

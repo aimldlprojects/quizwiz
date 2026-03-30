@@ -7,10 +7,7 @@ import {
   useState
 } from "react"
 
-import {
-  markSyncDirty,
-  subscribeSyncMetaChanges
-} from "@/database/syncMetaRepository"
+import { markSyncDirty } from "@/database/syncMetaRepository"
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
 
@@ -267,10 +264,6 @@ export function useStudyPreferences(
 
     const updates: Partial<Preferences> = {}
     let userTtsApplied = false
-    const rawTopicArrayRows: {
-      key: string
-      value: string
-    }[] = []
     const cachedBase =
       preferencesCache.get(preferenceUserId) ?? DEFAULTS
 
@@ -350,12 +343,10 @@ export function useStudyPreferences(
           )
           break
         case selectedTopicLevel1IdsKey:
-          rawTopicArrayRows.push(row)
           updates.selectedTopicLevel1Ids =
             parseIdArray(row.value)
           break
         case selectedTopicLevel2IdsKey:
-          rawTopicArrayRows.push(row)
           updates.selectedTopicLevel2Ids =
             parseIdArray(row.value)
           break
@@ -404,16 +395,6 @@ export function useStudyPreferences(
   useEffect(() => {
     void loadPreferences()
   }, [loadPreferences])
-
-  useEffect(() => {
-    if (!db || preferenceUserId == null) {
-      return
-    }
-
-    return subscribeSyncMetaChanges(() => {
-      void loadPreferences()
-    })
-  }, [db, loadPreferences, preferenceUserId])
 
   useEffect(() => {
     if (preferences.ttsEnabled) {

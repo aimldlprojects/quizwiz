@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
@@ -13,7 +14,6 @@ import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
-import { subscribeSyncMetaChanges } from "../../database/syncMetaRepository"
 import { getThemeColors } from "../../styles/theme"
 
 export default function ProgressScreen() {
@@ -39,6 +39,8 @@ export default function ProgressScreen() {
     useState<any[]>([])
   const [subjects, setSubjects] =
     useState<any[]>([])
+  const loadProgressInFlightRef = useRef(false)
+  const loadProgressQueuedRef = useRef(false)
 
   const aggregatedSubjects = useMemo(
     () => aggregateSubjects(subjects),
@@ -48,46 +50,61 @@ export default function ProgressScreen() {
     useState(0)
 
   const loadProgress = useCallback(async () => {
+    if (loadProgressInFlightRef.current) {
+      loadProgressQueuedRef.current = true
+      return
+    }
 
-    if (!db || !activeUser) return
+    loadProgressInFlightRef.current = true
 
-    const statsRepo =
-      new StatsRepository(db)
-    const streakController =
-      new StreakController(db)
+    try {
+      if (!db || !activeUser) return
 
-    const totals =
-      await statsRepo.getAccuracyTotals(activeUser)
-    const totalQuestions =
-      await statsRepo.getTotalQuestionCount()
-    const acc =
-      totals.attempts === 0
-        ? 0
-        : Math.round(
-            (totals.correct / totals.attempts) * 100
-          )
+      const statsRepo =
+        new StatsRepository(db)
+      const streakController =
+        new StreakController(db)
 
-    const topicData =
-      await statsRepo.getTopicProgress(
-        activeUser
-      )
+      const totals =
+        await statsRepo.getAccuracyTotals(activeUser)
+      const totalQuestions =
+        await statsRepo.getTotalQuestionCount()
+      const acc =
+        totals.attempts === 0
+          ? 0
+          : Math.round(
+              (totals.correct / totals.attempts) * 100
+            )
 
-    const subjectData =
-      await statsRepo.getSubjectProgress(
-        activeUser
-      )
+      const topicData =
+        await statsRepo.getTopicProgress(
+          activeUser
+        )
 
-    const streakState =
-      await streakController.getStreak(
-        activeUser
-      )
+      const subjectData =
+        await statsRepo.getSubjectProgress(
+          activeUser
+        )
 
-    setAccuracy(acc)
-    setOverallTotals(totals)
-    setOverallQuestionCount(totalQuestions)
-    setTopics(topicData)
-    setSubjects(subjectData)
-    setStreak(streakState.currentStreak)
+      const streakState =
+        await streakController.getStreak(
+          activeUser
+        )
+
+      setAccuracy(acc)
+      setOverallTotals(totals)
+      setOverallQuestionCount(totalQuestions)
+      setTopics(topicData)
+      setSubjects(subjectData)
+      setStreak(streakState.currentStreak)
+    } finally {
+      loadProgressInFlightRef.current = false
+
+      if (loadProgressQueuedRef.current) {
+        loadProgressQueuedRef.current = false
+        void loadProgress()
+      }
+    }
 
   }, [db, activeUser])
 
@@ -96,16 +113,6 @@ export default function ProgressScreen() {
       loadProgress()
     }, [loadProgress])
   )
-
-  useEffect(() => {
-    if (!db || !activeUser) {
-      return
-    }
-
-    return subscribeSyncMetaChanges(() => {
-      void loadProgress()
-    })
-  }, [db, activeUser, loadProgress])
 
   if (loading || usersLoading || !db) {
     return (

@@ -21,6 +21,7 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 ## Rules
 
 - [Topic selection rules](./topic%20selection%20rules.md)
+- [Refresh policy](./refresh-policy.md)
 - [Sync settings](./sync-settings.md)
 
 ## Business Logic
@@ -42,6 +43,7 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 | --- | --- |
 | Screen layout or buttons | [UI Reference](./ui/README.md) |
 | Topic selection behavior | [Topic selection rules](./topic%20selection%20rules.md) |
+| Refresh timing or screen updates | [Refresh policy](./refresh-policy.md) |
 | Question behavior or table decks | [Question requirements](./business-logic/question-requirements.md) |
 | General question flow | [Question flow](./business-logic/question-flow.md) |
 | Table topic behavior | [Table topic flow](./business-logic/table-topic-flow.md) |

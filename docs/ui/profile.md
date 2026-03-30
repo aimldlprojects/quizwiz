@@ -39,8 +39,9 @@ Change profile settings and sync data.
 
 - Sync mode, sync interval, and sync gap are shared settings.
 - Push sends local changes.
-- Sync does Push then refreshes.
-- Pull refreshes from the global database.
+- Sync does Push then Pull.
+- Pull updates the local database from the global database.
+- Screen updates follow [Refresh Policy](../refresh-policy.md), not sync completion alone.
 - Log out syncs the active profile first, then clears the current profile on this device.
 - The status area also shows server, connection, and last sync time.
 

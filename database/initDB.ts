@@ -28,6 +28,8 @@ export async function initDB(db: SQLiteDatabase) {
   await createReviewsTable(db)
   await migrateReviewsTable(db)
 
+  await createPracticeSessionsTable(db)
+
   await createSyncMetaTable(db)
 
   await createSettingsTable(db)
@@ -254,6 +256,22 @@ async function createReviewsTable(db: SQLiteDatabase) {
 
       UNIQUE(user_id, question_id)
 
+    )
+  `)
+
+}
+
+async function createPracticeSessionsTable(
+  db: SQLiteDatabase
+) {
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS practice_sessions (
+      user_id INTEGER NOT NULL,
+      topic_id INTEGER NOT NULL,
+      state_json TEXT NOT NULL,
+      updated_at INTEGER,
+      PRIMARY KEY (user_id, topic_id)
     )
   `)
 

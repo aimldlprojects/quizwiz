@@ -9,7 +9,7 @@ Choose the active profile.
 - If no profile is active, the app opens `Users` first.
 - If a profile is already active, the app skips `Users` and goes straight to `Topics`.
 - There is no separate landing screen.
-- Selecting a profile attempts to sync that profile right away, then refreshes the study screens from the synced data.
+- Selecting a profile attempts to sync that profile right away, then updates the shared study state from the synced data.
 
 ## Main Flow
 
@@ -34,7 +34,7 @@ Choose the active profile.
 - Switching profiles syncs the previous profile first.
 - The new profile opens after that attempt finishes or times out.
 - The selected profile attempts to sync immediately after it becomes active.
-- After that sync completes, Topics, Learn, Practice, Progress, Badges, and Profile refresh from the synced profile state.
+- The shared study state updates when the app reuses the synced profile data.
 - Log out syncs the current profile first, then returns to this screen.
 
 ## Reference Docs

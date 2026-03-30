@@ -9,13 +9,14 @@ QuizWiz keeps your data in two places:
 
 Your changes are saved on the device first. Sync copies those changes between the device and the global database.
 
+Refresh timing is documented in [Refresh Policy](./refresh-policy.md).
+
 The app shows sync status in a few places:
 
 - a sync icon in the top-right of every screen
 - a sync panel in the Profile screen
-- a sync button on the Practice screen after answering
 
-When you select a profile, the app attempts to sync that profile immediately and then refreshes all study screens from the synced data.
+When you select a profile, the app attempts to sync that profile immediately and then updates the shared study state from the synced data.
 
 ## What Gets Synced
 
@@ -64,7 +65,7 @@ This table follows the screen order in the app and shows what each screen can do
 | Log out | Leave the current learner profile | Yes, for the current user before logout | Yes, if the current user sync finishes in time | The app syncs first, then returns to the user picker. |
 | App opens or comes back to the front | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app makes a best-effort sync pass while loading or resuming. |
 | App goes to the background | Sync all loaded users | No new change by itself | Yes, if sync starts and finishes in time | The app tries one last sync pass before it backgrounds. |
-| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings, then refreshes all study screens from the synced preferences. |
+| Top-right sync icon | Sync the current user from any screen | No new change by itself | Yes | Syncs the active user and shared profile/admin settings, then updates the shared preferences used by the study screens. |
 | `Push` in Profile | Upload the current user's local changes only | No new change by itself | Yes, but only from device to global | Uploads local changes for the active user and shared settings. |
 | `Pull` in Profile | Refresh the current user from the global database only | No new change by itself | Yes, but only from global to device | Refreshes the active user and shared settings. |
 | Admin subject or topic permission change | Show or hide subjects and topics for the current device | Yes | Yes | Includes allowed subjects/topics, current admin topic path, and user disable / enable. |
@@ -107,10 +108,6 @@ This table lists the settings that are saved right away on the device and also s
 | Admin | Current admin topic path | Yes | Yes | Remembers the selected admin path for that subject. |
 | Admin | Disable / Enable user | Yes | Yes | Keeps the learner hidden or available across devices. |
 
-### Practice screen
-
-After answering a question, the Practice screen shows a sync button near the answer controls. Use it to save practice progress and the current session state right away.
-
 ### Syncing Overlay
 
 The full-screen `Syncing...` overlay appears when the app is doing a manual sync, a user change sync, or an app open/background sync pass.
@@ -125,7 +122,7 @@ The scheduled timer sync runs quietly and does not show the overlay.
 The sync icon and badges use color to show what is happening:
 
 - green means everything is up to date
-- orange means attention is needed, usually because another device has newer data or this device has unsynced changes
+- orange means attention is needed, usually because another device has newer data or this device has unsynced changes from Learn or Practice
 - red means the last sync failed, or this device still has local changes waiting to be sent
 
 If the icon or badge changes color, tap sync to resolve it.
@@ -161,7 +158,7 @@ If the timer says `Off`, auto sync is not running for that profile.
 
 ## How Sync Works
 
-`Sync` sends local changes first, then refreshes the device from the global database and reloads all study screens from the synced data.
+`Sync` sends local changes first, then refreshes the device from the global database and updates the shared state used by the study screens.
 
 `Push` sends local changes only.
 
@@ -222,6 +219,7 @@ This is mainly for development or repair work. It is not part of normal app use.
 - See [UI Reference](./ui/README.md) for the screen-by-screen guide.
 - See [Glossary](./glossary.md) for word meanings.
 - See [Data Ownership](./data-ownership.md) for local vs global data.
+- See [Refresh Policy](./refresh-policy.md) for when screens should update.
 - See [Topic Selection Rules](./topic%20selection%20rules.md) for selection rules.
 - See [Change Log](./change-log.md) for recent changes.
 - See [Maintenance](./maintenance.md) for docs rules.

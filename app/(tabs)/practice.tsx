@@ -7,7 +7,6 @@ import {
   useState
 } from "react"
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -15,8 +14,6 @@ import {
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-
-import { useFocusEffect } from "@react-navigation/native"
 import AnswerActions from "../../components/AnswerActions"
 import ScoreHeader from "../../components/ScoreHeader"
 import { PracticeController } from "../../controllers/practiceController"
@@ -28,12 +25,6 @@ import {
   TopicRecord
 } from "../../database/contentRepository"
 import { ReviewRepository } from "../../database/reviewRepository"
-import { StatsRepository } from "../../database/statsRepository"
-import {
-  getSyncDirtyAt,
-  subscribeSyncMetaChanges
-} from "../../database/syncMetaRepository"
-import { getSyncStatus, type SyncStatusRecord } from "../../database/syncStatusRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import {
   generateQuestionBatch
@@ -48,8 +39,6 @@ import { useDatabase } from "../../hooks/useDatabase"
 import { usePractice } from "../../hooks/usePractice"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
-import { getSyncServerUrl } from "../../services/sync/config"
-import { syncReviews } from "../../services/sync/syncReviews"
 import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
 import { restartButtonPadding } from "../../styles/restartButtonStyles"
@@ -299,28 +288,14 @@ export default function PracticeScreen() {
     practice.autoNext
   const practiceRemainingCards =
     practice.remainingCards
+  const practiceAccuracy =
+    practice.accuracy
   const colors = getThemeColors(themeMode)
   const iconButtonStyle = (active: boolean) => ({
     backgroundColor: active
       ? colors.iconActive
       : colors.iconInactive
   })
-
-  const [practiceAccuracy, setPracticeAccuracy] =
-    useState(0)
-  const [practiceTotals, setPracticeTotals] =
-    useState({
-      attempts: 0,
-      correct: 0
-    })
-  const [syncing, setSyncing] = useState(false)
-  const [syncInfo, setSyncInfo] =
-    useState<SyncStatusRecord | null>(null)
-  const [syncDirtyAt, setSyncDirtyAt] =
-    useState<number | null>(null)
-  const [remoteSyncTime, setRemoteSyncTime] =
-    useState<number | null>(null)
-  const syncServerUrl = getSyncServerUrl()
 
   const handlePracticeMore = useCallback(async () => {
     if (isTableTopic) {
@@ -347,191 +322,6 @@ export default function PracticeScreen() {
       practiceRandomOrderEnabled,
       setPracticeRandomOrderEnabled
     ])
-
-  const refreshSyncStatus =
-    useCallback(async () => {
-      if (!db) return
-
-      const info = await getSyncStatus(db)
-      setSyncInfo(info)
-    }, [db])
-
-  const refreshSyncIndicators =
-    useCallback(async () => {
-      if (!db || !activeUser) {
-        setSyncDirtyAt(null)
-        setRemoteSyncTime(null)
-        return
-      }
-
-      const dirtyAt = await getSyncDirtyAt(
-        db,
-        activeUser
-      )
-      setSyncDirtyAt(dirtyAt || null)
-
-      if (!syncServerUrl) {
-        setRemoteSyncTime(null)
-        return
-      }
-
-      try {
-        const response = await fetch(
-          `${syncServerUrl}/reviews/status?user_id=${activeUser}`
-        )
-
-        if (!response.ok) {
-          setRemoteSyncTime(null)
-          return
-        }
-
-        const json = await response.json()
-        setRemoteSyncTime(
-          typeof json?.last_sync_time === "number"
-            ? json.last_sync_time
-            : null
-        )
-      } catch {
-        setRemoteSyncTime(null)
-      }
-    }, [db, activeUser, syncServerUrl])
-
-  useEffect(() => {
-    if (!db) return
-
-    refreshSyncStatus()
-    refreshSyncIndicators()
-  }, [
-    db,
-    refreshSyncStatus,
-    refreshSyncIndicators,
-    practice.result,
-    selectedTopicId,
-    activeUser
-  ])
-
-  useEffect(() => {
-    if (!db) return
-
-    const unsubscribe = subscribeSyncMetaChanges(
-      () => {
-        void refreshSyncStatus()
-        void refreshSyncIndicators()
-      }
-    )
-
-    return unsubscribe
-  }, [
-    db,
-    refreshSyncIndicators,
-    refreshSyncStatus
-  ])
-
-  const overallStatus =
-    syncInfo?.overall ?? {
-      status: "unknown",
-      message: null,
-      timestamp: null
-    }
-  const latestLocalSyncAt =
-    overallStatus.timestamp ?? 0
-  const localDirty =
-    syncDirtyAt != null &&
-    syncDirtyAt > latestLocalSyncAt
-  const remoteDirty =
-    remoteSyncTime != null &&
-    remoteSyncTime > latestLocalSyncAt
-  const syncNeedsAttention =
-    localDirty || remoteDirty
-  const syncTone =
-    overallStatus.status === "failed"
-      ? "#ef4444"
-      : syncNeedsAttention
-      ? "#f59e0b"
-      : overallStatus.status === "success"
-      ? "#22c55e"
-      : colors.border
-
-  async function syncToMaster() {
-
-    if (!db || !activeUser) return
-
-    if (!syncServerUrl) {
-      Alert.alert(
-        "Sync unavailable",
-        "Global sync is not configured yet on this device."
-      )
-      return
-    }
-
-    setSyncing(true)
-
-    try {
-      await syncReviews(
-        db,
-        syncServerUrl,
-        activeUser,
-        {
-          overlayLabel: "Syncing current profile..."
-        }
-      )
-      await refreshSyncStatus()
-      await refreshSyncIndicators()
-      Alert.alert(
-        "Sync complete",
-        "Practice progress has been synced to the master DB."
-      )
-    } catch (error) {
-      Alert.alert(
-        "Sync failed",
-        error instanceof Error
-          ? error.message
-          : "Unable to sync right now."
-      )
-    } finally {
-      setSyncing(false)
-    }
-
-  }
-
-  const loadPracticeAccuracy =
-    useCallback(async () => {
-      if (!db || !activeUser) {
-        setPracticeAccuracy(0)
-        setPracticeTotals({
-          attempts: 0,
-          correct: 0
-        })
-        return
-      }
-
-      const statsRepo =
-        new StatsRepository(db)
-      const totals =
-        await statsRepo.getAccuracyTotals(
-          activeUser,
-          selectedTopicId
-        )
-
-      setPracticeTotals(totals)
-      setPracticeAccuracy(
-        totals.attempts === 0
-          ? 0
-          : Math.round(
-              (totals.correct / totals.attempts) * 100
-            )
-      )
-    }, [db, activeUser, selectedTopicId])
-
-  useFocusEffect(
-    useCallback(() => {
-      loadPracticeAccuracy()
-    }, [loadPracticeAccuracy])
-  )
-
-  useEffect(() => {
-    loadPracticeAccuracy()
-  }, [practice.result, loadPracticeAccuracy])
 
   useEffect(() => {
 
@@ -947,10 +737,10 @@ export default function PracticeScreen() {
               "Selected topic"}
           </Text>
 
-            <ScoreHeader
-              attempts={practiceTotals.attempts}
-              correct={practiceTotals.correct}
-              accuracy={practiceAccuracy}
+          <ScoreHeader
+            attempts={practice.stats.attempts}
+            correct={practice.stats.correct}
+            accuracy={practiceAccuracy}
             containerStyle={{
               backgroundColor: colors.surface,
               borderWidth: 1,
@@ -1037,10 +827,6 @@ export default function PracticeScreen() {
               onNext={() =>
                 practice.nextQuestion()
               }
-              onSync={syncToMaster}
-              syncTone={syncTone}
-              syncNeedsAttention={syncNeedsAttention}
-              syncing={syncing}
               colors={colors}
             />
           </View>

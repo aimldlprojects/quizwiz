@@ -16,6 +16,7 @@ Answer questions and track practice progress.
 - Moving next loads the next question in the session.
 - Practice resumes the saved question session when you return to the same topic.
 - The saved session state can sync across devices for the same profile and topic.
+- The score and accuracy card updates from the live practice session state.
 
 ## Controls
 
@@ -24,7 +25,7 @@ Answer questions and track practice progress.
 - Mark result - mark the question as correct or wrong.
 - Next question - move to the next item in the deck.
 - Change delays - adjust how long the app waits before moving on.
-- Tap sync - save the latest practice progress to the global database.
+- Use the top-right sync icon or Profile screen sync controls - save the latest practice progress to the global database.
 - Toggle random order - shuffle the question order for the selected topic.
 - Toggle auto next question - move to the next question automatically after an answer.
 - Text to speech - read the current question aloud.
@@ -45,7 +46,7 @@ Answer questions and track practice progress.
 ## Sync Notes
 
 - Practice answers, review progress, and the saved session state save locally first.
-- The sync button sends that Practice state to the global database.
+- The top-right sync icon or the Profile screen sync controls send that Practice state to the global database.
 - `Practice more` clears only the current practice session and starts the same topic again.
 
 ## Reference Docs
