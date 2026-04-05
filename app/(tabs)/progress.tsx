@@ -491,6 +491,9 @@ function buildTopicRows(
     topicId: number
     topicName: string
     parentTopicId: number | null
+    totalQuestions: number
+    practiced: number
+    correct: number
     progress: number
   }[]
 ) {

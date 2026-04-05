@@ -27,6 +27,16 @@ That script will:
 3. Migrate the `reviews` table columns to `BIGINT` for sync-safe IDs.
 4. Print the command to start FastAPI.
 
+## Reset Project
+
+Use the repo-root reset script when you need to rebuild the databases.
+
+```powershell
+python server/scripts/01_reset_databases.py --master
+```
+
+For the full set of reset options, see [docs/maintenance.md#reset-project](../docs/maintenance.md#reset-project).
+
 ### Start the API
 
 ```powershell

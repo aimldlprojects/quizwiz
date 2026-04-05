@@ -271,7 +271,7 @@ export async function getSyncMeta(
 ): Promise<{
   lastPushRev: number
   lastPullRev: number
-  lastStatus: number
+  lastStatus: string | null
   lastTimestamp: number
   lastError: string | null
 }> {

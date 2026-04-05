@@ -1,12 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState
 } from "react"
 import {
   Alert,
   FlatList,
   Pressable,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -18,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { resetMasterDatabase, resetUserData } from "../database/resetDatabase"
 import { markSyncDirty } from "../database/syncMetaRepository"
 import { useDatabase } from "../hooks/useDatabase"
+import { useDeviceRegistry } from "../hooks/useDeviceRegistry"
 import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
 import { getThemeColors, type ThemeColors } from "../styles/theme"
@@ -47,11 +50,26 @@ export default function AdminScreen() {
     setTopicEnabled,
     loading
   } = useUsers(db, true)
+  const [managedUserId, setManagedUserId] =
+    useState<number | null>(null)
+  const {
+    devices,
+    addDevice,
+    toggleDeviceAllowed,
+    isDeviceAllowed,
+    deleteDevice
+  } = useDeviceRegistry(db, managedUserId)
 
   const [password, setPassword] =
     useState("")
   const [name, setName] =
     useState("")
+  const [deviceName, setDeviceName] =
+    useState("")
+  const [deviceToDeleteKey, setDeviceToDeleteKey] =
+    useState<string | null>(null)
+  const [deleteDeviceMenuOpen, setDeleteDeviceMenuOpen] =
+    useState(false)
   const [unlocked, setUnlocked] =
     useState(false)
   const [error, setError] =
@@ -94,16 +112,39 @@ export default function AdminScreen() {
     useState<number | null>(null)
   const [permissionRefreshCounter, setPermissionRefreshCounter] =
     useState(0)
+  const scrollRef =
+    useRef<ScrollView | null>(null)
+  const scrollOffsetRef =
+    useRef(0)
 
   const {
     themeMode,
     loading: preferencesLoading
-  } = useStudyPreferences(db, activeUser)
+  } = useStudyPreferences(db, managedUserId)
   const colors = getThemeColors(themeMode)
   const cardStyle = {
     backgroundColor: colors.surface,
     borderColor: colors.border
   }
+  const activeUserName =
+    users.find((user) => user.id === managedUserId)
+      ?.name ?? null
+
+  useEffect(() => {
+    if (users.length === 0) {
+      setManagedUserId(null)
+      return
+    }
+
+    if (
+      managedUserId == null ||
+      !users.some((user) => user.id === managedUserId)
+    ) {
+      setManagedUserId(
+        activeUser ?? users[0].id
+      )
+    }
+  }, [activeUser, managedUserId, users])
 
   const loadTopicsForSubject =
     useCallback(async (
@@ -150,6 +191,8 @@ export default function AdminScreen() {
 
   useEffect(() => {
 
+    let cancelled = false
+
     async function loadPermissions() {
 
       if (!db || !unlocked) {
@@ -157,52 +200,74 @@ export default function AdminScreen() {
       }
 
       try {
+        const nextSubjectPermissions: Record<
+          number,
+          {
+            id: number
+            name: string
+            enabled: number
+          }[]
+        > = {}
 
-        const entries = await Promise.all(
-          users.map(async (user) => {
-            const permissions =
-              await db.getAllAsync<{
-                id: number
-                name: string
-                enabled: number
-              }>(
-                `
-                SELECT
-                  s.id,
-                  s.name,
-                  CASE
-                    WHEN us.user_id IS NULL THEN 0
-                    ELSE 1
-                  END as enabled
-                FROM subjects s
-                LEFT JOIN user_subjects us
-                  ON us.subject_id = s.id
-                  AND us.user_id = ?
-                ORDER BY s.name
-                `,
-                [user.id]
-              )
+        for (const user of users) {
+          if (cancelled) {
+            return
+          }
 
-            return [
-              user.id,
-              permissions
-            ] as const
-          })
-        )
+          const permissions =
+            await db.getAllAsync<{
+              id: number
+              name: string
+              enabled: number
+            }>(
+              `
+              SELECT
+                s.id,
+                s.name,
+                CASE
+                  WHEN us.user_id IS NULL THEN 0
+                  ELSE 1
+                END as enabled
+              FROM subjects s
+              LEFT JOIN user_subjects us
+                ON us.subject_id = s.id
+                AND us.user_id = ?
+              ORDER BY s.name
+              `,
+              [user.id]
+            )
 
-        setSubjectPermissions(
-          Object.fromEntries(entries)
-        )
+          nextSubjectPermissions[user.id] =
+            permissions
+        }
+
+        if (cancelled) {
+          return
+        }
+
+        setSubjectPermissions(nextSubjectPermissions)
 
         const nextTopicPermissions: Record<
           number,
           Record<number, any[]>
         > = {}
 
-        for (const [userId, permissions] of entries) {
+        for (const [userIdString, permissions] of Object.entries(
+          nextSubjectPermissions
+        )) {
+          if (cancelled) {
+            return
+          }
+
+          const userId = Number(userIdString)
+
           const subjectBuckets: Record<number, any[]> = {}
 
           for (const subject of permissions) {
+            if (cancelled) {
+              return
+            }
+
             const topics =
               await loadTopicsForSubject(
                 userId,
@@ -215,6 +280,10 @@ export default function AdminScreen() {
 
           nextTopicPermissions[userId] =
             subjectBuckets
+        }
+
+        if (cancelled) {
+          return
         }
 
         setTopicPermissions(nextTopicPermissions)
@@ -236,6 +305,10 @@ export default function AdminScreen() {
         > = {}
 
         for (const row of selectionRows) {
+          if (cancelled) {
+            return
+          }
+
           const pathKey =
             row.key.replace(
               "admin_selected_topic_path_",
@@ -260,6 +333,10 @@ export default function AdminScreen() {
 
     loadPermissions()
 
+    return () => {
+      cancelled = true
+    }
+
   }, [
     db,
     loadTopicsForSubject,
@@ -277,6 +354,17 @@ export default function AdminScreen() {
       setError("")
     }
   }, [password, unlocked])
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: scrollOffsetRef.current,
+        animated: false
+      })
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [managedUserId, devices.length, activeUserName])
 
   if (dbLoading || loading || preferencesLoading) {
     return (
@@ -652,10 +740,10 @@ export default function AdminScreen() {
       ]
     )
 
-    if (activeUser != null) {
+    if (managedUserId != null) {
       await markSyncDirty(
         db,
-        activeUser,
+        managedUserId,
         Date.now()
       )
     }
@@ -748,6 +836,12 @@ export default function AdminScreen() {
       ]}
     >
       <ScrollView
+        ref={scrollRef}
+        onScroll={(event) => {
+          scrollOffsetRef.current =
+            event.nativeEvent.contentOffset.y
+        }}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.content}
       >
         <Text
@@ -808,6 +902,463 @@ export default function AdminScreen() {
                 : "Add User"}
             </Text>
           </Pressable>
+        </View>
+
+        <View
+          style={[
+            styles.addCard,
+            cardStyle
+          ]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
+            Manage devices
+          </Text>
+
+          <Text
+            style={[
+              styles.deviceValue,
+              { color: colors.text, marginTop: 12 }
+            ]}
+          >
+            {activeUserName ?? "None selected"}
+          </Text>
+
+          <Text
+            style={[
+              styles.deviceLabel,
+              { color: colors.muted, marginTop: 12 }
+            ]}
+          >
+            User
+          </Text>
+
+          <View style={styles.deviceChipRow}>
+            {users.map((user) => {
+              const isSelected =
+                managedUserId === user.id
+
+              return (
+                <Pressable
+                  key={user.id}
+                  style={[
+                    styles.deviceChip,
+                    {
+                      borderColor: isSelected
+                        ? colors.iconActive
+                        : colors.border,
+                      backgroundColor: isSelected
+                        ? "rgba(37, 99, 235, 0.1)"
+                        : colors.surface,
+                      transform: isSelected
+                        ? [{ scale: 1.04 }]
+                        : [{ scale: 1 }]
+                    }
+                  ]}
+                  onPress={async () => {
+                    try {
+                      setManagedUserId(user.id)
+                    } catch (error) {
+                      Alert.alert(
+                        "Could not select user",
+                        error instanceof Error
+                          ? error.message
+                          : "Please try again."
+                      )
+                    }
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.deviceChipText,
+                      { color: colors.text }
+                    ]}
+                  >
+                    {user.name}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+
+          {devices.length > 0 ? (
+            <>
+              <Text
+                style={[
+                  styles.deviceLabel,
+                  { color: colors.muted, marginTop: 12 }
+                ]}
+              >
+                Devices
+              </Text>
+              <View style={styles.deviceChipRow}>
+                {devices.map((device) => {
+                  const isAllowed =
+                    isDeviceAllowed(device.backendKey)
+
+                  return (
+                    <Pressable
+                      key={device.backendKey}
+                      style={[
+                        styles.deviceChip,
+                        {
+                          borderColor: isAllowed
+                            ? colors.iconActive
+                            : colors.border,
+                          backgroundColor: isAllowed
+                            ? "rgba(37, 99, 235, 0.1)"
+                            : colors.surface,
+                          transform: isAllowed
+                            ? [{ scale: 1.04 }]
+                            : [{ scale: 1 }]
+                        }
+                      ]}
+                      onPress={async () => {
+                        try {
+                          await toggleDeviceAllowed(
+                            device.backendKey
+                          )
+                        } catch (error) {
+                          Alert.alert(
+                            "Could not update device visibility",
+                            error instanceof Error
+                              ? error.message
+                              : "Please try again."
+                          )
+                        }
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.deviceChipText,
+                          { color: colors.text }
+                        ]}
+                      >
+                        {device.displayName}
+                      </Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
+            </>
+          ) : null}
+
+          <View
+            style={[
+              styles.addDeviceBox,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border
+              }
+            ]}
+          >
+            <Text
+              style={[
+                styles.deviceLabel,
+                { color: colors.muted }
+              ]}
+            >
+              Add device
+            </Text>
+
+            <View
+              style={[
+                styles.addDeviceDivider,
+                { backgroundColor: colors.border }
+              ]}
+            />
+
+            <TextInput
+              placeholder="Enter device name to add"
+              placeholderTextColor={colors.muted}
+              value={deviceName}
+              onChangeText={setDeviceName}
+              style={[
+                styles.nameInput,
+                {
+                  backgroundColor: colors.surface,
+                  color: colors.text
+                }
+              ]}
+            />
+
+            <Pressable
+              style={[
+                styles.primaryButton,
+                !managedUserId && {
+                  opacity: 0.55
+                }
+              ]}
+              onPress={async () => {
+                if (!managedUserId) {
+                  Alert.alert(
+                    "Select a profile",
+                    "Choose a user profile first, then add the device visibility for that profile."
+                  )
+                  return
+                }
+
+                const trimmed = deviceName.trim()
+                if (!trimmed) {
+                  Alert.alert(
+                    "Enter a device name",
+                    "Type a device display name before adding it."
+                  )
+                  return
+                }
+
+                try {
+                  await addDevice(trimmed)
+                  setDeviceName("")
+                } catch (error) {
+                  Alert.alert(
+                    "Could not add device",
+                    error instanceof Error
+                      ? error.message
+                      : "Please check the selected profile and try again."
+                  )
+                }
+              }}
+              disabled={!managedUserId}
+            >
+              <Text style={styles.primaryButtonText}>
+                Add device
+              </Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.addDeviceBox,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border
+              }
+            ]}
+          >
+          <Text
+            style={[
+              styles.deviceLabel,
+              { color: colors.muted }
+            ]}
+          >
+            Delete device
+          </Text>
+
+            <View
+              style={[
+                styles.addDeviceDivider,
+                { backgroundColor: colors.border }
+              ]}
+            />
+
+            <Pressable
+              style={[
+                styles.deleteSelector,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.background
+                }
+              ]}
+              onPress={() =>
+                setDeleteDeviceMenuOpen(true)
+              }
+            >
+              <Text
+                style={[
+                  styles.deleteSelectorText,
+                  {
+                    color: deviceToDeleteKey
+                      ? colors.text
+                      : colors.muted
+                  }
+                ]}
+                numberOfLines={1}
+              >
+                {deviceToDeleteKey
+                  ? devices.find(
+                      (item) =>
+                        item.backendKey ===
+                        deviceToDeleteKey
+                    )?.displayName ?? "Select device to delete"
+                  : "Select device to delete"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.primaryButton,
+                { marginTop: 12 },
+                (!managedUserId || !deviceToDeleteKey) && {
+                  opacity: 0.55
+                }
+              ]}
+              onPress={() => {
+                if (!managedUserId) {
+                  Alert.alert(
+                    "Select a profile",
+                    "Choose a user profile first, then delete one of its devices."
+                  )
+                  return
+                }
+
+                if (!deviceToDeleteKey) {
+                  Alert.alert(
+                    "Select a device",
+                    "Choose an existing device before deleting it."
+                  )
+                  return
+                }
+
+                const device = devices.find(
+                  (item) =>
+                    item.backendKey === deviceToDeleteKey
+                )
+
+                if (!device) {
+                  Alert.alert(
+                    "Device not found",
+                    "Pick another device from the list."
+                  )
+                  return
+                }
+
+                Alert.alert(
+                  "Delete device",
+                  `Delete ${device.displayName}? The device-scoped state will be cleared after sync.`,
+                  [
+                    {
+                      text: "Cancel",
+                      style: "cancel"
+                    },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await deleteDevice(
+                            device.backendKey
+                          )
+                          setDeviceToDeleteKey(
+                            null
+                          )
+                        } catch (error) {
+                          Alert.alert(
+                            "Could not delete device",
+                            error instanceof Error
+                              ? error.message
+                              : "Please try again."
+                          )
+                        }
+                      }
+                    }
+                  ]
+                )
+              }}
+              disabled={!managedUserId || !deviceToDeleteKey}
+            >
+              <Text style={styles.primaryButtonText}>
+                Delete device
+              </Text>
+            </Pressable>
+
+            <Modal
+              visible={deleteDeviceMenuOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() =>
+                setDeleteDeviceMenuOpen(false)
+              }
+            >
+              <Pressable
+                style={styles.dropdownBackdrop}
+                onPress={() =>
+                  setDeleteDeviceMenuOpen(false)
+                }
+              >
+                <Pressable
+                  style={[
+                    styles.dropdownPanel,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border
+                    }
+                  ]}
+                  onPress={() => {}}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownTitle,
+                      { color: colors.text }
+                    ]}
+                  >
+                    Select device to delete
+                  </Text>
+
+                  <View
+                    style={[
+                      styles.dropdownList,
+                      { borderColor: colors.border }
+                    ]}
+                  >
+                    {devices.length === 0 ? (
+                      <Text
+                        style={[
+                          styles.dropdownEmpty,
+                          { color: colors.muted }
+                        ]}
+                      >
+                        No devices available
+                      </Text>
+                    ) : (
+                      devices.map((device) => {
+                        const isSelected =
+                          device.backendKey ===
+                          deviceToDeleteKey
+
+                        return (
+                          <Pressable
+                            key={device.backendKey}
+                            style={[
+                              styles.dropdownItem,
+                              {
+                                backgroundColor: isSelected
+                                  ? "rgba(37, 99, 235, 0.1)"
+                                  : colors.background,
+                                borderColor: isSelected
+                                  ? colors.iconActive
+                                  : colors.border
+                              }
+                            ]}
+                            onPress={() => {
+                              setDeviceToDeleteKey(
+                                device.backendKey
+                              )
+                              setDeleteDeviceMenuOpen(false)
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.dropdownItemText,
+                                { color: colors.text }
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {device.displayName}
+                            </Text>
+                          </Pressable>
+                        )
+                      })
+                    )}
+                  </View>
+                </Pressable>
+              </Pressable>
+            </Modal>
+          </View>
         </View>
 
         <View
@@ -1189,11 +1740,14 @@ const styles = StyleSheet.create({
   },
 
   nameInput: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 17,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    color: "#1e3a5f",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
     marginBottom: 12
   },
 
@@ -1215,6 +1769,114 @@ const styles = StyleSheet.create({
     lineHeight: 22
   },
 
+  deviceLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+
+  deviceValue: {
+    fontSize: 18,
+    fontWeight: "800"
+  },
+
+  selectedDevicePanel: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 12
+  },
+
+  selectedDeviceLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+
+  selectedDeviceName: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 6
+  },
+
+  selectedDeviceBadge: {
+    alignSelf: "flex-start",
+    marginTop: 8,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4
+  },
+
+  selectedDeviceBadgeText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+
+  deviceChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12
+  },
+
+  deviceChipRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6
+  },
+
+  deviceChip: {
+    borderRadius: 14,
+    borderWidth: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 7
+  },
+
+  deviceChipText: {
+    fontSize: 13,
+    fontWeight: "700"
+  },
+
+  deviceDeleteButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+
+  deviceDeleteButtonText: {
+    fontSize: 12,
+    fontWeight: "800"
+  },
+
+  deleteSelector: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+
+  deleteSelectorText: {
+    fontSize: 15,
+    fontWeight: "600"
+  },
+
+  addDeviceBox: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 14
+  },
+
+  addDeviceDivider: {
+    height: 1,
+    marginTop: 8,
+    marginBottom: 10
+  },
+
   masterResetButton: {
     backgroundColor: "#ea580c",
     borderRadius: 16,
@@ -1229,8 +1891,66 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
 
+  dropdownBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    padding: 20
+  },
+
+  dropdownPanel: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 16
+  },
+
+  dropdownTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 12
+  },
+
+  dropdownList: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 10,
+    gap: 8,
+    maxHeight: 320
+  },
+
+  dropdownItem: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12
+  },
+
+  dropdownItemText: {
+    fontSize: 15,
+    fontWeight: "600"
+  },
+
+  dropdownEmpty: {
+    fontSize: 14,
+    paddingVertical: 8
+  },
+
   listContent: {
     paddingTop: 20,
+    gap: 12
+  },
+
+  deviceList: {
+    gap: 10,
+    marginTop: 12
+  },
+
+  deviceRow: {
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 12
   },
 

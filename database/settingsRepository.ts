@@ -1,8 +1,8 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
 export type SyncMode =
-  | "local"
-  | "hybrid"
+  | "global_on"
+  | "global_off"
 
 /*
 --------------------------------------------------
@@ -38,7 +38,7 @@ export async function getSyncMode(
 ): Promise<SyncMode> {
 
   const row =
-    await db.getFirstAsync<{ value: SyncMode }>(
+    await db.getFirstAsync<{ value: string | null }>(
       `
       SELECT value
       FROM settings
@@ -47,7 +47,19 @@ export async function getSyncMode(
       `
     )
 
-  return row?.value ?? "local"
+  const value = row?.value ?? "global_on"
+
+  if (value === "local") {
+    return "global_off"
+  }
+
+  if (value === "hybrid") {
+    return "global_on"
+  }
+
+  return value === "global_off"
+    ? "global_off"
+    : "global_on"
 
 }
 

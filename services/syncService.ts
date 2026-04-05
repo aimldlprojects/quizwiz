@@ -4,7 +4,6 @@ import {
   beginSyncActivity,
   endSyncActivity
 } from "../database/syncMetaRepository"
-import { getSyncMode } from "../database/settingsRepository"
 import { getSyncServerUrl } from "./sync/config"
 import { syncReviews } from "./sync/syncReviews"
 
@@ -38,14 +37,6 @@ export class SyncService {
       overlayLabel?: string
     }
   ): Promise<void> {
-
-    const mode =
-      await getSyncMode(this.db)
-
-    if (mode === "local") {
-      return
-    }
-
     const serverUrl =
       getSyncServerUrl()
 
@@ -91,13 +82,6 @@ export class SyncService {
         )
       )
     )
-
-    const mode =
-      await getSyncMode(this.db)
-
-    if (mode === "local") {
-      return
-    }
 
     const serverUrl =
       getSyncServerUrl()

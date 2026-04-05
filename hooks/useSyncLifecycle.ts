@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react"
 import { AppState, type AppStateStatus } from "react-native"
 import { SQLiteDatabase } from "expo-sqlite"
 
+import { subscribeSyncMetaChanges } from "@/database/syncMetaRepository"
 import { SyncService } from "@/services/syncService"
 import { SyncLifecycle } from "@/services/sync/syncLifecycle"
 
@@ -92,6 +93,19 @@ export function useSyncLifecycle(
         }
       )
 
+    const syncMetaSubscription =
+      subscribeSyncMetaChanges(() => {
+        if (!db || !activeUser || intervalMs <= 0) {
+          return
+        }
+
+        if (lifecycle.isSyncing()) {
+          return
+        }
+
+        lifecycle.requestSync("dirty")
+      })
+
     if (appStateRef.current === "active") {
       lifecycle.requestSync("startup")
     }
@@ -103,6 +117,7 @@ export function useSyncLifecycle(
         intervalRef.current = null
       }
       appStateSubscription.remove()
+      syncMetaSubscription()
       lifecycleRef.current = null
     }
 

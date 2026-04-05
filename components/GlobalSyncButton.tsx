@@ -184,10 +184,6 @@ export default function GlobalSyncButton({
     [badgeColor, syncing]
   )
   const nextAutoSyncText = useMemo(() => {
-    if (syncMode !== "hybrid") {
-      return "Auto sync off"
-    }
-
     if (syncIntervalMs <= 0) {
       return "Auto sync off"
     }
@@ -215,13 +211,9 @@ export default function GlobalSyncButton({
     }
 
     return `Auto sync in ${seconds}s`
-  }, [now, overallStatus.timestamp, syncIntervalMs, syncMode])
+  }, [now, overallStatus.timestamp, syncIntervalMs])
   const nextAutoSyncCompactText =
     useMemo(() => {
-      if (syncMode !== "hybrid") {
-        return "Off"
-      }
-
       if (syncIntervalMs <= 0) {
         return "Off"
       }
@@ -249,7 +241,7 @@ export default function GlobalSyncButton({
       }
 
       return `${seconds}s`
-    }, [now, overallStatus.timestamp, syncIntervalMs, syncMode])
+    }, [now, overallStatus.timestamp, syncIntervalMs])
   const shouldUseCompactCaption =
     variant === "inline"
   const inlineIconSize =
@@ -349,11 +341,7 @@ export default function GlobalSyncButton({
             ]}
           >
             <MaterialIcons
-              name={
-                syncMode === "hybrid"
-                  ? "schedule"
-                  : "sync-disabled"
-              }
+              name="schedule"
               size={10}
               color={syncTone}
             />
@@ -440,11 +428,7 @@ export default function GlobalSyncButton({
           ]}
         >
           <MaterialIcons
-            name={
-              syncMode === "hybrid"
-                ? "schedule"
-                : "sync-disabled"
-            }
+            name="schedule"
             size={11}
             color={syncTone}
           />

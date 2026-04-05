@@ -23,6 +23,10 @@ export class SyncLifecycle {
     void this.safeSync(reason)
   }
 
+  isSyncing() {
+    return this.syncInProgress
+  }
+
   private async safeSync(source: string) {
     if (this.syncInProgress) return
     this.syncInProgress = true

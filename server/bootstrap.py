@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import json
 
 import psycopg2
 from psycopg2 import sql
@@ -26,6 +27,39 @@ SUBJECTS = [
     "English",
     "Science",
 ]
+
+DEFAULT_DEVICE_CATALOG = [
+    {
+        "backendKey": "device_bhavi_tab",
+        "displayName": "bhavi_tab",
+    },
+    {
+        "backendKey": "device_bhavi_phone",
+        "displayName": "bhavi_phone",
+    },
+    {
+        "backendKey": "device_mabhu_tab",
+        "displayName": "mabhu_tab",
+    },
+    {
+        "backendKey": "device_mabhu_phone",
+        "displayName": "mabhu_phone",
+    },
+    {
+        "backendKey": "device_eshu_s22",
+        "displayName": "eshu_s22",
+    },
+    {
+        "backendKey": "device_eshu_tablet",
+        "displayName": "eshu_tablet",
+    },
+]
+
+DEFAULT_ACTIVE_DEVICE_BY_USER = {
+    "Bhavi": "device_bhavi_tab",
+    "Madhu": "device_mabhu_tab",
+    "Quiz Kid": "device_eshu_s22",
+}
 
 TOPICS = [
     {
@@ -738,6 +772,8 @@ def seed_demo_content(cur):
         )
         user_ids[user_name] = cur.fetchone()[0]
 
+    seed_default_devices(cur, user_ids)
+
     subject_ids = {}
 
     for subject in SUBJECTS:
@@ -831,6 +867,70 @@ def seed_demo_content(cur):
                 """,
                 (user_id, subject_id),
             )
+
+
+def seed_default_devices(cur, user_ids):
+
+    timestamp_ms = int(datetime.now().timestamp() * 1000)
+
+    for user_name, active_backend_key in DEFAULT_ACTIVE_DEVICE_BY_USER.items():
+        user_id = user_ids.get(user_name)
+        if not user_id:
+            continue
+
+        payload = [
+            {
+                "backendKey": device["backendKey"],
+                "displayName": device["displayName"],
+                "createdAt": timestamp_ms,
+                "updatedAt": timestamp_ms,
+            }
+            for device in DEFAULT_DEVICE_CATALOG
+        ]
+
+        cur.execute(
+            """
+            INSERT INTO settings (
+                user_id,
+                key,
+                value,
+                updated_at
+            )
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(user_id, key)
+            DO UPDATE SET
+                value = EXCLUDED.value,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                user_id,
+                f"device_registry_user_{user_id}",
+                json.dumps(payload),
+                timestamp_ms,
+            ),
+        )
+
+        cur.execute(
+            """
+            INSERT INTO settings (
+                user_id,
+                key,
+                value,
+                updated_at
+            )
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT(user_id, key)
+            DO UPDATE SET
+                value = EXCLUDED.value,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                user_id,
+                f"active_device_key_user_{user_id}",
+                active_backend_key,
+                timestamp_ms,
+            ),
+        )
 
 
 def ensure_initial_review(cur):

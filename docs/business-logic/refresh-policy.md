@@ -47,5 +47,5 @@ Use this page as the canonical rule for when the app should refresh screen data.
 ## Reference Docs
 
 - See [Docs Index](./index.md) for the full docs map.
-- See [Sync Settings](./sync-settings.md) for sync behavior.
+- See [Sync Settings Requirement](./sync-settings-requirement.md) for sync behavior.
 - See [UI Reference](./ui/README.md) for per-screen behavior.

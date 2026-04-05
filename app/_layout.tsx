@@ -32,8 +32,7 @@ export default function RootLayout() {
   } = useSettings(db)
   const { themeMode } = useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
-  const autoSyncIntervalMs =
-    syncMode === "hybrid" ? syncIntervalMs : 0
+  const autoSyncIntervalMs = syncIntervalMs
   useSyncLifecycle(
     db,
     activeUser,

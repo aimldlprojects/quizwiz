@@ -147,7 +147,10 @@ const TOPIC_SEEDS = (
     name: topic.name,
     subjectId:
       subjectIds[topic.subject],
-    parentKey: topic.parentKey
+    parentKey:
+      "parentKey" in topic
+        ? topic.parentKey
+        : undefined
   }))
 ]
 

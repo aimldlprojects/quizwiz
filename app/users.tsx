@@ -1,16 +1,17 @@
 import { router } from "expo-router"
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { useDatabase } from "../hooks/useDatabase"
+import { useDeviceRegistry } from "../hooks/useDeviceRegistry"
 import { useStudyPreferences } from "../hooks/useStudyPreferences"
 import { useUsers } from "../hooks/useUsers"
 import { getThemeColors } from "../styles/theme"
@@ -41,17 +42,34 @@ export default function UsersScreen() {
     selectUser,
     loading
   } = useUsers(db)
+  const {
+    visibleDevices,
+    activeDevice,
+    activeDeviceKey,
+    setActiveDevice,
+    loading: deviceLoading
+  } = useDeviceRegistry(db, activeUser)
   const { themeMode } =
     useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
-  const [switchingUserId, setSwitchingUserId] =
-    useState<number | null>(null)
+  const listRef =
+    useRef<FlatList<(typeof users)[number]> | null>(
+      null
+    )
+  const pageScrollRef =
+    useRef<ScrollView | null>(null)
+  const deviceCardYRef = useRef(0)
+  const continueButtonYRef = useRef(0)
   const cardBaseStyle = {
     backgroundColor: colors.card,
     borderColor: colors.border
   }
+  const hasUsers = users.length > 0
+  const orderedUsers = useMemo(() => {
+    return users.filter((user) => user.id != null)
+  }, [users])
 
-  if (dbLoading || loading) {
+  if (dbLoading || loading || deviceLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>
@@ -61,8 +79,6 @@ export default function UsersScreen() {
     )
   }
 
-  const hasUsers = users.length > 0
-
   return (
     <SafeAreaView
       style={[
@@ -70,116 +86,102 @@ export default function UsersScreen() {
         { backgroundColor: colors.background }
       ]}
     >
-
-      <View
-        style={[
-          styles.hero,
-          { backgroundColor: colors.card }
-        ]}
+      <ScrollView
+        ref={pageScrollRef}
+        contentContainerStyle={styles.pageContent}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>
-          Pick your player
-        </Text>
-
-        <Text
-          style={[
-            styles.title,
-            { color: colors.text }
-          ]}
-        >
-          Who is learning today?
-        </Text>
-
-        <Text
-          style={[
-            styles.subtitle,
-            { color: colors.muted }
-          ]}
-        >
-          Choose a profile to jump into
-          practice and track progress.
-        </Text>
-      </View>
 
       {hasUsers ? (
-        <FlatList
-          data={users.filter(
-            (user) => user.id != null
-          )}
-          keyExtractor={(item) =>
-            String(item.id)
-          }
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item, index }) => {
+        <View
+          style={[
+            styles.usersCard,
+            cardBaseStyle
+          ]}
+        >
+          <Text
+            style={[
+              styles.usersTitle,
+              { color: colors.text }
+            ]}
+          >
+            Choose user
+          </Text>
 
-            const isActive =
-              activeUser === item.id
+          <Text
+            style={[
+              styles.usersSubtitle,
+              { color: colors.muted }
+            ]}
+          >
+            Tap a profile card. Scroll to see more users.
+          </Text>
 
-            return (
-              <Pressable
-                style={[
-                  styles.card,
-                  cardBaseStyle,
-                  isActive && styles.activeCard
-                ]}
+          <FlatList
+            ref={listRef}
+            data={orderedUsers}
+            keyExtractor={(item) =>
+              String(item.id)
+            }
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            scrollEnabled={false}
+            renderItem={({ item, index }) => {
+
+              const isActive =
+                activeUser === item.id
+
+              return (
+                <Pressable
+                  style={[
+                    styles.card,
+                    cardBaseStyle,
+                    isActive && styles.activeCard
+                  ]}
                 onPress={async () => {
-                  setSwitchingUserId(item.id)
                   try {
                     await selectUser(item.id)
                   } catch (error) {
                     console.error(
                       "Failed to change active user:",
                       error
-                    )
-                  } finally {
-                    setSwitchingUserId(null)
-                    router.replace("/topics")
-                  }
-                }}
-              >
-                <View
-                  style={[
-                    styles.avatar,
-                    {
-                      backgroundColor:
-                        getAvatarColor(index)
+                      )
                     }
-                  ]}
+                  }}
                 >
-                  <Text style={styles.avatarText}>
-                    {item.name
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase() || "Q"}
+                  <View
+                    style={[
+                      styles.avatar,
+                      {
+                        backgroundColor:
+                          getAvatarColor(index)
+                      }
+                    ]}
+                  >
+                    <Text style={styles.avatarText}>
+                      {item.name
+                        .trim()
+                        .charAt(0)
+                        .toUpperCase() || "Q"}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.cardName,
+                      { color: colors.text }
+                    ]}
+                  >
+                    {item.name}
                   </Text>
-                </View>
 
-                <Text
-                  style={[
-                    styles.cardName,
-                    { color: colors.text }
-                  ]}
-                >
-                  {item.name}
-                </Text>
+                </Pressable>
+              )
 
-                <Text
-                  style={[
-                    styles.cardHint,
-                    { color: colors.muted }
-                  ]}
-                >
-                  {isActive
-                    ? "Current profile"
-                    : "Tap to continue"}
-                </Text>
-              </Pressable>
-            )
-
-          }}
-        />
+            }}
+          />
+        </View>
       ) : (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>
@@ -193,44 +195,146 @@ export default function UsersScreen() {
         </View>
       )}
 
-      <Pressable
-        style={styles.adminButton}
-        onPress={() => router.push("/admin")}
-      >
-        <Text style={styles.adminButtonText}>
-          Open Admin
-        </Text>
-      </Pressable>
-
-      {switchingUserId != null ? (
-        <View
-          style={[
-            styles.syncOverlay,
-            { backgroundColor: colors.background }
-          ]}
-        >
+        {activeUser != null ? (
           <View
             style={[
-              styles.syncOverlayCard,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border
-              }
+              styles.deviceCard,
+              cardBaseStyle
+            ]}
+            onLayout={(event) => {
+              deviceCardYRef.current =
+                event.nativeEvent.layout.y
+            }}
+          >
+          <Text
+            style={[
+              styles.deviceSubtitle,
+              { color: colors.muted, marginBottom: 10 }
             ]}
           >
-            <ActivityIndicator color={colors.text} />
-            <Text
-              style={[
-                styles.syncOverlayText,
-                { color: colors.text }
-              ]}
-            >
-              Syncing current and selected profile...
-            </Text>
-          </View>
+            {users.find((user) => user.id === activeUser)
+              ?.name ?? "Selected profile"}
+            {activeDevice?.displayName
+              ? ` · ${activeDevice.displayName}`
+              : ""}
+          </Text>
+
+          <Text
+            style={[
+              styles.deviceTitle,
+              { color: colors.text }
+            ]}
+          >
+            Available devices
+          </Text>
+
+          <Text
+            style={[
+              styles.deviceSubtitle,
+              { color: colors.muted }
+            ]}
+          >
+            Choose the device for this profile before continuing.
+          </Text>
+
+          {visibleDevices.length > 0 ? (
+            <>
+              <View style={styles.deviceChipRow}>
+                {visibleDevices.map((device) => (
+                  <Pressable
+                    key={device.backendKey}
+                    style={[
+                      styles.deviceChip,
+                      {
+                        borderColor:
+                          activeDeviceKey === device.backendKey
+                            ? colors.iconActive
+                            : colors.border,
+                        backgroundColor:
+                          activeDeviceKey === device.backendKey
+                            ? "rgba(37, 99, 235, 0.1)"
+                            : colors.surface
+                        ,
+                        transform:
+                          activeDeviceKey === device.backendKey
+                            ? [{ scale: 1.04 }]
+                            : [{ scale: 1 }]
+                      }
+                    ]}
+                    onPress={async () => {
+                      try {
+                        await setActiveDevice(
+                          device.backendKey
+                        )
+                        requestAnimationFrame(() => {
+                          pageScrollRef.current?.scrollTo({
+                            y: continueButtonYRef.current,
+                            animated: true
+                          })
+                        })
+                      } catch (error) {
+                        console.error(
+                          "Failed to set active device:",
+                          error
+                        )
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.deviceChipText,
+                        { color: colors.text }
+                      ]}
+                    >
+                      {device.displayName}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Pressable
+                style={[
+                  styles.continueButton,
+                  { backgroundColor: colors.iconActive }
+                ]}
+                onLayout={(event) => {
+                  continueButtonYRef.current =
+                    event.nativeEvent.layout.y
+                }}
+                onPress={() => router.replace("/topics")}
+              >
+                <Text style={styles.continueButtonText}>
+                  Continue
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.deviceSubtitle,
+                  { color: colors.muted }
+                ]}
+              >
+                No device is registered for this profile yet.
+              </Text>
+              <Pressable
+                style={[
+                  styles.adminButton,
+                  { marginTop: 12, marginBottom: 0 }
+                ]}
+                onPress={() => router.push("/admin")}
+              >
+              <Text style={styles.adminButtonText}>
+                  Add device in Admin
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
       ) : null}
 
+      </ScrollView>
     </SafeAreaView>
   )
 
@@ -285,8 +389,15 @@ const styles = StyleSheet.create({
   },
 
   listContent: {
-    paddingVertical: 20,
-    gap: 14
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 12
+  },
+
+  pageContent: {
+    paddingTop: 12,
+    paddingBottom: 24,
+    gap: 12
   },
 
   row: {
@@ -294,10 +405,11 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    width: "48%",
+    width: "47%",
     backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 18,
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#bfdbfe",
@@ -313,35 +425,89 @@ const styles = StyleSheet.create({
 
   activeCard: {
     borderColor: "#2563eb",
-    transform: [{ scale: 1.02 }]
+    shadowOpacity: 0.16,
+    elevation: 6
+  },
+
+  usersCard: {
+    marginTop: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: "#bfdbfe"
+  },
+
+  usersTitle: {
+    fontSize: 18,
+    fontWeight: "800"
+  },
+
+  usersSubtitle: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16
+  },
+
+  resumeCard: {
+    marginTop: 18,
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: "#bfdbfe"
+  },
+
+  resumeLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+
+  resumeTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginTop: 4
+  },
+
+  resumeText: {
+    fontSize: 14,
+    marginTop: 6,
+    lineHeight: 20
+  },
+
+  resumeButton: {
+    marginTop: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center"
+  },
+
+  resumeButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#ffffff"
   },
 
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14
+    marginBottom: 8
   },
 
   avatarText: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: "800",
     color: "#ffffff"
   },
 
   cardName: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "700",
     color: "#1e3a5f",
-    textAlign: "center"
-  },
-
-  cardHint: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 6,
     textAlign: "center"
   },
 
@@ -382,33 +548,64 @@ const styles = StyleSheet.create({
     color: "#ffffff"
   },
 
-  syncOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(248, 251, 255, 0.92)"
-  },
-
-  syncOverlayCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    borderRadius: 18,
-    borderWidth: 1,
+  deviceCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 2,
+    borderColor: "#93c5fd",
     shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     shadowOffset: {
       width: 0,
-      height: 5
-    }
+      height: 4
+    },
+    elevation: 2
   },
 
-  syncOverlayText: {
-    fontSize: 16,
+  deviceTitle: {
+    fontSize: 17,
     fontWeight: "800"
-  }
+  },
+
+  deviceSubtitle: {
+    fontSize: 11,
+    marginTop: 4,
+    lineHeight: 15
+  },
+
+  deviceChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10
+  },
+
+  deviceChip: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8
+  },
+
+  deviceChipText: {
+    fontSize: 13,
+    fontWeight: "700"
+  },
+
+  continueButton: {
+    marginTop: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center"
+  },
+
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#ffffff"
+  },
 
 })

@@ -20,8 +20,8 @@ Use this as the quick guide for what stays on the device and what goes to the gl
 
 - See [Docs Index](./index.md) for the full docs map.
 - See [UI Reference](./ui/README.md) for the screen-by-screen guide.
-- See [Sync Settings](./sync-settings.md) for sync behavior.
+- See [Sync Settings Requirement](./business-logic/sync-settings-requirement.md) for sync behavior.
 - See [Topic Selection Rules](./topic%20selection%20rules.md) for selection rules.
 - See [Glossary](./glossary.md) for word meanings.
-- See [Change Log](./change-log.md) for recent changes.
+- See [Change Log](./templates/change-log.md) for recent changes.
 - See [Maintenance](./maintenance.md) for docs rules.

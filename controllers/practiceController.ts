@@ -26,6 +26,7 @@ export class PracticeController {
   private eventBus = new EventBus()
   private userId: number
   private topicId: number | null
+  private deviceKey: string | null
   private sessionManager: LearningSessionManager
   private sessionCache = new SessionCache<any>()
   private shuffleRemainingSession: boolean
@@ -36,11 +37,13 @@ export class PracticeController {
     queue: QuestionQueue,
     repo: ReviewRepository,
     topicId: number | null = null,
+    deviceKey: string | null = null,
     shuffleRemainingSession: boolean = false
   ) {
 
     this.userId = userId
     this.topicId = topicId
+    this.deviceKey = deviceKey
     this.scheduler = scheduler
     this.queue = queue
     this.repo = repo
@@ -298,7 +301,8 @@ export class PracticeController {
     const saved = await getPracticeSession(
       this.repo.getDB(),
       this.userId,
-      this.topicId
+      this.topicId,
+      this.deviceKey
     )
 
     if (!saved) {
@@ -349,7 +353,8 @@ export class PracticeController {
       await clearPracticeSession(
         this.repo.getDB(),
         this.userId,
-        this.topicId
+        this.topicId,
+        this.deviceKey
       )
       return
     }
@@ -358,7 +363,8 @@ export class PracticeController {
       this.repo.getDB(),
       this.userId,
       this.topicId,
-      snapshot
+      snapshot,
+      this.deviceKey
     )
   }
 
@@ -370,7 +376,8 @@ export class PracticeController {
     await clearPracticeSession(
       this.repo.getDB(),
       this.userId,
-      this.topicId
+      this.topicId,
+      this.deviceKey
     )
   }
 

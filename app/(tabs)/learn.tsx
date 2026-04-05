@@ -38,6 +38,8 @@ import {
   isTableTopicKey
 } from "../../engine/questions/tableDeck"
 import { useDatabase } from "../../hooks/useDatabase"
+import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
+import { useSettings } from "../../hooks/useSettings"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { getThemeColors } from "../../styles/theme"
@@ -83,6 +85,18 @@ export default function LearnScreen() {
     loading: usersLoading
   } = useUsers(db)
   const {
+    activeDeviceKey,
+    loading: deviceLoading
+  } = useDeviceRegistry(db, activeUser)
+  const {
+    syncMode,
+    loading: settingsLoading
+  } = useSettings(db, activeUser)
+  const scopedDeviceKey =
+    syncMode === "global_off"
+      ? activeDeviceKey
+      : null
+  const {
     selectedTopicId,
     ttsEnabled,
     setTtsEnabled,
@@ -96,7 +110,8 @@ export default function LearnScreen() {
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
-    activeUser
+    activeUser,
+    scopedDeviceKey
   )
 
   const [card, setCard] =
@@ -156,10 +171,17 @@ export default function LearnScreen() {
             0,
             progressSnapshot.current - 1
           ),
-          totalCards: progressSnapshot.total
+          totalCards: progressSnapshot.total,
+          deviceKey: scopedDeviceKey
         }
       )
-  }, [db, activeUser, selectedTopicId, controller])
+  }, [
+    db,
+    activeUser,
+    selectedTopicId,
+    scopedDeviceKey,
+    controller
+  ])
 
   useEffect(() => {
     learnRandomOrderEnabledRef.current =
@@ -285,11 +307,12 @@ export default function LearnScreen() {
         if (restart) {
           controller.setCurrentIndex(0)
         } else {
-          const savedProgress =
+            const savedProgress =
             await getLearnProgress(
               db,
               activeUser,
-              selectedTopicId
+              selectedTopicId,
+              scopedDeviceKey
             )
 
           if (savedProgress) {
@@ -359,11 +382,12 @@ export default function LearnScreen() {
       if (restart) {
         controller.setCurrentIndex(0)
       } else {
-        const savedProgress =
+          const savedProgress =
           await getLearnProgress(
             db,
             activeUser,
-            selectedTopicId
+            selectedTopicId,
+            scopedDeviceKey
           )
 
         if (savedProgress) {
@@ -394,20 +418,24 @@ export default function LearnScreen() {
       setRevealed(false)
       setProgress(controller.getProgress())
       void persistLearnProgress()
-    }, [
-      activeUser,
-      controller,
-      db,
-      persistLearnProgress,
-      selectedTopicId
-    ])
+  }, [
+    activeUser,
+    scopedDeviceKey,
+    controller,
+    db,
+    persistLearnProgress,
+    selectedTopicId
+  ])
 
   const restartLearnSession = useCallback(() => {
     clearLearnTimers()
     controller.reset()
     setRevealed(false)
     void loadCardsForSelectedTopic(true)
-  }, [controller, loadCardsForSelectedTopic])
+  }, [
+    controller,
+    loadCardsForSelectedTopic
+  ])
 
   const toggleLearnRandomOrder = useCallback(() => {
     const nextEnabled = !learnRandomOrderEnabled
@@ -508,7 +536,9 @@ export default function LearnScreen() {
   if (
     loading ||
     usersLoading ||
+    settingsLoading ||
     preferencesLoading ||
+    deviceLoading ||
     !db
   ) {
     return (

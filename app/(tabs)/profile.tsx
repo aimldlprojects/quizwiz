@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -23,6 +24,7 @@ import {
   getSyncDirtyAt
 } from "@/database/syncMetaRepository"
 import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useUsers } from "@/hooks/useUsers"
@@ -62,6 +64,16 @@ export default function ProfileScreen() {
     loading: usersLoading,
     logoutCurrentUser
   } = useUsers(db, true)
+  const {
+    devices,
+    activeDevice,
+    activeDeviceKey,
+    addDevice,
+    deleteDevice,
+    renameDevice,
+    setActiveDevice,
+    loading: deviceLoading
+  } = useDeviceRegistry(db, activeUser)
 
   const {
     syncMode,
@@ -72,6 +84,10 @@ export default function ProfileScreen() {
     updateSyncMinGapMs,
     loading: settingsLoading
   } = useSettings(db, activeUser)
+  const scopedDeviceKey =
+    syncMode === "global_off"
+      ? activeDeviceKey
+      : null
 
   const {
     ttsEnabled,
@@ -93,7 +109,8 @@ export default function ProfileScreen() {
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
-    activeUser
+    activeUser,
+    scopedDeviceKey
   )
   const colors = getThemeColors(themeMode)
   const themedCard = {
@@ -109,6 +126,8 @@ export default function ProfileScreen() {
     useState<number | null>(null)
   const [remoteSyncTime, setRemoteSyncTime] =
     useState<number | null>(null)
+  const [deviceNameDraft, setDeviceNameDraft] =
+    useState("")
   const syncServerUrl =
     getSyncServerUrl()
 
@@ -197,6 +216,20 @@ export default function ProfileScreen() {
       ? "#ef4444"
       : "#22c55e"
 
+  const currentUser =
+    users.find(
+      (user) =>
+        Number(user.id) === Number(activeUser)
+    )
+  const currentDevice =
+    activeDevice ?? null
+
+  useEffect(() => {
+    setDeviceNameDraft(
+      currentDevice?.displayName ?? ""
+    )
+  }, [currentDevice])
+
   const getStatusLabel = (
     status: SyncStatusValue
   ) => {
@@ -214,7 +247,8 @@ export default function ProfileScreen() {
     dbLoading ||
     settingsLoading ||
     usersLoading ||
-    preferencesLoading
+    preferencesLoading ||
+    deviceLoading
   ) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -225,14 +259,8 @@ export default function ProfileScreen() {
     )
   }
 
-  const currentUser =
-    users.find(
-      (user) =>
-        Number(user.id) === Number(activeUser)
-    )
-
-  const hybridEnabled =
-    syncMode === "hybrid"
+  const globalSyncEnabled =
+    syncMode === "global_on"
 
   async function syncToMaster() {
 
@@ -308,7 +336,7 @@ export default function ProfileScreen() {
       await clearSyncDirty(db, activeUser)
       Alert.alert(
         "Push complete",
-        "Your local changes were saved to the global database."
+        "Your changes were saved to the global database."
       )
     } catch (error) {
       Alert.alert(
@@ -574,14 +602,14 @@ export default function ProfileScreen() {
                   { color: colors.muted }
                 ]}
               >
-                Local
+                Global Sync Off
               </Text>
 
               <Switch
-                value={hybridEnabled}
+                value={globalSyncEnabled}
                 onValueChange={(value) =>
                   updateSyncMode(
-                    value ? "hybrid" : "local"
+                    value ? "global_on" : "global_off"
                   )
                 }
               />
@@ -592,7 +620,7 @@ export default function ProfileScreen() {
                   { color: colors.muted }
                 ]}
               >
-                Hybrid
+                Global Sync On
               </Text>
             </View>
 
@@ -737,7 +765,7 @@ export default function ProfileScreen() {
                     { color: colors.muted }
                   ]}
                 >
-                  Another device or local change is waiting to sync.
+                  Another device or pending change is waiting to sync.
                 </Text>
               ) : overallStatus.message ? (
                 <Text
@@ -807,15 +835,150 @@ export default function ProfileScreen() {
             <Text
               style={[
                 styles.syncTimestamp,
-                { color: colors.muted }
-              ]}
-            >
-              Last sync:{" "}
-              {formatSyncTimestamp(
-                overallStatus.timestamp
-              )}
-            </Text>
-          </View>
+              { color: colors.muted }
+            ]}
+          >
+            Last sync:{" "}
+            {formatSyncTimestamp(
+              overallStatus.timestamp
+            )}
+          </Text>
+        </View>
+
+        <View
+          style={[styles.card, themedCard]}
+        >
+          <Text
+            style={[
+              styles.cardTitle,
+              { color: colors.text }
+            ]}
+          >
+            Linked device
+          </Text>
+
+          <Text
+            style={[
+              styles.cardText,
+              { color: colors.muted }
+            ]}
+          >
+            This is the device currently linked to this profile. Rename it here or open Admin to manage all devices.
+          </Text>
+
+          {currentDevice ? (
+            <>
+              <Text
+                style={[
+                  styles.syncLabel,
+                  { color: colors.muted, marginTop: 12 }
+                ]}
+              >
+                Active device
+              </Text>
+              <Text
+                style={[
+                  styles.metaValue,
+                  { color: colors.text, marginTop: 6 }
+                ]}
+              >
+                {currentDevice.displayName}
+              </Text>
+
+              <TextInput
+                value={deviceNameDraft}
+                onChangeText={setDeviceNameDraft}
+                placeholder="Edit device display name"
+                placeholderTextColor={colors.muted}
+                style={[
+                  styles.nameInput,
+                  {
+                    backgroundColor: colors.surface,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    marginTop: 12
+                  }
+                ]}
+              />
+
+              <View style={styles.deviceActionRow}>
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    {
+                      flex: 1,
+                      backgroundColor: colors.iconActive
+                    }
+                  ]}
+                  onPress={async () => {
+                    try {
+                      await renameDevice(
+                        currentDevice.backendKey,
+                        deviceNameDraft
+                      )
+                    } catch (error) {
+                      Alert.alert(
+                        "Could not rename device",
+                        error instanceof Error
+                          ? error.message
+                          : "Please choose a different name."
+                      )
+                    }
+                  }}
+                >
+                  <Text style={styles.primaryButtonText}>
+                    Save Name
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.logoutButton,
+                    {
+                      flex: 1,
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface
+                    }
+                  ]}
+                  onPress={() =>
+                    router.push("/admin")
+                  }
+                  >
+                  <Text
+                    style={[
+                      styles.logoutButtonText,
+                      { color: colors.text }
+                    ]}
+                  >
+                    Open Admin
+                  </Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text
+                style={[
+                  styles.cardText,
+                  { color: colors.muted, marginTop: 12 }
+                ]}
+              >
+                No device is linked yet. Open Admin to register one.
+              </Text>
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  { backgroundColor: colors.iconActive }
+                ]}
+                onPress={() => router.push("/admin")}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Go to Admin
+                </Text>
+              </Pressable>
+            </>
+          )}
+        </View>
 
           <View
             style={[styles.card, themedCard]}
@@ -1476,6 +1639,60 @@ const styles = StyleSheet.create({
   syncTimestamp: {
     marginTop: 6,
     fontSize: 12
+  },
+
+  nameInput: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    marginTop: 12
+  },
+
+  deviceChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10
+  },
+
+  deviceChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8
+  },
+
+  deviceChipText: {
+    fontWeight: "700"
+  },
+
+  deviceActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12
+  },
+
+  tunerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 12
+  },
+
+  tunerColumn: {
+    flex: 1
+  },
+
+  metaLabel: {
+    fontSize: 13,
+    fontWeight: "700"
+  },
+
+  metaValue: {
+    fontSize: 15,
+    fontWeight: "800"
   },
 
   syncMessage: {

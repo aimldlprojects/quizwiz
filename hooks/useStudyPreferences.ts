@@ -8,6 +8,7 @@ import {
 } from "react"
 
 import { markSyncDirty } from "@/database/syncMetaRepository"
+import { getDeviceScopedKey } from "@/database/deviceRegistryRepository"
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
 
@@ -71,7 +72,18 @@ const DEFAULTS: Preferences = {
   selectedTopicLevel2Ids: []
 }
 
-const preferencesCache = new Map<number, Preferences>()
+const preferencesCache = new Map<string, Preferences>()
+
+function getCacheKey(
+  userId: number | null,
+  deviceKey: string | null
+) {
+  if (userId == null) {
+    return "anonymous"
+  }
+
+  return `${userId}:${deviceKey ?? "global"}`
+}
 
 function clonePreferences(prefs: Preferences) {
   return {
@@ -88,29 +100,26 @@ function clonePreferences(prefs: Preferences) {
 
 function cachePreferencesForUser(
   userId: number | null,
+  deviceKey: string | null,
   prefs: Preferences
 ) {
-  if (userId == null) {
-    return
-  }
-
   preferencesCache.set(
-    userId,
+    getCacheKey(userId, deviceKey),
     clonePreferences(prefs)
   )
 }
 
 export function useStudyPreferences(
   db: SQLiteDatabase | null,
-  userId: number | null = null
+  userId: number | null = null,
+  deviceKey: string | null = null
 ) {
   const [loading, setLoading] = useState(true)
   const [preferences, setPreferences] =
     useState<Preferences>(() =>
-      userId == null
-        ? DEFAULTS
-        : preferencesCache.get(userId) ??
-          DEFAULTS
+      preferencesCache.get(
+        getCacheKey(userId, deviceKey)
+      ) ?? DEFAULTS
     )
   const preferencesRef = useRef(preferences)
   const loadTokenRef = useRef(0)
@@ -127,7 +136,7 @@ export function useStudyPreferences(
     }
 
     const cached = preferencesCache.get(
-      preferenceUserId
+      getCacheKey(preferenceUserId, deviceKey)
     )
 
     if (cached) {
@@ -137,14 +146,22 @@ export function useStudyPreferences(
     }
   }, [preferenceUserId])
 
-  const selectedSubjectKey =
+  const selectedSubjectBaseKey =
     preferenceUserId == null
       ? "selected_subject_id"
       : `selected_subject_id_user_${preferenceUserId}`
-  const selectedTopicKey =
+  const selectedTopicBaseKey =
     preferenceUserId == null
       ? "selected_topic_id"
       : `selected_topic_id_user_${preferenceUserId}`
+  const selectedSubjectKey = getDeviceScopedKey(
+    selectedSubjectBaseKey,
+    deviceKey
+  )
+  const selectedTopicKey = getDeviceScopedKey(
+    selectedTopicBaseKey,
+    deviceKey
+  )
   const autoNextEnabledKey =
     preferenceUserId == null
       ? "auto_next_enabled"
@@ -185,23 +202,39 @@ export function useStudyPreferences(
     preferenceUserId == null
       ? "tts_enabled"
       : `tts_enabled_user_${preferenceUserId}`
-  const selectedSubjectIdsKey =
+  const selectedSubjectIdsBaseKey =
     preferenceUserId == null
       ? "selected_subject_ids"
       : `selected_subject_ids_user_${preferenceUserId}`
-  const selectedTopicLevel1IdsKey =
+  const selectedTopicLevel1IdsBaseKey =
     preferenceUserId == null
       ? "selected_topic_level1_ids"
       : `selected_topic_level1_ids_user_${preferenceUserId}`
-  const selectedTopicLevel2IdsKey =
+  const selectedTopicLevel2IdsBaseKey =
     preferenceUserId == null
       ? "selected_topic_level2_ids"
       : `selected_topic_level2_ids_user_${preferenceUserId}`
+  const selectedSubjectIdsKey = getDeviceScopedKey(
+    selectedSubjectIdsBaseKey,
+    deviceKey
+  )
+  const selectedTopicLevel1IdsKey =
+    getDeviceScopedKey(
+      selectedTopicLevel1IdsBaseKey,
+      deviceKey
+    )
+  const selectedTopicLevel2IdsKey =
+    getDeviceScopedKey(
+      selectedTopicLevel2IdsBaseKey,
+      deviceKey
+    )
 
   const preferenceKeys = useMemo(
     () => [
       selectedSubjectKey,
       selectedTopicKey,
+      selectedSubjectBaseKey,
+      selectedTopicBaseKey,
       "tts_enabled",
       ttsKey,
       autoNextEnabledKey,
@@ -229,6 +262,11 @@ export function useStudyPreferences(
       selectedSubjectIdsKey,
       selectedSubjectKey,
       selectedTopicKey,
+      selectedSubjectBaseKey,
+      selectedTopicBaseKey,
+      selectedSubjectIdsBaseKey,
+      selectedTopicLevel1IdsBaseKey,
+      selectedTopicLevel2IdsBaseKey,
       selectedTopicLevel1IdsKey,
       selectedTopicLevel2IdsKey,
       ttsKey,
@@ -247,130 +285,227 @@ export function useStudyPreferences(
 
     setLoading(true)
 
-    const rows = await db.getAllAsync<{
-      key: string
-      value: string
-    }>(
-      `
-      SELECT key, value
-      FROM settings
-      WHERE user_id = ?
-        AND key IN (${preferenceKeys
-          .map(() => "?")
-          .join(", ")})
-      `,
-      [preferenceUserId, ...preferenceKeys]
-    )
+    try {
+      const rows = await db.getAllAsync<{
+        key: string
+        value: string
+      }>(
+        `
+        SELECT key, value
+        FROM settings
+        WHERE user_id = ?
+          AND key IN (${preferenceKeys
+            .map(() => "?")
+            .join(", ")})
+        `,
+        [preferenceUserId, ...preferenceKeys]
+      )
 
-    const updates: Partial<Preferences> = {}
-    let userTtsApplied = false
-    const cachedBase =
-      preferencesCache.get(preferenceUserId) ?? DEFAULTS
+      const updates: Partial<Preferences> = {}
+      let subjectScopedApplied = false
+      let topicScopedApplied = false
+      let subjectIdsScopedApplied = false
+      let topicLevel1ScopedApplied = false
+      let topicLevel2ScopedApplied = false
+      let userTtsApplied = false
+      const cachedBase =
+        preferencesCache.get(
+          getCacheKey(preferenceUserId, deviceKey)
+        ) ?? DEFAULTS
 
-    for (const row of rows) {
-      switch (row.key) {
-        case selectedSubjectKey:
+      for (const row of rows) {
+        if (row.key === selectedSubjectKey) {
           updates.selectedSubjectId =
             row.value ? Number(row.value) : null
-          break
-        case selectedTopicKey:
+          subjectScopedApplied = true
+          continue
+        }
+
+      if (row.key === selectedSubjectBaseKey) {
+        if (!subjectScopedApplied) {
+          updates.selectedSubjectId =
+            row.value ? Number(row.value) : null
+        }
+        continue
+      }
+
+      if (row.key === selectedTopicKey) {
+        updates.selectedTopicId =
+          row.value ? Number(row.value) : null
+        topicScopedApplied = true
+        continue
+      }
+
+      if (row.key === selectedTopicBaseKey) {
+        if (!topicScopedApplied) {
           updates.selectedTopicId =
             row.value ? Number(row.value) : null
-          break
-        case ttsKey:
+        }
+        continue
+      }
+
+      if (row.key === ttsKey) {
+        updates.ttsEnabled = row.value !== "0"
+        userTtsApplied = true
+        continue
+      }
+
+      if (row.key === "tts_enabled") {
+        if (!userTtsApplied) {
           updates.ttsEnabled = row.value !== "0"
-          userTtsApplied = true
-          break
-        case "tts_enabled":
-          if (!userTtsApplied) {
-            updates.ttsEnabled = row.value !== "0"
-          }
-          break
-        case autoNextEnabledKey:
-          updates.autoNextEnabled = row.value === "1"
-          break
-        case autoNextCorrectDelayKey:
-          updates.autoNextCorrectDelaySeconds =
-            Math.max(
-              1,
-              Number(row.value) ||
-                DEFAULTS.autoNextCorrectDelaySeconds
-            )
-          break
-        case autoNextWrongDelayKey:
-          updates.autoNextWrongDelaySeconds =
-            Math.max(
-              1,
-              Number(row.value) ||
-                DEFAULTS.autoNextWrongDelaySeconds
-            )
-          break
-        case learnAutoPlayKey:
-          updates.learnAutoPlayEnabled =
-            row.value === "1"
-          break
-        case learnFrontDelayKey:
-          updates.learnFrontDelaySeconds =
-            Math.max(
-              1,
-              Number(row.value) ||
-                DEFAULTS.learnFrontDelaySeconds
-            )
-          break
-        case learnBackDelayKey:
-          updates.learnBackDelaySeconds =
-            Math.max(
-              1,
-              Number(row.value) ||
-                DEFAULTS.learnBackDelaySeconds
-            )
-          break
-        case learnRandomOrderKey:
-          updates.learnRandomOrderEnabled =
-            row.value === "1"
-          break
-        case practiceRandomOrderKey:
-          updates.practiceRandomOrderEnabled =
-            row.value === "1"
-          break
-        case themeModeKey:
-          updates.themeMode =
-            row.value === "dark" ? "dark" : "light"
-          break
-        case selectedSubjectIdsKey:
-          updates.selectedSubjectIds = parseIdArray(
-            row.value
+        }
+        continue
+      }
+
+      if (row.key === autoNextEnabledKey) {
+        updates.autoNextEnabled = row.value === "1"
+        continue
+      }
+
+      if (row.key === autoNextCorrectDelayKey) {
+        updates.autoNextCorrectDelaySeconds =
+          Math.max(
+            1,
+            Number(row.value) ||
+              DEFAULTS.autoNextCorrectDelaySeconds
           )
-          break
-        case selectedTopicLevel1IdsKey:
+        continue
+      }
+
+      if (row.key === autoNextWrongDelayKey) {
+        updates.autoNextWrongDelaySeconds =
+          Math.max(
+            1,
+            Number(row.value) ||
+              DEFAULTS.autoNextWrongDelaySeconds
+          )
+        continue
+      }
+
+      if (row.key === learnAutoPlayKey) {
+        updates.learnAutoPlayEnabled =
+          row.value === "1"
+        continue
+      }
+
+      if (row.key === learnFrontDelayKey) {
+        updates.learnFrontDelaySeconds =
+          Math.max(
+            1,
+            Number(row.value) ||
+              DEFAULTS.learnFrontDelaySeconds
+          )
+        continue
+      }
+
+      if (row.key === learnBackDelayKey) {
+        updates.learnBackDelaySeconds =
+          Math.max(
+            1,
+            Number(row.value) ||
+              DEFAULTS.learnBackDelaySeconds
+          )
+        continue
+      }
+
+      if (row.key === learnRandomOrderKey) {
+        updates.learnRandomOrderEnabled =
+          row.value === "1"
+        continue
+      }
+
+      if (row.key === practiceRandomOrderKey) {
+        updates.practiceRandomOrderEnabled =
+          row.value === "1"
+        continue
+      }
+
+      if (row.key === themeModeKey) {
+        updates.themeMode =
+          row.value === "dark" ? "dark" : "light"
+        continue
+      }
+
+      if (row.key === selectedSubjectIdsKey) {
+        updates.selectedSubjectIds = parseIdArray(
+          row.value
+        )
+        subjectIdsScopedApplied = true
+        continue
+      }
+
+      if (row.key === selectedSubjectIdsBaseKey) {
+        if (!subjectIdsScopedApplied) {
+          updates.selectedSubjectIds =
+            parseIdArray(row.value)
+        }
+        continue
+      }
+
+      if (row.key === selectedTopicLevel1IdsKey) {
+        updates.selectedTopicLevel1Ids = parseIdArray(
+          row.value
+        )
+        topicLevel1ScopedApplied = true
+        continue
+      }
+
+      if (row.key === selectedTopicLevel1IdsBaseKey) {
+        if (!topicLevel1ScopedApplied) {
           updates.selectedTopicLevel1Ids =
             parseIdArray(row.value)
-          break
-        case selectedTopicLevel2IdsKey:
+        }
+        continue
+      }
+
+      if (row.key === selectedTopicLevel2IdsKey) {
+        updates.selectedTopicLevel2Ids = parseIdArray(
+          row.value
+        )
+        topicLevel2ScopedApplied = true
+        continue
+      }
+
+      if (row.key === selectedTopicLevel2IdsBaseKey) {
+        if (!topicLevel2ScopedApplied) {
           updates.selectedTopicLevel2Ids =
             parseIdArray(row.value)
-          break
+        }
+        continue
       }
     }
 
-    const nextPreferences = {
-      ...cachedBase,
-      ...updates
-    }
+      const nextPreferences = {
+        ...cachedBase,
+        ...updates
+      }
 
-    if (loadToken !== loadTokenRef.current) {
-      return
-    }
+      if (loadToken !== loadTokenRef.current) {
+        return
+      }
 
-    const clonedPreferences =
-      clonePreferences(nextPreferences)
-    preferencesRef.current = clonedPreferences
-    setPreferences(clonedPreferences)
-    cachePreferencesForUser(
-      preferenceUserId,
-      nextPreferences
-    )
-    setLoading(false)
+      const clonedPreferences =
+        clonePreferences(nextPreferences)
+      preferencesRef.current = clonedPreferences
+      setPreferences(clonedPreferences)
+      cachePreferencesForUser(
+        preferenceUserId,
+        deviceKey,
+        nextPreferences
+      )
+    } catch (error) {
+      console.warn(
+        "Failed to load study preferences:",
+        error
+      )
+      if (loadToken === loadTokenRef.current) {
+        setPreferences(DEFAULTS)
+      }
+    } finally {
+      if (loadToken === loadTokenRef.current) {
+        setLoading(false)
+      }
+    }
   }, [
     autoNextCorrectDelayKey,
     autoNextEnabledKey,
@@ -507,6 +642,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -569,6 +705,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -602,6 +739,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -627,6 +765,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -648,6 +787,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -670,6 +810,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -693,6 +834,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -716,6 +858,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -738,6 +881,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -761,6 +905,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -784,6 +929,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -806,6 +952,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -828,6 +975,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 
@@ -848,6 +996,7 @@ export function useStudyPreferences(
     setPreferences(nextPreferences)
     cachePreferencesForUser(
       preferenceUserId,
+      deviceKey,
       nextPreferences
     )
 

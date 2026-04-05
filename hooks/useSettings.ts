@@ -21,7 +21,7 @@ export function useSettings(
 ) {
 
   const [syncMode, setMode] =
-    useState<SyncMode>("local")
+    useState<SyncMode>("global_on")
 
   const [syncIntervalMs, setIntervalMs] =
     useState(60_000)

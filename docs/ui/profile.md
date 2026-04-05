@@ -41,7 +41,7 @@ Change profile settings and sync data.
 - Push sends local changes.
 - Sync does Push then Pull.
 - Pull updates the local database from the global database.
-- Screen updates follow [Refresh Policy](../refresh-policy.md), not sync completion alone.
+- Screen updates follow [Refresh Policy](../business-logic/refresh-policy.md), not sync completion alone.
 - Log out syncs the active profile first, then clears the current profile on this device.
 - The status area also shows server, connection, and last sync time.
 
@@ -49,5 +49,5 @@ Change profile settings and sync data.
 
 - See [Docs Index](../index.md) for the full docs map.
 - See [UI Reference](./README.md) for the screen-by-screen guide.
-- See [Sync Settings](../sync-settings.md) for sync behavior.
+- See [Sync Settings Requirement](../business-logic/sync-settings-requirement.md) for sync behavior.
 - See [Topic Selection Rules](../topic%20selection%20rules.md) for selection rules.

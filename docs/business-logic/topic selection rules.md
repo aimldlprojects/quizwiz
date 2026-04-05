@@ -288,9 +288,9 @@ Blue -> active / user interaction
 
 - See [Docs Index](./index.md) for the full docs map.
 - See [UI Reference](./ui/README.md) for the screen-by-screen guide.
-- See [Sync Settings](./sync-settings.md) for sync behavior.
+- See [Sync Settings Requirement](./sync-settings-requirement.md) for sync behavior.
 - See [Glossary](./glossary.md) for word meanings.
 - See [Data Ownership](./data-ownership.md) for local vs global data.
-- See [Change Log](./change-log.md) for recent changes.
+- See [Change Log](../templates/change-log.md) for recent changes.
 - See [Maintenance](./maintenance.md) for docs rules.
 

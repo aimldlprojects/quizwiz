@@ -35,5 +35,5 @@ Choose which subjects and topics are available for learning.
 
 - See [Docs Index](../index.md) for the full docs map.
 - See [UI Reference](./README.md) for the screen-by-screen guide.
-- See [Sync Settings](../sync-settings.md) for sync behavior.
+- See [Sync Settings Requirement](../business-logic/sync-settings-requirement.md) for sync behavior.
 - See [Topic Selection Rules](../topic%20selection%20rules.md) for selection rules.

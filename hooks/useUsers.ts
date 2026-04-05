@@ -1,5 +1,10 @@
 import { SQLiteDatabase } from "expo-sqlite"
-import { useCallback, useEffect, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from "react"
 import { useFocusEffect } from "@react-navigation/native"
 
 import { UserController } from "../controllers/userController"
@@ -12,7 +17,6 @@ import {
 import {
   markPermissionsDirty,
   markSyncDirty,
-  notifyPermissionMetaChanges
 } from "@/database/syncMetaRepository"
 
 export interface User {
@@ -34,38 +38,51 @@ export function useUsers(
 
   const [loading, setLoading] =
     useState(true)
+  const loadTokenRef = useRef(0)
 
   const load = useCallback(async () => {
 
     if (!db) return
 
-    const controller =
-      new UserController(db)
-    const permissionsRepo =
-      new UserSubjectRepository(db)
+    const loadToken = ++loadTokenRef.current
 
-    const list =
-      await controller.getUsers(
-        includeDisabled
-      )
+    try {
+      const controller =
+        new UserController(db)
 
-    await Promise.all(
-      list.map((user) =>
-        permissionsRepo.restorePermissionSnapshots(
-          user.id
+      const list =
+        await controller.getUsers(
+          includeDisabled
         )
+
+      if (loadToken !== loadTokenRef.current) {
+        return
+      }
+
+      const active =
+        await controller.getActiveUser()
+
+      if (loadToken !== loadTokenRef.current) {
+        return
+      }
+
+      setUsers(list)
+
+      setActiveUser(active)
+    } catch (error) {
+      console.warn(
+        "Failed to load users:",
+        error
       )
-    )
-    notifyPermissionMetaChanges()
-
-    const active =
-      await controller.getActiveUser()
-
-    setUsers(list)
-
-    setActiveUser(active)
-
-    setLoading(false)
+      if (loadToken === loadTokenRef.current) {
+        setUsers([])
+        setActiveUser(null)
+      }
+    } finally {
+      if (loadToken === loadTokenRef.current) {
+        setLoading(false)
+      }
+    }
 
   }, [db, includeDisabled])
 
@@ -202,34 +219,9 @@ export function useUsers(
     const controller =
       new UserController(db)
 
-    if (activeUser != null && activeUser !== id) {
-      try {
-        await new SyncService(db, activeUser).syncUser(
-          activeUser,
-          { showOverlay: false }
-        )
-      } catch (error) {
-        console.warn(
-          "User switch sync timed out or failed, continuing with switch:",
-          error
-        )
-      }
-    }
-
     await controller.setActiveUser(id)
 
     setActiveUser(id)
-
-    try {
-      await new SyncService(db, id).syncUser(id, {
-        showOverlay: false
-      })
-    } catch (error) {
-      console.warn(
-        "New profile sync timed out or failed, continuing into the profile:",
-        error
-      )
-    }
 
   }
 

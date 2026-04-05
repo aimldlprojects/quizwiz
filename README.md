@@ -35,6 +35,10 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
+## Reset Databases
+
+If you need to rebuild the app databases, see the reset instructions in [docs/maintenance.md#reset-project](./docs/maintenance.md#reset-project).
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:

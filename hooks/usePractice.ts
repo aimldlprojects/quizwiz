@@ -9,9 +9,9 @@ import {
 
 import { PracticeController } from "../controllers/practiceController"
 import { ReviewRating } from "../engine/scheduler/spacedRepetition"
+import { Question } from "../engine/practice/questionQueue"
 
 import { PracticeResult } from "../types/practiceResult"
-import { Question } from "../types/question"
 
 export function usePractice(controller: PracticeController | null) {
 

@@ -36,7 +36,9 @@ import {
 } from "../../engine/questions/tableDeck"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 import { useDatabase } from "../../hooks/useDatabase"
+import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
 import { usePractice } from "../../hooks/usePractice"
+import { useSettings } from "../../hooks/useSettings"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
@@ -65,6 +67,18 @@ export default function PracticeScreen() {
     loading: usersLoading
   } = useUsers(db)
   const {
+    activeDeviceKey,
+    loading: deviceLoading
+  } = useDeviceRegistry(db, activeUser)
+  const {
+    syncMode,
+    loading: settingsLoading
+  } = useSettings(db, activeUser)
+  const scopedDeviceKey =
+    syncMode === "global_off"
+      ? activeDeviceKey
+      : null
+  const {
     selectedTopicId,
     ttsEnabled,
     setTtsEnabled,
@@ -78,7 +92,8 @@ export default function PracticeScreen() {
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
-    activeUser
+    activeUser,
+    scopedDeviceKey
   )
 
   const [selectedTopic, setSelectedTopic] =
@@ -266,6 +281,7 @@ export default function PracticeScreen() {
       queue,
       repo,
       selectedTopicId,
+      scopedDeviceKey,
       practiceRandomOrderEnabled
     )
 
@@ -273,6 +289,7 @@ export default function PracticeScreen() {
     db,
     activeUser,
     selectedTopicId,
+    scopedDeviceKey,
     practiceRandomOrderEnabled,
     getPracticeTopicIds
   ])
@@ -365,7 +382,9 @@ export default function PracticeScreen() {
   if (
     loading ||
     usersLoading ||
+    settingsLoading ||
     preferencesLoading ||
+    deviceLoading ||
     !db
   ) {
     return (

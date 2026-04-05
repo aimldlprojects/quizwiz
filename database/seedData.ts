@@ -13,12 +13,53 @@ import {
   DEFAULT_CURRICULUM_SUBJECTS,
   DEFAULT_CURRICULUM_TOPIC_KEYS
 } from "@/config/curriculum"
+import {
+  type RegisteredDevice,
+  setActiveDeviceBackendKey,
+  setAllowedDeviceBackendKeys
+} from "./deviceRegistryRepository"
 
 const USERS = [
   [1, "Bhavi"],
   [2, "Madhu"],
   [3, "Quiz Kid"]
 ] as const
+
+const DEFAULT_DEVICE_CATALOG = [
+  {
+    backendKey: "device_bhavi_tab",
+    displayName: "bhavi_tab"
+  },
+  {
+    backendKey: "device_bhavi_phone",
+    displayName: "bhavi_phone"
+  },
+  {
+    backendKey: "device_mabhu_tab",
+    displayName: "mabhu_tab"
+  },
+  {
+    backendKey: "device_mabhu_phone",
+    displayName: "mabhu_phone"
+  },
+  {
+    backendKey: "device_eshu_s22",
+    displayName: "eshu_s22"
+  },
+  {
+    backendKey: "device_eshu_tablet",
+    displayName: "eshu_tablet"
+  }
+] as const
+
+const DEFAULT_ACTIVE_DEVICE_BY_USER = new Map<
+  number,
+  string
+>([
+  [1, "device_bhavi_tab"],
+  [2, "device_mabhu_tab"],
+  [3, "device_eshu_s22"]
+])
 
 type QuestionSeed = {
   topicKey: string
@@ -319,6 +360,157 @@ export async function seedData(
         seed.answer
       ]
     )
+  }
+
+  await seedDefaultDevices(db)
+
+}
+
+async function seedDefaultDevices(
+  db: SQLiteDatabase
+) {
+
+  const timestamp = Date.now()
+  const users = USERS.map(([id]) => id)
+
+  for (const userId of users) {
+    const registryKey =
+      `device_registry_user_${userId}`
+    const allowedKey =
+      `allowed_device_keys_user_${userId}`
+    const activeKey =
+      `active_device_key_user_${userId}`
+
+    const existingRegistry =
+      await db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        LIMIT 1
+        `,
+        [userId, registryKey]
+      )
+
+    const parsedRegistry: RegisteredDevice[] = []
+    if (existingRegistry?.value) {
+      try {
+        const parsed = JSON.parse(existingRegistry.value)
+        if (Array.isArray(parsed)) {
+          for (const entry of parsed) {
+            const backendKey = String(
+              entry?.backendKey ?? ""
+            ).trim()
+            const displayName = String(
+              entry?.displayName ?? ""
+            ).trim()
+            if (!backendKey || !displayName) {
+              continue
+            }
+            parsedRegistry.push({
+              backendKey,
+              displayName,
+              createdAt:
+                Number(entry?.createdAt) || timestamp,
+              updatedAt:
+                Number(entry?.updatedAt) || timestamp
+            })
+          }
+        }
+      } catch {
+        parsedRegistry.length = 0
+      }
+    }
+
+    const existingKeys = new Set(
+      parsedRegistry.map((device) => device.backendKey)
+    )
+    const mergedRegistry = [
+      ...parsedRegistry,
+      ...DEFAULT_DEVICE_CATALOG.filter(
+        (device) => !existingKeys.has(device.backendKey)
+      ).map((device) => ({
+        backendKey: device.backendKey,
+        displayName: device.displayName,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }))
+    ]
+
+    if (
+      !existingRegistry?.value ||
+      mergedRegistry.length !== parsedRegistry.length
+    ) {
+      await db.runAsync(
+        `
+        INSERT INTO settings (
+          user_id,
+          key,
+          value,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, key)
+        DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+        `,
+        [
+          userId,
+          registryKey,
+          JSON.stringify(mergedRegistry),
+          timestamp
+        ]
+      )
+    }
+
+    const existingAllowed =
+      await db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        LIMIT 1
+        `,
+        [userId, allowedKey]
+      )
+
+    if (!existingAllowed?.value) {
+      await setAllowedDeviceBackendKeys(db, userId, null)
+    }
+
+    const activeDeviceBackendKey =
+      DEFAULT_ACTIVE_DEVICE_BY_USER.get(userId) ??
+      mergedRegistry[0]?.backendKey ??
+      DEFAULT_DEVICE_CATALOG[0].backendKey
+
+    const activeRow =
+      await db.getFirstAsync<{
+        value: string | null
+      }>(
+        `
+        SELECT value
+        FROM settings
+        WHERE user_id = ?
+          AND key = ?
+        LIMIT 1
+        `,
+        [userId, activeKey]
+      )
+
+    if (!activeRow?.value) {
+      await setActiveDeviceBackendKey(
+        db,
+        userId,
+        activeDeviceBackendKey
+      )
+    }
   }
 
 }

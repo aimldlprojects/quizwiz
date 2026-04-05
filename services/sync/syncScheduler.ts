@@ -1,6 +1,5 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
-import { getSyncMode } from "../../database/settingsRepository"
 import { syncReviews } from "./syncReviews"
 
 /*
@@ -19,14 +18,6 @@ export function startSyncScheduler(
   const timer = setInterval(async () => {
 
     try {
-
-      const mode =
-        await getSyncMode(db)
-
-      if (mode !== "hybrid") {
-        return
-      }
-
       await syncReviews(
         db,
         serverUrl,

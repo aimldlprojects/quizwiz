@@ -1,4 +1,4 @@
-export const DEFAULT_SYNC_MODE = "hybrid" as const
+export const DEFAULT_SYNC_MODE = "global_on" as const
 
 export const DEFAULT_CURRICULUM_SUBJECTS = ["Mathematics"] as const
 

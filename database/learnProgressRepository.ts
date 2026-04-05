@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
 import { markSyncDirty } from "./syncMetaRepository"
+import { getDeviceScopedKey } from "./deviceRegistryRepository"
 
 export interface LearnProgressRecord {
   topicId: number
@@ -12,6 +13,16 @@ export interface LearnProgressRecord {
 
 function getLearnProgressKey(topicId: number) {
   return `learn_progress_topic_${topicId}`
+}
+
+function getScopedLearnProgressKey(
+  topicId: number,
+  deviceKey?: string | null
+) {
+  return getDeviceScopedKey(
+    getLearnProgressKey(topicId),
+    deviceKey
+  )
 }
 
 async function ensureTable(
@@ -35,11 +46,15 @@ async function ensureTable(
 export async function getLearnProgress(
   db: SQLiteDatabase,
   userId: number,
-  topicId: number
+  topicId: number,
+  deviceKey?: string | null
 ): Promise<LearnProgressRecord | null> {
 
   await ensureTable(db)
 
+  const scopedKey =
+    getScopedLearnProgressKey(topicId, deviceKey)
+  const legacyKey = getLearnProgressKey(topicId)
   const row = await db.getFirstAsync<{
     value: string
     updated_at: number | null
@@ -51,15 +66,34 @@ export async function getLearnProgress(
       AND key = ?
     LIMIT 1
     `,
-    [userId, getLearnProgressKey(topicId)]
+    [userId, scopedKey]
   )
 
-  if (!row?.value) {
+  const fallbackRow =
+    !row && scopedKey !== legacyKey
+      ? await db.getFirstAsync<{
+          value: string
+          updated_at: number | null
+        }>(
+          `
+          SELECT value, updated_at
+          FROM settings
+          WHERE user_id = ?
+            AND key = ?
+          LIMIT 1
+          `,
+          [userId, legacyKey]
+        )
+      : null
+
+  const sourceRow = row ?? fallbackRow
+
+  if (!sourceRow?.value) {
     return null
   }
 
   try {
-    const parsed = JSON.parse(row.value) as
+    const parsed = JSON.parse(sourceRow.value) as
       | Partial<LearnProgressRecord>
       | null
 
@@ -82,8 +116,8 @@ export async function getLearnProgress(
           ? parsed.totalCards
           : 0,
       updatedAt:
-        typeof row.updated_at === "number"
-          ? row.updated_at
+        typeof sourceRow.updated_at === "number"
+          ? sourceRow.updated_at
           : Number(parsed.updatedAt) || Date.now()
     }
   } catch {
@@ -98,7 +132,10 @@ export async function setLearnProgress(
   progress: Omit<
     LearnProgressRecord,
     "updatedAt"
-  > & { updatedAt?: number }
+  > & {
+    updatedAt?: number
+    deviceKey?: string | null
+  }
 ): Promise<void> {
 
   await ensureTable(db)
@@ -106,7 +143,10 @@ export async function setLearnProgress(
   const updatedAt =
     progress.updatedAt ?? Date.now()
   const key =
-    getLearnProgressKey(progress.topicId)
+    getScopedLearnProgressKey(
+      progress.topicId,
+      progress.deviceKey
+    )
 
   const current = await db.getFirstAsync<{
     updated_at: number | null
@@ -164,10 +204,24 @@ export async function setLearnProgress(
 
 export async function clearLearnProgressForUser(
   db: SQLiteDatabase,
-  userId: number
+  userId: number,
+  deviceKey?: string | null
 ): Promise<void> {
 
   await ensureTable(db)
+
+  if (deviceKey) {
+    const suffix = `__device_${deviceKey}`
+    await db.runAsync(
+      `
+      DELETE FROM settings
+      WHERE user_id = ?
+        AND substr(key, -length(?)) = ?
+      `,
+      [userId, suffix, suffix]
+    )
+    return
+  }
 
   await db.runAsync(
     `

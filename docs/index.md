@@ -21,8 +21,8 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 ## Rules
 
 - [Topic selection rules](./topic%20selection%20rules.md)
-- [Refresh policy](./refresh-policy.md)
-- [Sync settings](./sync-settings.md)
+- [Refresh policy](./business-logic/refresh-policy.md)
+- [Sync settings requirement](./business-logic/sync-settings-requirement.md)
 
 ## Business Logic
 
@@ -34,8 +34,12 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 
 - [Glossary](./glossary.md)
 - [Data ownership](./data-ownership.md)
-- [Change log](./change-log.md)
+- [Change log](./templates/change-log.md)
 - [Maintenance](./maintenance.md)
+
+## Project Reset
+
+- [Reset instructions](./maintenance.md#reset-project)
 
 ## What To Check
 
@@ -43,11 +47,11 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 | --- | --- |
 | Screen layout or buttons | [UI Reference](./ui/README.md) |
 | Topic selection behavior | [Topic selection rules](./topic%20selection%20rules.md) |
-| Refresh timing or screen updates | [Refresh policy](./refresh-policy.md) |
+| Refresh timing or screen updates | [Refresh policy](./business-logic/refresh-policy.md) |
 | Question behavior or table decks | [Question requirements](./business-logic/question-requirements.md) |
 | General question flow | [Question flow](./business-logic/question-flow.md) |
 | Table topic behavior | [Table topic flow](./business-logic/table-topic-flow.md) |
-| Sync timing or sync buttons | [Sync settings](./sync-settings.md) |
+| Sync timing or sync buttons | [Sync settings requirement](./business-logic/sync-settings-requirement.md) |
 | Local vs global data | [Data ownership](./data-ownership.md) |
 | Word meanings | [Glossary](./glossary.md) |
-| Recent changes | [Change log](./change-log.md) |
+| Recent changes | [Change log](./templates/change-log.md) |

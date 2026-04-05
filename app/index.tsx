@@ -41,14 +41,9 @@ export default function HomeScreen() {
 
     if (loading) return
 
-    if (!activeUser) {
-      router.replace("/users")
-      return
-    }
+    router.replace("/users")
 
-    router.replace("/topics")
-
-  }, [loading, activeUser, router])
+  }, [loading, router])
 
   useEffect(() => {
 

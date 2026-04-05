@@ -16,6 +16,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { useDatabase } from "../../hooks/useDatabase"
+import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
+import { useSettings } from "../../hooks/useSettings"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { getAllTopics } from "../../database/contentRepository"
 import { useUsers } from "../../hooks/useUsers"
@@ -44,6 +46,18 @@ export default function TopicsScreen() {
     loading: usersLoading
   } = useUsers(db)
   const {
+    activeDeviceKey,
+    loading: deviceLoading
+  } = useDeviceRegistry(db, activeUser)
+  const {
+    syncMode,
+    loading: settingsLoading
+  } = useSettings(db, activeUser)
+  const scopedDeviceKey =
+    syncMode === "global_off"
+      ? activeDeviceKey
+      : null
+  const {
     selectedSubjectId,
     selectedTopicId,
     selectedSubjectIds,
@@ -55,7 +69,8 @@ export default function TopicsScreen() {
     loading: preferencesLoading
   } = useStudyPreferences(
     db,
-    activeUser
+    activeUser,
+    scopedDeviceKey
   )
   const colors = getThemeColors(themeMode)
 
@@ -674,7 +689,9 @@ export default function TopicsScreen() {
   if (
     loading ||
     usersLoading ||
+    settingsLoading ||
     preferencesLoading ||
+    deviceLoading ||
     !db
   ) {
     return (

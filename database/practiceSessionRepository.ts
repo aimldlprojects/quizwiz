@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "expo-sqlite"
 
 import { markSyncDirty } from "./syncMetaRepository"
+import { getDeviceScopedKey } from "./deviceRegistryRepository"
 
 type PracticeSessionSnapshot = {
   practice?: {
@@ -40,6 +41,16 @@ const SETTINGS_KEY_PREFIX = "practice_session_topic_"
 
 function getPracticeSessionKey(topicId: number) {
   return `${SETTINGS_KEY_PREFIX}${topicId}`
+}
+
+function getScopedPracticeSessionKey(
+  topicId: number,
+  deviceKey?: string | null
+) {
+  return getDeviceScopedKey(
+    getPracticeSessionKey(topicId),
+    deviceKey
+  )
 }
 
 function isValidSnapshot(
@@ -118,7 +129,8 @@ async function upsertSessionSetting(
   userId: number,
   topicId: number,
   state: PracticeSessionSnapshot,
-  updatedAt: number
+  updatedAt: number,
+  key?: string
 ) {
   await db.runAsync(
     `
@@ -136,7 +148,7 @@ async function upsertSessionSetting(
     `,
     [
       userId,
-      getPracticeSessionKey(topicId),
+      key ?? getPracticeSessionKey(topicId),
       JSON.stringify(state),
       updatedAt
     ]
@@ -148,9 +160,14 @@ async function upsertSessionSetting(
 export async function getPracticeSession(
   db: SQLiteDatabase,
   userId: number,
-  topicId: number
+  topicId: number,
+  deviceKey?: string | null
 ): Promise<PracticeSessionRecord | null> {
-  const key = getPracticeSessionKey(topicId)
+  const key = getScopedPracticeSessionKey(
+    topicId,
+    deviceKey
+  )
+  const legacyKey = getPracticeSessionKey(topicId)
 
   const row = await db.getFirstAsync<{
     user_id: number
@@ -172,22 +189,47 @@ export async function getPracticeSession(
     [userId, key]
   )
 
-  if (row?.value) {
+  const fallbackRow =
+    !row && key !== legacyKey
+      ? await db.getFirstAsync<{
+          user_id: number
+          topic_id: number
+          value: string | null
+          updated_at: number | null
+        }>(
+          `
+          SELECT
+            user_id,
+            0 AS topic_id,
+            value,
+            updated_at
+          FROM settings
+          WHERE user_id = ?
+            AND key = ?
+          LIMIT 1
+          `,
+          [userId, legacyKey]
+        )
+      : null
+
+  const sourceRow = row ?? fallbackRow
+
+  if (sourceRow?.value) {
     try {
       const parsed =
-        JSON.parse(row.value) as PracticeSessionSnapshot
+        JSON.parse(sourceRow.value) as PracticeSessionSnapshot
 
       if (!isValidSnapshot(parsed)) {
         return null
       }
 
       return {
-        userId: row.user_id,
+        userId: sourceRow.user_id,
         topicId,
         state: parsed,
         updatedAt:
-          typeof row.updated_at === "number"
-            ? row.updated_at
+          typeof sourceRow.updated_at === "number"
+            ? sourceRow.updated_at
             : Date.now()
       }
     } catch {
@@ -210,7 +252,8 @@ export async function getPracticeSession(
     userId,
     topicId,
     legacy.state,
-    legacy.updatedAt
+    legacy.updatedAt,
+    getPracticeSessionKey(topicId)
   )
 
   return legacy
@@ -220,7 +263,8 @@ export async function setPracticeSession(
   db: SQLiteDatabase,
   userId: number,
   topicId: number,
-  state: PracticeSessionSnapshot
+  state: PracticeSessionSnapshot,
+  deviceKey?: string | null
 ): Promise<void> {
   const updatedAt = Date.now()
 
@@ -229,7 +273,8 @@ export async function setPracticeSession(
     userId,
     topicId,
     state,
-    updatedAt
+    updatedAt,
+    getScopedPracticeSessionKey(topicId, deviceKey)
   )
 
   await db.runAsync(
@@ -245,17 +290,22 @@ export async function setPracticeSession(
 export async function clearPracticeSession(
   db: SQLiteDatabase,
   userId: number,
-  topicId: number
+  topicId: number,
+  deviceKey?: string | null
 ): Promise<void> {
-  const key = getPracticeSessionKey(topicId)
+  const key = getScopedPracticeSessionKey(
+    topicId,
+    deviceKey
+  )
+  const legacyKey = getPracticeSessionKey(topicId)
 
   await db.runAsync(
     `
     DELETE FROM settings
     WHERE user_id = ?
-      AND key = ?
+      AND key IN (?, ?)
     `,
-    [userId, key]
+    [userId, key, legacyKey]
   )
 
   await db.runAsync(
