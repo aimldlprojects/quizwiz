@@ -327,6 +327,12 @@ export default function PracticeScreen() {
       const nextEnabled =
         !practiceRandomOrderEnabled
 
+      console.log("[Practice] shuffle toggle:", {
+        userId: activeUser,
+        topicId: selectedTopicId,
+        nextEnabled
+      })
+
       setPracticeRandomOrderEnabled(nextEnabled)
 
       if (!nextEnabled || !controller) {
@@ -336,9 +342,36 @@ export default function PracticeScreen() {
       controller.shuffleRemainingCards()
     }, [
       controller,
+      activeUser,
       practiceRandomOrderEnabled,
+      selectedTopicId,
       setPracticeRandomOrderEnabled
     ])
+
+  const toggleAutoNextEnabled =
+    useCallback(() => {
+      const nextEnabled = !autoNextEnabled
+
+      console.log("[Practice] autoplay toggle:", {
+        userId: activeUser,
+        topicId: selectedTopicId,
+        nextEnabled
+      })
+
+      setAutoNextEnabled(nextEnabled)
+    }, [activeUser, autoNextEnabled, selectedTopicId, setAutoNextEnabled])
+
+  const toggleTtsEnabled = useCallback(() => {
+    const nextEnabled = !ttsEnabled
+
+    console.log("[Practice] tts toggle:", {
+      userId: activeUser,
+      topicId: selectedTopicId,
+      nextEnabled
+    })
+
+    setTtsEnabled(nextEnabled)
+  }, [activeUser, selectedTopicId, setTtsEnabled, ttsEnabled])
 
   useEffect(() => {
 
@@ -697,9 +730,7 @@ export default function PracticeScreen() {
                   styles.iconButton,
                   iconButtonStyle(autoNextEnabled)
                 ]}
-                onPress={() =>
-                  setAutoNextEnabled(!autoNextEnabled)
-                }
+                onPress={toggleAutoNextEnabled}
               >
                 <MaterialIcons
                   name="skip-next"
@@ -713,9 +744,7 @@ export default function PracticeScreen() {
                   styles.iconButton,
                   iconButtonStyle(ttsEnabled)
                 ]}
-                onPress={() =>
-                  setTtsEnabled(!ttsEnabled)
-                }
+                onPress={toggleTtsEnabled}
               >
                 <MaterialIcons
                   name={

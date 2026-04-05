@@ -171,6 +171,7 @@ export async function setLastPushRev(
   rev: number
 ): Promise<void> {
   await writeValue(db, KEY_LAST_PUSH_REV(userId), rev)
+  notifySyncMetaListeners()
 }
 
 export async function getLastPullRev(
@@ -186,6 +187,7 @@ export async function setLastPullRev(
   rev: number
 ): Promise<void> {
   await writeValue(db, KEY_LAST_PULL_REV(userId), rev)
+  notifySyncMetaListeners()
 }
 
 export async function setSyncStatus(
@@ -214,6 +216,8 @@ export async function setSyncStatus(
       error
     )
   }
+
+  notifySyncMetaListeners()
 
 }
 

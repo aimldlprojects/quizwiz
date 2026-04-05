@@ -33,6 +33,14 @@ async function recordGlobalStatus(
   )
 }
 
+function formatSyncError(err: unknown) {
+  if (err instanceof Error) {
+    return err.message
+  }
+
+  return String(err)
+}
+
 export async function syncReviews(
   db: SQLiteDatabase,
   serverUrl: string,
@@ -40,6 +48,8 @@ export async function syncReviews(
   options?: {
     showOverlay?: boolean
     overlayLabel?: string
+    deviceKey?: string | null
+    traceSource?: "manual" | "auto"
   }
 ): Promise<void> {
 
@@ -52,6 +62,14 @@ export async function syncReviews(
   let overlayShown = false
   let overlayTimer: ReturnType<typeof setTimeout> | null = null
 
+  if (options?.traceSource === "manual") {
+    console.log("[sync-debug] sync requested", {
+      userId,
+      deviceKey: options?.deviceKey ?? null,
+      serverUrl
+    })
+  }
+
   if (showOverlay) {
     overlayTimer = setTimeout(() => {
       overlayShown = true
@@ -63,7 +81,8 @@ export async function syncReviews(
 
     stage = "push"
     await pushReviews(db, serverUrl, userId, {
-      showOverlay: false
+      showOverlay: false,
+      deviceKey: options?.deviceKey ?? null
     })
     await setSyncMetaStatus(
       db,
@@ -80,7 +99,8 @@ export async function syncReviews(
 
     stage = "pull"
     await pullReviews(db, serverUrl, userId, {
-      showOverlay: false
+      showOverlay: false,
+      deviceKey: options?.deviceKey ?? null
     })
     await setSyncMetaStatus(
       db,
@@ -111,11 +131,7 @@ export async function syncReviews(
     await clearSyncDirty(db, userId)
 
   } catch (err) {
-
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Unknown error"
+    const message = formatSyncError(err)
 
     const stageMessage =
       stage !== "overall"
@@ -137,7 +153,7 @@ export async function syncReviews(
       stage
     )
 
-    console.error("Review sync failed:", err)
+    console.error("Review sync failed:", stageMessage)
 
     throw err
 

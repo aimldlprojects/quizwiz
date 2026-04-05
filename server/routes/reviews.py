@@ -1,5 +1,4 @@
 from datetime import datetime
-import time
 from typing import Any, Iterable, Mapping, Optional
 
 import psycopg2
@@ -27,7 +26,6 @@ from repositories.sync_status_repository import (
     update_sync_meta,
 )
 from server.config.log_config import (
-    log_debug,
     log_error,
 )
 
@@ -141,6 +139,8 @@ def push_reviews(payload: dict[str, Any]):
         if changes is None:
             changes = payload.get("changes", [])
 
+        client_device_key = payload.get("client_device_key")
+
         stats_payload = payload.get("stats", [])
         settings_payload = payload.get("settings", [])
         badges_payload = payload.get("user_badges", [])
@@ -148,7 +148,11 @@ def push_reviews(payload: dict[str, Any]):
         max_rev = upsert_reviews(conn, changes)
         upsert_stats(conn, stats_payload)
         upsert_user_badges(conn, badges_payload)
-        upsert_settings(conn, settings_payload)
+        upsert_settings(
+            conn,
+            settings_payload,
+            client_device_key=client_device_key,
+        )
 
         conn.commit()
 
@@ -210,11 +214,6 @@ def pull_reviews(
     conn = get_db()
 
     try:
-        start_ts = time.monotonic()
-        log_debug(
-            "pull_reviews start",
-            {"user_id": user_id, "since_rev_id": since_rev_id},
-        )
         reviews = get_changes_since_rev(
             conn,
             user_id,
@@ -228,16 +227,6 @@ def pull_reviews(
         )
         badges = serialize_user_badges(
             get_user_badges_changes(conn, user_id, since_rev_id)
-        )
-
-        log_debug(
-            "pull_reviews fetched",
-            {
-                "reviews": len(reviews),
-                "stats": len(stats),
-                "settings": len(settings),
-                "badges": len(badges),
-            },
         )
 
         max_rev = since_rev_id
@@ -262,12 +251,6 @@ def pull_reviews(
         )
 
         set_sync_status(conn, user_id, "success", None, now_ts)
-
-        duration_ms = int((time.monotonic() - start_ts) * 1000)
-        log_debug(
-            "pull_reviews completed",
-            {"user_id": user_id, "max_rev": max_rev, "duration_ms": duration_ms},
-        )
 
         return {
             "reviews": reviews,

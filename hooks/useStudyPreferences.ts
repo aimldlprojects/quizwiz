@@ -8,6 +8,7 @@ import {
 } from "react"
 
 import { markSyncDirty } from "@/database/syncMetaRepository"
+import { subscribeSyncMetaChanges } from "@/database/syncMetaRepository"
 import { getDeviceScopedKey } from "@/database/deviceRegistryRepository"
 import { ttsService } from "@/services/ttsService"
 import type { ThemeMode } from "@/styles/theme"
@@ -33,6 +34,48 @@ function parseIdArray(
       )
   } catch {
     return []
+  }
+}
+
+function formatPythonDatetime(
+  timestamp: number | null | undefined
+) {
+  if (timestamp == null) {
+    return null
+  }
+
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const toParts = (timeZone: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: false
+    }).formatToParts(date)
+
+  const partsToMap = (parts: Intl.DateTimeFormatPart[]) =>
+    Object.fromEntries(
+      parts.map((part) => [part.type, part.value])
+    )
+
+  const ist = partsToMap(toParts("Asia/Kolkata"))
+
+  const build = (
+    parts: Record<string, string>
+  ) =>
+    `ms=${timestamp} | ist=datetime.datetime(${Number(parts.year)}, ${Number(parts.month)}, ${Number(parts.day)}, ${Number(parts.hour)}, ${Number(parts.minute)}, ${Number(parts.second)}, ${date.getMilliseconds() * 1000})`
+
+  return {
+    ms: timestamp,
+    ist: build(ist)
   }
 }
 
@@ -532,6 +575,16 @@ export function useStudyPreferences(
   }, [loadPreferences])
 
   useEffect(() => {
+    if (!db || preferenceUserId == null) {
+      return
+    }
+
+    return subscribeSyncMetaChanges(() => {
+      void loadPreferences()
+    })
+  }, [db, loadPreferences, preferenceUserId])
+
+  useEffect(() => {
     if (preferences.ttsEnabled) {
       ttsService.enable()
     } else {
@@ -790,6 +843,14 @@ export function useStudyPreferences(
       deviceKey,
       nextPreferences
     )
+
+    console.log("[Preferences] tts toggle:", {
+      userId: preferenceUserId,
+      deviceKey,
+      enabled,
+      updatedAt: formatPythonDatetime(updatedAt),
+      key: ttsKey
+    })
 
     await savePreference(
       ttsKey,

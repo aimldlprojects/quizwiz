@@ -21,7 +21,7 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure the repository root is on sys.path so `from server import ...` works when this script is run directly.
@@ -215,7 +215,7 @@ def _reset_device_sqlite(adb_path, package_name, db_filename):
 def backup_master():
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     config = server_db.get_db_config()
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%SZ")
     destination = BACKUP_DIR / f"master_backup_{timestamp}.sql"
     env = os.environ.copy()
     if config.get("password"):

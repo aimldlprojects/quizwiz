@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 import json
+from datetime import timezone
 
 import psycopg2
 from psycopg2 import sql
@@ -871,7 +872,9 @@ def seed_demo_content(cur):
 
 def seed_default_devices(cur, user_ids):
 
-    timestamp_ms = int(datetime.now().timestamp() * 1000)
+    timestamp_ms = int(
+        datetime.now(timezone.utc).timestamp() * 1000
+    )
 
     for user_name, active_backend_key in DEFAULT_ACTIVE_DEVICE_BY_USER.items():
         user_id = user_ids.get(user_name)
@@ -991,7 +994,7 @@ def main():
     print("Backend is ready.")
     print(
         "Start the API with: "
-        "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+        "uvicorn main:app --reload --host 0.0.0.0 --port 8000 --no-access-log --log-level warning"
     )
 
 

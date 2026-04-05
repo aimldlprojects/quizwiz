@@ -16,7 +16,7 @@ Change profile settings and sync data.
 - Change profile - switch to another learner.
 - Log out - sync the current profile first, then return to the user picker.
 - Theme - switch between light and dark mode.
-- Sync mode - choose Local or Hybrid sync behavior.
+- Sync mode - choose Global Sync ON or Global Sync OFF behavior.
 - Sync interval - set how often scheduler sync runs.
 - Sync gap - set the minimum wait between scheduler sync checks.
 - Voice - turn question reading on or off.
@@ -44,6 +44,8 @@ Change profile settings and sync data.
 - Screen updates follow [Refresh Policy](../business-logic/refresh-policy.md), not sync completion alone.
 - Log out syncs the active profile first, then clears the current profile on this device.
 - The status area also shows server, connection, and last sync time.
+- Last sync timestamps are shown with an explicit timezone label so cross-device comparisons stay clear.
+- If you compare two devices, treat the displayed timezone label as part of the timestamp, not as decoration.
 
 ## Reference Docs
 

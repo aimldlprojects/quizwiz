@@ -6,9 +6,42 @@ import {
   endSyncActivity,
   setSyncStatus,
 } from "../../database/syncMetaRepository"
+import {
+  getActiveDeviceBackendKey
+} from "../../database/deviceRegistryRepository"
 import { syncConfig } from "@/config/sync"
 
 const CHUNK_SIZE = syncConfig.pushChunkSize
+const PROFILE_SETTING_KEYS = new Set([
+  "selected_subject_id",
+  "selected_topic_id",
+  "selected_subject_ids",
+  "selected_topic_level1_ids",
+  "selected_topic_level2_ids",
+  "tts_enabled",
+  "auto_next_enabled",
+  "auto_next_correct_delay_seconds",
+  "auto_next_wrong_delay_seconds",
+  "learn_auto_play_enabled",
+  "learn_front_delay_seconds",
+  "learn_back_delay_seconds",
+  "learn_random_order_enabled",
+  "practice_random_order_enabled",
+  "theme_mode"
+])
+
+function isAbortError(error: unknown) {
+  return !!error
+    && typeof error === "object"
+    && "name" in error
+    && (error as { name?: string }).name === "AbortError"
+}
+
+function buildTimeoutError() {
+  return new Error(
+    `Sync timed out after ${Math.round(syncConfig.pullTimeoutMs / 1000)} seconds. Try again on a stronger connection or increase syncPullTimeoutMs.`
+  )
+}
 
 /*
 --------------------------------------------------
@@ -183,7 +216,8 @@ async function getSettingsForSync(
       row.key === "sync_min_gap_ms" ||
       row.key.startsWith("practice_session_topic_") ||
       row.key.startsWith("admin_selected_topic_path_") ||
-      row.key.startsWith("user_disabled_user_")
+      row.key.startsWith("user_disabled_user_") ||
+      PROFILE_SETTING_KEYS.has(row.key)
     )
   })
 }
@@ -207,8 +241,13 @@ export async function pushReviews(
   options?: {
     showOverlay?: boolean
     overlayLabel?: string
+    deviceKey?: string | null
   }
 ): Promise<void> {
+
+  const resolvedDeviceKey =
+    options?.deviceKey ??
+    (await getActiveDeviceBackendKey(db, userId))
 
   const lastSync = await getLastPushRev(db, userId)
 
@@ -281,7 +320,8 @@ export async function pushReviews(
 
       const payload: Record<string, unknown> = {
         user_id: userId,
-        reviews: changes
+        reviews: changes,
+        client_device_key: resolvedDeviceKey ?? null
       }
 
       if (includeMeta && firstRequest) {
@@ -328,14 +368,19 @@ export async function pushReviews(
       firstRequest = false
     }
   } catch (err) {
+    const normalizedError = isAbortError(err)
+      ? buildTimeoutError()
+      : err
     await setSyncStatus(
       db,
       userId,
       "failed",
       Date.now(),
-      err instanceof Error ? err.message : String(err)
+      normalizedError instanceof Error
+        ? normalizedError.message
+        : String(normalizedError)
     )
-    throw err
+    throw normalizedError
   } finally {
     clearTimeout(timeoutId)
     if (overlayTimer) {

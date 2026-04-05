@@ -11,6 +11,7 @@ import {
 import { Review } from "@/domain/entities/review"
 import { ReviewRepository } from "../../database/reviewRepository"
 import { UserSubjectRepository } from "../../database/userSubjectRepository"
+import { getActiveDeviceBackendKey } from "../../database/deviceRegistryRepository"
 import { syncConfig } from "@/config/sync"
 
 /*
@@ -18,6 +19,61 @@ import { syncConfig } from "@/config/sync"
 Pull Reviews From Server
 --------------------------------------------------
 */
+
+function isAbortError(error: unknown) {
+  return !!error
+    && typeof error === "object"
+    && "name" in error
+    && (error as { name?: string }).name === "AbortError"
+}
+
+function buildTimeoutError() {
+  return new Error(
+    `Sync timed out after ${Math.round(syncConfig.pullTimeoutMs / 1000)} seconds. Try again on a stronger connection or increase syncPullTimeoutMs.`
+  )
+}
+
+function formatPythonDatetime(
+  timestamp: number | null | undefined
+) {
+  if (timestamp == null) {
+    return null
+  }
+
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const toParts = (timeZone: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: false
+    }).formatToParts(date)
+
+  const partsToMap = (parts: Intl.DateTimeFormatPart[]) =>
+    Object.fromEntries(
+      parts.map((part) => [part.type, part.value])
+    )
+
+  const ist = partsToMap(toParts("Asia/Kolkata"))
+
+  const build = (
+    parts: Record<string, string>
+  ) =>
+    `ms=${timestamp} | ist=datetime.datetime(${Number(parts.year)}, ${Number(parts.month)}, ${Number(parts.day)}, ${Number(parts.hour)}, ${Number(parts.minute)}, ${Number(parts.second)}, ${date.getMilliseconds() * 1000})`
+
+  return {
+    ms: timestamp,
+    ist: build(ist)
+  }
+}
 
 async function upsertStats(
   db: SQLiteDatabase,
@@ -207,8 +263,13 @@ export async function pullReviews(
   options?: {
     showOverlay?: boolean
     overlayLabel?: string
+    deviceKey?: string | null
   }
 ): Promise<void> {
+
+  const resolvedDeviceKey =
+    options?.deviceKey ??
+    (await getActiveDeviceBackendKey(db, userId))
 
   const lastPull = await getLastPullRev(
     db,
@@ -252,14 +313,19 @@ export async function pullReviews(
 
     data = await res.json()
   } catch (err) {
+    const normalizedError = isAbortError(err)
+      ? buildTimeoutError()
+      : err
     await setSyncStatus(
       db,
       userId,
       "failed",
       Date.now(),
-      err instanceof Error ? err.message : String(err)
+      normalizedError instanceof Error
+        ? normalizedError.message
+        : String(normalizedError)
     )
-    throw err
+    throw normalizedError
   } finally {
     clearTimeout(timeoutId)
     if (overlayTimer) {
@@ -313,10 +379,67 @@ export async function pullReviews(
     data?.user_badges ?? []
   )
 
+  const ttsKey = `tts_enabled_user_${userId}`
+  const existingTtsRow = await db.getFirstAsync<{
+    value: string | null
+    updated_at: number | null
+  }>(
+    `
+    SELECT value, updated_at
+    FROM settings
+    WHERE user_id = ?
+      AND key = ?
+    LIMIT 1
+    `,
+    [userId, ttsKey]
+  )
+
   await upsertSettings(
     db,
     data?.settings ?? []
   )
+
+  const ttsRow = await db.getFirstAsync<{
+    value: string | null
+    updated_at: number | null
+  }>(
+    `
+    SELECT value, updated_at
+    FROM settings
+    WHERE user_id = ?
+      AND key = ?
+    LIMIT 1
+    `,
+    [userId, ttsKey]
+  )
+
+  if (ttsRow) {
+    const changed =
+      existingTtsRow?.value !== ttsRow.value ||
+      existingTtsRow?.updated_at !== ttsRow.updated_at
+
+    if (changed) {
+      console.log(
+        "[sync-debug] tts setting changed by sync",
+        {
+          user_id: userId,
+          key: ttsKey,
+          value: ttsRow.value,
+          server_updated_at: formatPythonDatetime(
+            ttsRow.updated_at
+          ),
+          previous_local_updated_at:
+            formatPythonDatetime(
+              existingTtsRow?.updated_at
+            ),
+          sync_applied_at: formatPythonDatetime(
+            Date.now()
+          ),
+          client_device_key: resolvedDeviceKey ?? null
+        }
+      )
+    }
+  }
 
   const permissionsRepo =
     new UserSubjectRepository(db)

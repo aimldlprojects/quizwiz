@@ -147,6 +147,14 @@ Use this table to validate whether a separate timestamp should be tracked for ea
 | Admin | Delete registered device | Yes | Delete events must win independently from other admin updates |
 | Stats | Device name display | No | This is a display result from stored device data |
 
+## Timestamp Handling
+
+- All internal sync comparisons must use UTC epoch milliseconds.
+- Stored timestamps should be treated as absolute instants, not local-time values.
+- Human-readable logs should show both UTC and IST to make cross-timezone comparisons explicit.
+- UI timestamps should use localized formatting, and the rendered label should include the timezone abbreviation so users know whether they are comparing UTC, IST, or another local zone.
+- When troubleshooting sync, compare the raw epoch millisecond value first, then verify the rendered UTC and IST labels if the devices are in different zones.
+
 ## Sync Trigger
 
 Sync should be easy to reach from the app controls already shown on screen.

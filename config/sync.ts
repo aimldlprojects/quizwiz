@@ -31,7 +31,7 @@ function parseNumber(
 export const syncConfig = {
   pullTimeoutMs: parseNumber(
     extras.syncPullTimeoutMs,
-    15000
+    30000
   ),
   pushChunkSize: parseNumber(
     extras.syncPushChunkSize,

@@ -35,6 +35,7 @@ export class SyncService {
     options?: {
       showOverlay?: boolean
       overlayLabel?: string
+      deviceKey?: string | null
     }
   ): Promise<void> {
     const serverUrl =
@@ -56,11 +57,16 @@ export class SyncService {
           ...options,
           overlayLabel:
             options?.overlayLabel ??
-            "Syncing current profile..."
+            "Syncing current profile...",
+          deviceKey: options?.deviceKey ?? null
         }
       )
     } catch (err) {
-      console.error("Background sync failed:", err)
+      const message =
+        err instanceof Error
+          ? err.message
+          : String(err)
+      console.error("Background sync failed:", message)
       throw err
     } finally {
       this.userId = previousUserId
@@ -73,6 +79,7 @@ export class SyncService {
     options?: {
       showOverlay?: boolean
       overlayLabel?: string
+      deviceKey?: string | null
     }
   ): Promise<void> {
     const uniqueUserIds = Array.from(
@@ -109,13 +116,17 @@ export class SyncService {
                 overlayLabel:
                   options?.overlayLabel ??
                   "Syncing all profiles...",
-                showOverlay: false
+                showOverlay: false,
+                deviceKey: options?.deviceKey ?? null
               }
             )
           } catch (err) {
+            const message =
+              err instanceof Error
+                ? err.message
+                : String(err)
             console.warn(
-              `Sync skipped for user ${userId}:`,
-              err
+              `Sync skipped for user ${userId}: ${message}`
             )
           }
         }
@@ -125,8 +136,8 @@ export class SyncService {
       return
     }
 
-      for (const userId of uniqueUserIds) {
-        try {
+    for (const userId of uniqueUserIds) {
+      try {
         await syncReviews(
           this.db,
           serverUrl,
@@ -136,13 +147,17 @@ export class SyncService {
             overlayLabel:
               options?.overlayLabel ??
               "Syncing all profiles...",
-            showOverlay: false
+            showOverlay: false,
+            deviceKey: options?.deviceKey ?? null
           }
         )
-        } catch (err) {
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : String(err)
         console.warn(
-          `Sync skipped for user ${userId}:`,
-          err
+          `Sync skipped for user ${userId}: ${message}`
         )
       }
     }

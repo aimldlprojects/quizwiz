@@ -40,5 +40,5 @@ For the full set of reset options, see [docs/maintenance.md#reset-project](../do
 ### Start the API
 
 ```powershell
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000 --no-access-log --log-level warning
 ```

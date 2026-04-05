@@ -285,7 +285,9 @@ export default function ProfileScreen() {
         serverUrl,
         activeUser,
         {
-          overlayLabel: "Syncing current profile..."
+          overlayLabel: "Syncing current profile...",
+          deviceKey: currentDevice?.backendKey ?? null,
+          traceSource: "manual"
         }
       )
 
@@ -330,7 +332,8 @@ export default function ProfileScreen() {
         serverUrl,
         activeUser,
         {
-          overlayLabel: "Syncing current profile..."
+          overlayLabel: "Syncing current profile...",
+          deviceKey: currentDevice?.backendKey ?? null
         }
       )
       await clearSyncDirty(db, activeUser)
@@ -375,7 +378,8 @@ export default function ProfileScreen() {
         serverUrl,
         activeUser,
         {
-          overlayLabel: "Syncing current profile..."
+          overlayLabel: "Syncing current profile...",
+          deviceKey: currentDevice?.backendKey ?? null
         }
       )
       Alert.alert(
@@ -1433,13 +1437,15 @@ function formatSyncTimestamp(
   }
 
   return new Intl.DateTimeFormat(
-    undefined,
+    "en-IN",
     {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "numeric",
-      minute: "2-digit"
+      minute: "2-digit",
+      timeZone: "Asia/Kolkata",
+      timeZoneName: "short"
     }
   ).format(new Date(timestamp))
 

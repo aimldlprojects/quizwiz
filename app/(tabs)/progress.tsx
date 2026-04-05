@@ -11,6 +11,7 @@ import { useFocusEffect } from "@react-navigation/native"
 import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
 import { useDatabase } from "../../hooks/useDatabase"
+import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
 import { getSyncServerUrl } from "../../services/sync/config"
@@ -24,6 +25,9 @@ export default function ProgressScreen() {
     activeUser,
     loading: usersLoading
   } = useUsers(db)
+  const {
+    activeDeviceKey
+  } = useDeviceRegistry(db, activeUser)
   const { themeMode } = useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
 
@@ -133,7 +137,8 @@ export default function ProgressScreen() {
         syncServerUrl,
         activeUser,
         {
-          overlayLabel: "Syncing current profile..."
+          overlayLabel: "Syncing current profile...",
+          deviceKey: activeDeviceKey
         }
       )
     } catch (error) {
@@ -144,7 +149,7 @@ export default function ProgressScreen() {
     } finally {
       syncInFlightRef.current = false
     }
-  }, [db, activeUser])
+  }, [activeDeviceKey, db, activeUser])
 
   useFocusEffect(
     useCallback(() => {

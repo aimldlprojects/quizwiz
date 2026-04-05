@@ -3,10 +3,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react"
 import {
-  ActivityIndicator,
+  Animated,
   Alert,
   Pressable,
   StyleSheet,
@@ -36,6 +37,9 @@ const DEFAULT_SYNC_STATUS = {
   timestamp: null
 }
 
+const AnimatedMaterialIcons =
+  Animated.createAnimatedComponent(MaterialIcons)
+
 interface Props {
   db: SQLiteDatabase | null
   activeUser: number | null
@@ -64,6 +68,8 @@ export default function GlobalSyncButton({
   const [remoteSyncTime, setRemoteSyncTime] =
     useState<number | null>(null)
   const syncServerUrl = getSyncServerUrl()
+  const syncSpin = useRef(new Animated.Value(0)).current
+  const syncPulse = useRef(new Animated.Value(1)).current
 
   const refreshSyncStatus = useCallback(
     async () => {
@@ -250,6 +256,25 @@ export default function GlobalSyncButton({
     shouldUseCompactCaption
       ? nextAutoSyncCompactText
       : nextAutoSyncText
+  const syncIconStyle = useMemo(
+    () => [
+      styles.syncIconWrap,
+      {
+        transform: syncing
+          ? [
+              {
+                rotate: syncSpin.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["0deg", "360deg"]
+                })
+              },
+              { scale: syncPulse }
+            ]
+          : [{ scale: 1 }]
+      }
+    ],
+    [syncPulse, syncSpin, syncing]
+  )
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -258,6 +283,49 @@ export default function GlobalSyncButton({
 
     return () => clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (!syncing) {
+      syncSpin.stopAnimation()
+      syncSpin.setValue(0)
+      syncPulse.stopAnimation()
+      syncPulse.setValue(1)
+      return
+    }
+
+    const spinLoop = Animated.loop(
+      Animated.timing(syncSpin, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true
+      })
+    )
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(syncPulse, {
+          toValue: 1.08,
+          duration: 450,
+          useNativeDriver: true
+        }),
+        Animated.timing(syncPulse, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true
+        })
+      ])
+    )
+
+    spinLoop.start()
+    pulseLoop.start()
+
+    return () => {
+      spinLoop.stop()
+      pulseLoop.stop()
+      syncSpin.stopAnimation()
+      syncPulse.stopAnimation()
+    }
+  }, [syncPulse, syncSpin, syncing])
 
   async function syncToMaster() {
     if (!db || !activeUser) return
@@ -278,7 +346,8 @@ export default function GlobalSyncButton({
         syncServerUrl,
         activeUser,
         {
-          overlayLabel: "Syncing current profile..."
+          overlayLabel: "Syncing current profile...",
+          traceSource: "manual"
         }
       )
       await clearSyncDirty(db, activeUser)
@@ -317,9 +386,11 @@ export default function GlobalSyncButton({
           disabled={syncing}
         >
           {syncing ? (
-            <ActivityIndicator
-              size="small"
+            <AnimatedMaterialIcons
+              name="sync"
+              size={inlineIconSize}
               color={syncTone}
+              style={syncIconStyle}
             />
           ) : (
             <MaterialIcons
@@ -399,11 +470,13 @@ export default function GlobalSyncButton({
         ]}
         onPress={syncToMaster}
         disabled={syncing}
-      >
+        >
         {syncing ? (
-          <ActivityIndicator
-            size="small"
+          <AnimatedMaterialIcons
+            name="sync"
+            size={22}
             color={syncTone}
+            style={syncIconStyle}
           />
         ) : (
           <MaterialIcons
@@ -514,6 +587,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     opacity: 0.8,
     width: "100%"
+  },
+
+  syncIconWrap: {
+    alignItems: "center",
+    justifyContent: "center"
   },
 
   button: {

@@ -1,11 +1,6 @@
 import { Stack } from "expo-router"
-import { useEffect, useState } from "react"
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  View
-} from "react-native"
+import { useEffect } from "react"
+import { StyleSheet, View } from "react-native"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
 import GlobalSyncButton from "@/components/GlobalSyncButton"
@@ -14,11 +9,6 @@ import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useSyncLifecycle } from "@/hooks/useSyncLifecycle"
 import { useUsers } from "@/hooks/useUsers"
-import {
-  getSyncActivityLabel,
-  isSyncActivityActive,
-  subscribeSyncActivityChanges
-} from "@/database/syncMetaRepository"
 import { getThemeColors } from "@/styles/theme"
 
 export default function RootLayout() {
@@ -40,32 +30,6 @@ export default function RootLayout() {
     autoSyncIntervalMs,
     syncMinGapMs
   )
-  const [syncOverlayVisible, setSyncOverlayVisible] =
-    useState(isSyncActivityActive())
-  const [syncOverlayLabel, setSyncOverlayLabel] =
-    useState(getSyncActivityLabel())
-
-  useEffect(() => {
-    const unsubscribe = subscribeSyncActivityChanges(
-      () => {
-        setSyncOverlayVisible(
-          isSyncActivityActive()
-        )
-        setSyncOverlayLabel(
-          getSyncActivityLabel()
-        )
-      }
-    )
-
-    setSyncOverlayVisible(
-      isSyncActivityActive()
-    )
-    setSyncOverlayLabel(
-      getSyncActivityLabel()
-    )
-
-    return unsubscribe
-  }, [])
 
   return (
     <SafeAreaProvider>
@@ -100,36 +64,6 @@ export default function RootLayout() {
             options={{ headerShown: false }}
           />
         </Stack>
-
-        {syncOverlayVisible ? (
-          <View
-            pointerEvents="box-none"
-            style={styles.syncOverlay}
-          >
-            <View
-              style={[
-                styles.syncOverlayCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border
-                }
-              ]}
-            >
-              <ActivityIndicator
-                size="small"
-                color={colors.text}
-              />
-              <Text
-                style={[
-                  styles.syncOverlayText,
-                  { color: colors.text }
-                ]}
-              >
-                {syncOverlayLabel}
-              </Text>
-            </View>
-          </View>
-        ) : null}
       </View>
     </SafeAreaProvider>
   )
@@ -139,30 +73,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1
-  },
-  syncOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15, 23, 42, 0.12)",
-    zIndex: 1000,
-    elevation: 1000
-  },
-  syncOverlayCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 }
-  },
-  syncOverlayText: {
-    fontSize: 15,
-    fontWeight: "800"
   }
 })
