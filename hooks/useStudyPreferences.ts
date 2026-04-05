@@ -142,6 +142,58 @@ function clonePreferences(prefs: Preferences) {
   }
 }
 
+function areSameNumberArray(a: number[], b: number[]) {
+  if (a.length !== b.length) {
+    return false
+  }
+
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function arePreferencesEqual(
+  a: Preferences,
+  b: Preferences
+) {
+  return (
+    a.selectedSubjectId === b.selectedSubjectId &&
+    a.selectedTopicId === b.selectedTopicId &&
+    a.ttsEnabled === b.ttsEnabled &&
+    a.autoNextEnabled === b.autoNextEnabled &&
+    a.autoNextCorrectDelaySeconds ===
+      b.autoNextCorrectDelaySeconds &&
+    a.autoNextWrongDelaySeconds ===
+      b.autoNextWrongDelaySeconds &&
+    a.learnAutoPlayEnabled === b.learnAutoPlayEnabled &&
+    a.learnFrontDelaySeconds ===
+      b.learnFrontDelaySeconds &&
+    a.learnBackDelaySeconds ===
+      b.learnBackDelaySeconds &&
+    a.learnRandomOrderEnabled ===
+      b.learnRandomOrderEnabled &&
+    a.practiceRandomOrderEnabled ===
+      b.practiceRandomOrderEnabled &&
+    a.themeMode === b.themeMode &&
+    areSameNumberArray(
+      a.selectedSubjectIds,
+      b.selectedSubjectIds
+    ) &&
+    areSameNumberArray(
+      a.selectedTopicLevel1Ids,
+      b.selectedTopicLevel1Ids
+    ) &&
+    areSameNumberArray(
+      a.selectedTopicLevel2Ids,
+      b.selectedTopicLevel2Ids
+    )
+  )
+}
+
 function cachePreferencesForUser(
   userId: number | null,
   deviceKey: string | null,
@@ -318,8 +370,13 @@ export function useStudyPreferences(
     ]
   )
 
-  const loadPreferences = useCallback(async () => {
-    const loadToken = ++loadTokenRef.current
+  const loadPreferences = useCallback(async (
+    options?: { silent?: boolean }
+  ) => {
+    const silent = options?.silent === true
+    const loadToken = silent
+      ? loadTokenRef.current
+      : ++loadTokenRef.current
 
     if (!db || preferenceUserId == null) {
       setPreferences(DEFAULTS)
@@ -327,7 +384,9 @@ export function useStudyPreferences(
       return
     }
 
-    setLoading(true)
+    if (!silent) {
+      setLoading(true)
+    }
 
     try {
       const rows = await db.getAllAsync<{
@@ -528,10 +587,20 @@ export function useStudyPreferences(
         return
       }
 
-      const clonedPreferences =
-        clonePreferences(nextPreferences)
-      preferencesRef.current = clonedPreferences
-      setPreferences(clonedPreferences)
+      const clonedPreferences = clonePreferences(
+        nextPreferences
+      )
+
+      if (
+        !arePreferencesEqual(
+          preferencesRef.current,
+          clonedPreferences
+        )
+      ) {
+        preferencesRef.current = clonedPreferences
+        setPreferences(clonedPreferences)
+      }
+
       cachePreferencesForUser(
         preferenceUserId,
         deviceKey,
@@ -546,7 +615,10 @@ export function useStudyPreferences(
         setPreferences(DEFAULTS)
       }
     } finally {
-      if (loadToken === loadTokenRef.current) {
+      if (
+        loadToken === loadTokenRef.current &&
+        !silent
+      ) {
         setLoading(false)
       }
     }
@@ -581,7 +653,7 @@ export function useStudyPreferences(
     }
 
     return subscribeSyncMetaChanges(() => {
-      void loadPreferences()
+      void loadPreferences({ silent: true })
     })
   }, [db, loadPreferences, preferenceUserId])
 
