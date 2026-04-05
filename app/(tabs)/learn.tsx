@@ -15,6 +15,7 @@ import {
   Text,
   View
 } from "react-native"
+import { useIsFocused } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import FlashCard from "../../components/FlashCard"
@@ -47,6 +48,7 @@ import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
 import { useSettings } from "../../hooks/useSettings"
 import { useStudyPreferences } from "../../hooks/useStudyPreferences"
 import { useUsers } from "../../hooks/useUsers"
+import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
 import { restartButtonPadding } from "../../styles/restartButtonStyles"
 
@@ -78,6 +80,7 @@ function getTopicDescription(
 }
 
 export default function LearnScreen() {
+  const isFocused = useIsFocused()
 
   const controller = useMemo(
     () => new LearnController(),
@@ -267,7 +270,7 @@ export default function LearnScreen() {
   ])
 
   const speakCurrentSide = useCallback(() => {
-    if (!ttsEnabled || !card) {
+    if (!isFocused || !ttsEnabled || !card) {
       return
     }
 
@@ -276,7 +279,7 @@ export default function LearnScreen() {
       : card.question
 
     controller.speak(spokenText)
-  }, [ttsEnabled, card, revealed, controller])
+  }, [isFocused, ttsEnabled, card, revealed, controller])
 
   const loadCardsForSelectedTopic =
     useCallback(async (restart = false) => {
@@ -555,6 +558,7 @@ export default function LearnScreen() {
     clearLearnTimers()
 
     if (
+      !isFocused ||
       !learnAutoPlayEnabled ||
       !card
     ) {
@@ -577,11 +581,21 @@ export default function LearnScreen() {
 
   }, [
     card,
+    isFocused,
     learnAutoPlayEnabled,
     learnFrontDelaySeconds,
     learnBackDelaySeconds,
     nextCard
   ])
+
+  useEffect(() => {
+    if (isFocused) {
+      return
+    }
+
+    clearLearnTimers()
+    ttsService.stop()
+  }, [isFocused])
 
   useEffect(() => () => {
     clearLearnTimers()

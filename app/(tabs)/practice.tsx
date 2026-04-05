@@ -13,6 +13,7 @@ import {
   TextInput,
   View
 } from "react-native"
+import { useIsFocused } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import AnswerActions from "../../components/AnswerActions"
 import ScoreHeader from "../../components/ScoreHeader"
@@ -34,6 +35,11 @@ import {
   isTableTopicKey,
   TableDeckSession
 } from "../../engine/questions/tableDeck"
+import {
+  getSyncDirtyAt,
+  getSyncMeta,
+  subscribeSyncMetaChanges
+} from "../../database/syncMetaRepository"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
@@ -60,6 +66,7 @@ function getKeyboardType(answer: unknown) {
 }
 
 export default function PracticeScreen() {
+  const isFocused = useIsFocused()
 
   const { db, loading } = useDatabase()
   const {
@@ -102,6 +109,8 @@ export default function PracticeScreen() {
     useState(0)
   const tableDeckSessionRef =
     useRef(new TableDeckSession())
+  const lastAppliedSyncTimestampRef =
+    useRef(0)
 
   const isTableTopic = Boolean(
     selectedTopic?.key &&
@@ -376,6 +385,7 @@ export default function PracticeScreen() {
   useEffect(() => {
 
     if (
+      !isFocused ||
       !ttsEnabled ||
       !practiceQuestion
     ) {
@@ -386,11 +396,12 @@ export default function PracticeScreen() {
       practiceQuestion.question
     )
 
-  }, [ttsEnabled, practiceQuestion])
+  }, [isFocused, ttsEnabled, practiceQuestion])
 
   useEffect(() => {
 
     if (
+      !isFocused ||
       !autoNextEnabled ||
       !practiceResult
     ) {
@@ -409,7 +420,74 @@ export default function PracticeScreen() {
     autoNextCorrectDelaySeconds,
     autoNextWrongDelaySeconds,
     autoNextQuestion,
+    isFocused,
     practiceResult
+  ])
+
+  useEffect(() => {
+    if (isFocused) {
+      return
+    }
+
+    practice.cancelAutoNext()
+    ttsService.stop()
+  }, [isFocused, practice])
+
+  useEffect(() => {
+    if (
+      !db ||
+      !activeUser ||
+      !selectedTopicId
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const reloadFromSyncedSession = async () => {
+      const [meta, dirtyAt] = await Promise.all([
+        getSyncMeta(db, activeUser),
+        getSyncDirtyAt(db, activeUser)
+      ])
+
+      if (cancelled) {
+        return
+      }
+
+      if (dirtyAt > 0) {
+        return
+      }
+
+      if (meta.lastStatus !== "success") {
+        return
+      }
+
+      if (
+        meta.lastTimestamp <= 0 ||
+        meta.lastTimestamp ===
+          lastAppliedSyncTimestampRef.current
+      ) {
+        return
+      }
+
+      lastAppliedSyncTimestampRef.current =
+        meta.lastTimestamp
+      await practice.startPractice()
+    }
+
+    const unsubscribe = subscribeSyncMetaChanges(() => {
+      void reloadFromSyncedSession()
+    })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [
+    activeUser,
+    db,
+    practice,
+    selectedTopicId
   ])
 
   if (
@@ -471,7 +549,7 @@ export default function PracticeScreen() {
 
   function replayQuestion() {
 
-    if (!practiceQuestion) return
+    if (!isFocused || !practiceQuestion) return
 
     ttsService.speak(practiceQuestion.question)
 

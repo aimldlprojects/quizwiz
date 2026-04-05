@@ -89,6 +89,14 @@ export class PracticeController {
 
     await this.restoreSessionState()
 
+    const restoredCurrentQuestion =
+      this.session.getCurrentQuestion()
+
+    if (restoredCurrentQuestion) {
+      await this.saveSessionState()
+      return restoredCurrentQuestion
+    }
+
     if (this.shuffleRemainingSession) {
       this.shuffleRemainingCards()
     }
@@ -324,18 +332,26 @@ export class PracticeController {
       return
     }
 
+    const restoredIndex = Math.max(
+      0,
+      Math.min(
+        sessionSnapshot.index - 1,
+        sessionSnapshot.items.length - 1
+      )
+    )
+
     this.queue.restore(queueSnapshot)
 
     this.session.restore(practiceSnapshot)
+    this.session.setCurrentQuestion(
+      sessionSnapshot.items[restoredIndex] ?? null
+    )
 
     this.sessionManager.restore({
       items: sessionSnapshot.items,
-      index: Math.max(
-        0,
-        Math.min(
-          sessionSnapshot.index - 1,
-          sessionSnapshot.items.length - 1
-        )
+      index: Math.min(
+        sessionSnapshot.items.length,
+        restoredIndex + 1
       )
     })
 

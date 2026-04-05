@@ -132,6 +132,26 @@ async function upsertSessionSetting(
   updatedAt: number,
   key?: string
 ) {
+  const targetKey =
+    key ?? getPracticeSessionKey(topicId)
+  const serializedState = JSON.stringify(state)
+  const existing = await db.getFirstAsync<{
+    value: string | null
+  }>(
+    `
+    SELECT value
+    FROM settings
+    WHERE user_id = ?
+      AND key = ?
+    LIMIT 1
+    `,
+    [userId, targetKey]
+  )
+
+  if (existing?.value === serializedState) {
+    return
+  }
+
   await db.runAsync(
     `
     INSERT INTO settings (
@@ -148,8 +168,8 @@ async function upsertSessionSetting(
     `,
     [
       userId,
-      key ?? getPracticeSessionKey(topicId),
-      JSON.stringify(state),
+      targetKey,
+      serializedState,
       updatedAt
     ]
   )

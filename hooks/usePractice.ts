@@ -139,6 +139,13 @@ export function usePractice(controller: PracticeController | null) {
 
   }, [nextQuestion])
 
+  const cancelAutoNext = useCallback(() => {
+    if (autoNextTimeoutRef.current) {
+      clearTimeout(autoNextTimeoutRef.current)
+      autoNextTimeoutRef.current = null
+    }
+  }, [])
+
   const resetSession = useCallback(() => {
 
     if (!safeController) return
@@ -218,6 +225,7 @@ export function usePractice(controller: PracticeController | null) {
     submitAnswer,
     nextQuestion,
     autoNext,
+    cancelAutoNext,
     resetSession
 
   }
