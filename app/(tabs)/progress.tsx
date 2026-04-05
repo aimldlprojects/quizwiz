@@ -19,31 +19,21 @@ import { syncReviews } from "../../services/sync/syncReviews"
 import { getThemeColors } from "../../styles/theme"
 
 export default function ProgressScreen() {
-
   const { db, loading } = useDatabase()
-  const {
-    activeUser,
-    loading: usersLoading
-  } = useUsers(db)
-  const {
-    activeDeviceKey
-  } = useDeviceRegistry(db, activeUser)
+  const { activeUser, loading: usersLoading } = useUsers(db)
+  const { activeDeviceKey } = useDeviceRegistry(db, activeUser)
   const { themeMode } = useStudyPreferences(db, activeUser)
   const colors = getThemeColors(themeMode)
 
-  const [accuracy, setAccuracy] =
-    useState(0)
-  const [overallTotals, setOverallTotals] =
-    useState({
-      attempts: 0,
-      correct: 0
-    })
-  const [overallQuestionCount, setOverallQuestionCount] =
-    useState(0)
-  const [topics, setTopics] =
-    useState<any[]>([])
-  const [subjects, setSubjects] =
-    useState<any[]>([])
+  const [accuracy, setAccuracy] = useState(0)
+  const [overallTotals, setOverallTotals] = useState({
+    attempts: 0,
+    correct: 0
+  })
+  const [overallQuestionCount, setOverallQuestionCount] = useState(0)
+  const [topics, setTopics] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [streak, setStreak] = useState(0)
   const loadProgressInFlightRef = useRef(false)
   const loadProgressQueuedRef = useRef(false)
   const syncInFlightRef = useRef(false)
@@ -52,8 +42,14 @@ export default function ProgressScreen() {
     () => aggregateSubjects(subjects),
     [subjects]
   )
-  const [streak, setStreak] =
-    useState(0)
+
+  const overallAttemptDenominator = useMemo(
+    () =>
+      overallQuestionCount > 0
+        ? overallQuestionCount
+        : overallTotals.attempts,
+    [overallQuestionCount, overallTotals.attempts]
+  )
 
   const loadProgress = useCallback(async () => {
     if (loadProgressInFlightRef.current) {
@@ -66,36 +62,19 @@ export default function ProgressScreen() {
     try {
       if (!db || !activeUser) return
 
-      const statsRepo =
-        new StatsRepository(db)
-      const streakController =
-        new StreakController(db)
+      const statsRepo = new StatsRepository(db)
+      const streakController = new StreakController(db)
 
-      const totals =
-        await statsRepo.getAccuracyTotals(activeUser)
-      const totalQuestions =
-        await statsRepo.getTotalQuestionCount()
+      const totals = await statsRepo.getAccuracyTotals(activeUser)
+      const totalQuestions = await statsRepo.getTotalQuestionCount()
       const acc =
         totals.attempts === 0
           ? 0
-          : Math.round(
-              (totals.correct / totals.attempts) * 100
-            )
+          : Math.round((totals.correct / totals.attempts) * 100)
 
-      const topicData =
-        await statsRepo.getTopicProgress(
-          activeUser
-        )
-
-      const subjectData =
-        await statsRepo.getSubjectProgress(
-          activeUser
-        )
-
-      const streakState =
-        await streakController.getStreak(
-          activeUser
-        )
+      const topicData = await statsRepo.getTopicProgress(activeUser)
+      const subjectData = await statsRepo.getSubjectProgress(activeUser)
+      const streakState = await streakController.getStreak(activeUser)
 
       setAccuracy(acc)
       setOverallTotals(totals)
@@ -105,13 +84,11 @@ export default function ProgressScreen() {
       setStreak(streakState.currentStreak)
     } finally {
       loadProgressInFlightRef.current = false
-
       if (loadProgressQueuedRef.current) {
         loadProgressQueuedRef.current = false
         void loadProgress()
       }
     }
-
   }, [db, activeUser])
 
   const syncProgress = useCallback(async () => {
@@ -124,13 +101,11 @@ export default function ProgressScreen() {
     }
 
     const syncServerUrl = getSyncServerUrl()
-
     if (!syncServerUrl) {
       return
     }
 
     syncInFlightRef.current = true
-
     try {
       await syncReviews(
         db,
@@ -142,10 +117,7 @@ export default function ProgressScreen() {
         }
       )
     } catch (error) {
-      console.warn(
-        "Progress sync skipped:",
-        error
-      )
+      console.warn("Progress sync skipped:", error)
     } finally {
       syncInFlightRef.current = false
     }
@@ -163,9 +135,7 @@ export default function ProgressScreen() {
   if (loading || usersLoading || !db) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
-          Loading progress...
-        </Text>
+        <Text style={styles.loadingText}>Loading progress...</Text>
       </SafeAreaView>
     )
   }
@@ -173,9 +143,7 @@ export default function ProgressScreen() {
   if (!activeUser) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
-          Choose a user profile first.
-        </Text>
+        <Text style={styles.loadingText}>Choose a user profile first.</Text>
       </SafeAreaView>
     )
   }
@@ -193,9 +161,7 @@ export default function ProgressScreen() {
           { backgroundColor: colors.background }
         ]}
       >
-        <Text
-          style={[styles.title, { color: colors.text }]}
-        >
+        <Text style={[styles.title, { color: colors.text }]}>
           Progress Map
         </Text>
 
@@ -214,9 +180,7 @@ export default function ProgressScreen() {
             Overall Accuracy
           </Text>
 
-          <Text style={styles.bigValue}>
-            {accuracy}%
-          </Text>
+          <Text style={styles.bigValue}>{accuracy}%</Text>
 
           <Text
             style={[
@@ -224,7 +188,11 @@ export default function ProgressScreen() {
               { color: colors.text }
             ]}
           >
-            {overallTotals.correct}/{overallTotals.attempts} correct
+            {formatProgressSummary(
+              overallTotals.correct,
+              overallTotals.attempts,
+              overallAttemptDenominator
+            )}
           </Text>
 
           <Text
@@ -233,18 +201,17 @@ export default function ProgressScreen() {
               { color: colors.muted }
             ]}
           >
-            {overallTotals.attempts}/{overallQuestionCount} attempts
+            Accuracy based on attempts
           </Text>
 
-            <Text
-              style={[
-                styles.heroSubtext,
-                { color: colors.muted }
-              ]}
-            >
-              Continuous practice days in a row:{" "}
-              {streak} day{streak === 1 ? "" : "s"}
-            </Text>
+          <Text
+            style={[
+              styles.heroSubtext,
+              { color: colors.muted }
+            ]}
+          >
+            Continuous practice days in a row: {streak} day{streak === 1 ? "" : "s"}
+          </Text>
         </View>
 
         <View
@@ -306,9 +273,11 @@ export default function ProgressScreen() {
                   { color: colors.muted }
                 ]}
               >
-                {topic.correct}/{topic.practiced} correct
-                {"  "}•{"  "}
-                {topic.practiced}/{topic.totalQuestions} attempts
+                {formatProgressSummary(
+                  topic.correct,
+                  topic.practiced,
+                  topic.totalQuestions
+                )}
               </Text>
             </View>
           ))}
@@ -332,7 +301,7 @@ export default function ProgressScreen() {
             Subjects
           </Text>
 
-        {aggregatedSubjects.map((subject) => (
+          {aggregatedSubjects.map((subject) => (
             <View
               key={subject.subjectId}
               style={styles.progressItem}
@@ -360,9 +329,11 @@ export default function ProgressScreen() {
               <Text
                 style={[styles.detailText, { color: colors.muted }]}
               >
-                {subject.correct}/{subject.practiced} correct
-                {"  "}•{"  "}
-                {subject.practiced}/{subject.totalQuestions} attempts
+                {formatProgressSummary(
+                  subject.correct,
+                  subject.practiced,
+                  subject.totalQuestions
+                )}
               </Text>
             </View>
           ))}
@@ -370,11 +341,9 @@ export default function ProgressScreen() {
       </ScrollView>
     </SafeAreaView>
   )
-
 }
 
 const styles = StyleSheet.create({
-
   safeArea: {
     flex: 1,
     backgroundColor: "#f8fbff"
@@ -488,7 +457,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1e3a5f"
   }
-
 })
 
 function buildTopicRows(
@@ -502,43 +470,31 @@ function buildTopicRows(
     progress: number
   }[]
 ) {
-
-  const childrenByParent = new Map<
-    number | null,
-    typeof topics
-  >()
+  const childrenByParent = new Map<number | null, typeof topics>()
 
   for (const topic of topics) {
-    const siblings =
-      childrenByParent.get(topic.parentTopicId) ?? []
-
+    const siblings = childrenByParent.get(topic.parentTopicId) ?? []
     siblings.push(topic)
     childrenByParent.set(topic.parentTopicId, siblings)
   }
 
   for (const siblings of childrenByParent.values()) {
     siblings.sort((left, right) =>
-      left.topicName.localeCompare(
-        right.topicName
-      )
+      left.topicName.localeCompare(right.topicName)
     )
   }
 
-  const rows: (
-    (typeof topics)[number] & {
-      level: number
-      indexLabel: string
-    }
-  )[] = []
+  const rows: ((typeof topics)[number] & {
+    level: number
+    indexLabel: string
+  })[] = []
 
   function visit(
     parentId: number | null,
     level: number,
     prefix: string
   ) {
-
-    const siblings =
-      childrenByParent.get(parentId) ?? []
+    const siblings = childrenByParent.get(parentId) ?? []
 
     siblings.forEach((topic, index) => {
       const indexLabel =
@@ -558,13 +514,10 @@ function buildTopicRows(
         indexLabel
       )
     })
-
   }
 
   visit(null, 0, "")
-
   return rows
-
 }
 
 function aggregateSubjects(
@@ -577,7 +530,6 @@ function aggregateSubjects(
     progress: number
   }[]
 ) {
-
   const byName = new Map<
     string,
     {
@@ -612,35 +564,37 @@ function aggregateSubjects(
     }
   }
 
-  return (
-    Array.from(byName.values())
-      .map((entry) => {
-        const progress =
-          entry.practiced === 0
-            ? 0
-            : Math.round(
-                (entry.correct / entry.practiced) *
-                  100
-              )
+  return Array.from(byName.values())
+    .map((entry) => {
+      const progress =
+        entry.practiced === 0
+          ? 0
+          : Math.round((entry.correct / entry.practiced) * 100)
 
-        return {
-          ...entry,
-          progress
-        }
-      })
-      .sort((left, right) =>
-        left.subjectName.localeCompare(
-          right.subjectName
-        )
-      )
-  )
-
+      return {
+        ...entry,
+        progress
+      }
+    })
+    .sort((left, right) =>
+      left.subjectName.localeCompare(right.subjectName)
+    )
 }
 
 function normalizeSubjectName(
   value: string
 ) {
-
   return value.trim().toLowerCase()
+}
 
+function formatProgressSummary(
+  correct: number,
+  attempts: number,
+  totalQuestions: number
+) {
+  const safeTotal =
+    totalQuestions > 0
+      ? totalQuestions
+      : attempts
+  return `Correct: ${correct} | Attempts: ${attempts} | Total cards: ${safeTotal}`
 }

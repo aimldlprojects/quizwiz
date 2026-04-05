@@ -27,11 +27,12 @@ import { getThemeColors, type ThemeColors } from "../styles/theme"
 
 const ADMIN_PASSWORD = "0000"
 const CHIP_DEFAULT_BG = "#ffffff"
-const CHIP_DEFAULT_BORDER = "#ffffff"
+const CHIP_DEFAULT_BORDER = "#cbd5e1"
 const CHIP_ALLOWED_BG = "#16a34a"
-const CHIP_PARTIAL_BG = "#fde68a"
-const CHIP_PARTIAL_BORDER = "#f59e0b"
-const CHIP_ACTIVE_BORDER = "#93c5fd"
+const CHIP_ALLOWED_BORDER = "#15803d"
+const CHIP_PARTIAL_BG = "#bfdbfe"
+const CHIP_PARTIAL_BORDER = "#3b82f6"
+const CHIP_ACTIVE_BORDER = "#0284c7"
 const CHIP_PENDING_BG = "#e0f2fe"
 
 export default function AdminScreen() {
@@ -2027,7 +2028,7 @@ const styles = StyleSheet.create({
 
   subjectChipAll: {
     backgroundColor: CHIP_ALLOWED_BG,
-    borderColor: CHIP_DEFAULT_BORDER
+    borderColor: CHIP_ALLOWED_BORDER
   },
 
   subjectChipPartial: {
@@ -2067,7 +2068,7 @@ const styles = StyleSheet.create({
 
   topicChipAll: {
     backgroundColor: CHIP_ALLOWED_BG,
-    borderColor: CHIP_DEFAULT_BORDER
+    borderColor: CHIP_ALLOWED_BORDER
   },
 
   topicChipPartial: {

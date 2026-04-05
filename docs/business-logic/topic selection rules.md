@@ -219,9 +219,9 @@ Notes:
 
 | State         | Background Color | Border Color | Color Names           | Meaning                     |
 | ------------- | ---------------- | ------------ | --------------------- | --------------------------- |
-| Default       | `#ffffff`        | `#ffffff`    | White / White         | Neutral, no emphasis        |
-| Fully Allowed | `#16a34a`        | `#ffffff`    | Green / White         | Fully permitted subject     |
-| Partial       | `#fde68a`        | `#f59e0b`    | Light Yellow / Orange | Partially permitted subject |
+| Default       | `#ffffff`        | `#cbd5e1`    | White / Gray          | Neutral, no emphasis        |
+| Fully Allowed | `#16a34a`        | `#15803d`    | Green / Deep Green    | Fully permitted subject     |
+| Partial       | `#bfdbfe`        | `#3b82f6`    | Light Blue / Blue     | Partially permitted subject |
 
 ---
 
@@ -229,11 +229,11 @@ Notes:
 
 | State         | Background Color | Border Color | Color Names           | Meaning                    |
 | ------------- | ---------------- | ------------ | --------------------- | -------------------------- |
-| Default       | `#ffffff`        | `#ffffff`    | White / White         | Neutral topic              |
-| Fully Allowed | `#16a34a`        | `#ffffff`    | Green / White         | Fully permitted topic      |
-| Partial       | `#fde68a`        | `#f59e0b`    | Light Yellow / Orange | Partially permitted topic  |
-| Selected Path | none             | `#93c5fd`    | Light Blue            | Active navigation path     |
-| Pending Toggle | Light Blue BG    | `#93c5fd`    | Light Blue            | User interaction in flight |
+| Default       | `#ffffff`        | `#cbd5e1`    | White / Gray          | Neutral topic              |
+| Fully Allowed | `#16a34a`        | `#15803d`    | Green / Deep Green    | Fully permitted topic      |
+| Partial       | `#bfdbfe`        | `#3b82f6`    | Light Blue / Blue     | Partially permitted topic  |
+| Selected Path | none             | `#0284c7`    | Strong Blue           | Active navigation path     |
+| Pending Toggle | `#e0f2fe`       | `#0284c7`    | Light Cyan / Strong Blue | User interaction in flight |
 
 ---
 
@@ -244,10 +244,10 @@ Notes:
 
 | State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                   |
 | ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ------------------------- |
-| Default                | `#ffffff`      | `#dbe4f0`  | `#1e3a5f` | White / Light Blue-Gray / Dark Navy        | Neutral subject           |
-| Fully Allowed          | `#16a34a`      | `#16a34a`  | `#ffffff` | Green / Green / White                      | Fully enabled subject     |
-| Partial                | `#fde68a`      | `#dbe4f0`  | `#1e3a5f` | Light Yellow / Light Blue-Gray / Dark Navy | Partially enabled subject |
-| Selected Path (Active) | `#ffffff`      | `#0ea5e9`  | `#1e3a5f` | White / Sky Blue / Dark Navy               | Active navigation subject |
+| Default                | `#ffffff`      | `#cbd5e1`  | `#1e3a5f` | White / Gray / Dark Navy                   | Neutral subject           |
+| Fully Allowed          | `#16a34a`      | `#15803d`  | `#ffffff` | Green / Deep Green / White                 | Fully enabled subject     |
+| Partial                | `#bfdbfe`      | `#3b82f6`  | `#1e3a5f` | Light Blue / Blue / Dark Navy              | Partially enabled subject |
+| Selected Path (Active) | `#ffffff`      | `#0284c7`  | `#1e3a5f` | White / Strong Blue / Dark Navy            | Active navigation subject |
 
 ---
 
@@ -255,10 +255,10 @@ Notes:
 
 | State                  | Background Color | Border Color | Text Color  | Color Names                                | Meaning                 |
 | ---------------------- | ---------------- | ------------ | ----------- | ------------------------------------------ | ----------------------- |
-| Default                | `#ffffff`      | `#dbe4f0`  | `#1e3a5f` | White / Light Blue-Gray / Dark Navy        | Neutral topic           |
-| Fully Allowed          | `#16a34a`      | `#16a34a`  | `#ffffff` | Green / Green / White                      | Fully enabled topic     |
-| Partial                | `#fde68a`      | `#dbe4f0`  | `#1e3a5f` | Light Yellow / Light Blue-Gray / Dark Navy | Partially enabled topic |
-| Selected Path (Active) | `#ffffff`      | `#0ea5e9`  | `#1e3a5f` | White / Sky Blue / Dark Navy               | Active navigation topic |
+| Default                | `#ffffff`      | `#cbd5e1`  | `#1e3a5f` | White / Gray / Dark Navy                   | Neutral topic           |
+| Fully Allowed          | `#16a34a`      | `#15803d`  | `#ffffff` | Green / Deep Green / White                 | Fully enabled topic     |
+| Partial                | `#bfdbfe`      | `#3b82f6`  | `#1e3a5f` | Light Blue / Blue / Dark Navy              | Partially enabled topic |
+| Selected Path (Active) | `#ffffff`      | `#0284c7`  | `#1e3a5f` | White / Strong Blue / Dark Navy            | Active navigation topic |
 
 ---
 
@@ -267,10 +267,12 @@ Notes:
 | Color       | Name         | Purpose                      |
 | ----------- | ------------ | ---------------------------- |
 | `#ffffff` | White        | Default / no emphasis        |
+| `#cbd5e1` | Gray         | Default chip border          |
 | `#16a34a` | Green        | Fully allowed                |
-| `#fde68a` | Light Yellow | Partial state                |
-| `#f59e0b` | Orange       | Partial border highlight     |
-| `#93c5fd` | Light Blue   | Active / pending interaction |
+| `#15803d` | Deep Green   | Fully allowed border         |
+| `#bfdbfe` | Light Blue   | Partial state background     |
+| `#3b82f6` | Blue         | Partial state border         |
+| `#0284c7` | Strong Blue  | Active / selected path border|
 
 ---
 
@@ -279,8 +281,8 @@ Notes:
 ```text
 White -> default / clean UI
 Green -> fully allowed
-Yellow + Orange -> partial state
-Blue -> active / user interaction
+Light Blue + Blue -> partial state
+Strong Blue -> active / user interaction
 ```
 
 ---

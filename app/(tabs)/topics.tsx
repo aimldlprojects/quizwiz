@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 2,
-    borderColor: "#dbe4f0"
+    borderColor: "#cbd5e1"
   },
 
   allowedChip: {
@@ -1081,19 +1081,19 @@ const styles = StyleSheet.create({
   },
 
   partialChip: {
-    backgroundColor: "#fde68a",
-    borderColor: "#dbe4f0",
+    backgroundColor: "#bfdbfe",
+    borderColor: "#3b82f6",
     borderWidth: 2
   },
 
   activeChip: {
-    borderColor: "#0ea5e9",
+    borderColor: "#0284c7",
     borderWidth: 3
   },
 
   learningChip: {
     backgroundColor: "#16a34a",
-    borderColor: "#16a34a",
+    borderColor: "#15803d",
     borderWidth: 2
   },
 
