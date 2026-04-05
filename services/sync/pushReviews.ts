@@ -9,9 +9,14 @@ import {
 import {
   getActiveDeviceBackendKey
 } from "../../database/deviceRegistryRepository"
+import {
+  getSyncMode,
+  type SyncMode
+} from "../../database/settingsRepository"
 import { syncConfig } from "@/config/sync"
 
 const CHUNK_SIZE = syncConfig.pushChunkSize
+const DEVICE_SCOPE_SEPARATOR = "__device_"
 const PROFILE_SETTING_KEYS = new Set([
   "selected_subject_id",
   "selected_topic_id",
@@ -29,6 +34,40 @@ const PROFILE_SETTING_KEYS = new Set([
   "practice_random_order_enabled",
   "theme_mode"
 ])
+
+const DEVICE_SPECIFIC_PREFIXES = [
+  "selected_subject_id_user_",
+  "selected_topic_id_user_",
+  "selected_subject_ids_user_",
+  "selected_topic_level1_ids_user_",
+  "selected_topic_level2_ids_user_",
+  "learn_progress_topic_",
+  "practice_session_topic_"
+]
+const ACTIVE_DEVICE_KEY_PREFIX = "active_device_key_user_"
+
+function isDeviceScopedKey(key: string) {
+  return key.includes(DEVICE_SCOPE_SEPARATOR)
+}
+
+function isForActiveDevice(
+  key: string,
+  deviceKey: string | null
+) {
+  if (!deviceKey) {
+    return false
+  }
+
+  return key.endsWith(
+    `${DEVICE_SCOPE_SEPARATOR}${deviceKey}`
+  )
+}
+
+function isDeviceSpecificBaseKey(key: string) {
+  return DEVICE_SPECIFIC_PREFIXES.some((prefix) =>
+    key.startsWith(prefix)
+  )
+}
 
 function isAbortError(error: unknown) {
   return !!error
@@ -197,17 +236,56 @@ async function getSettings(
 
 async function getSettingsForSync(
   db: SQLiteDatabase,
-  userId: number
+  userId: number,
+  syncMode: SyncMode,
+  activeDeviceKey: string | null
 ) {
   const rows = await getSettings(db, userId)
 
   return rows.filter((row) => {
     if (row.user_id === userId) {
-      return true
+      const key = row.key
+
+      if (key.startsWith(ACTIVE_DEVICE_KEY_PREFIX)) {
+        return false
+      }
+
+      const scoped = isDeviceScopedKey(key)
+
+      if (syncMode === "global_on") {
+        return !scoped
+      }
+
+      if (scoped) {
+        return isForActiveDevice(
+          key,
+          activeDeviceKey
+        )
+      }
+
+      return !isDeviceSpecificBaseKey(key)
     }
 
     if (row.user_id !== 0) {
-      return false
+      if (row.user_id !== userId) {
+        return false
+      }
+
+      const key = row.key
+      const scoped = isDeviceScopedKey(key)
+
+      if (syncMode === "global_on") {
+        return !scoped
+      }
+
+      if (scoped) {
+        return isForActiveDevice(
+          key,
+          activeDeviceKey
+        )
+      }
+
+      return !isDeviceSpecificBaseKey(key)
     }
 
     return (
@@ -248,13 +326,16 @@ export async function pushReviews(
   const resolvedDeviceKey =
     options?.deviceKey ??
     (await getActiveDeviceBackendKey(db, userId))
+  const syncMode = await getSyncMode(db)
 
   const lastSync = await getLastPushRev(db, userId)
 
   const stats = await getStats(db, userId)
   const settings = await getSettingsForSync(
     db,
-    userId
+    userId,
+    syncMode,
+    resolvedDeviceKey
   )
   const badges = await getUserBadges(db, userId)
 

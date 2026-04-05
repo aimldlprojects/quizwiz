@@ -150,9 +150,10 @@ export async function setLearnProgress(
 
   const current = await db.getFirstAsync<{
     updated_at: number | null
+    value: string | null
   }>(
     `
-    SELECT updated_at
+    SELECT updated_at, value
     FROM settings
     WHERE user_id = ?
       AND key = ?
@@ -175,6 +176,10 @@ export async function setLearnProgress(
     totalCards: progress.totalCards,
     updatedAt
   })
+
+  if (current?.value === value) {
+    return
+  }
 
   if (current) {
     await db.runAsync(

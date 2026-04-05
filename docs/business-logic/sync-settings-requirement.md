@@ -64,6 +64,8 @@ When the toggle is disabled:
 - the backend should store and match device-scoped records with a separate stable device backend key
 - the user should be able to rename the device display name later without losing restore ability, as long as the backend key stays the same
 - if the device is not registered yet, the Profile page should show a suggestion to add the device through the Admin page
+- changing the active device selection on one physical device must stay local to that physical device
+- active device selection must not switch other physical devices to the same device key
 - device registration must happen only in the Admin page
 - a single profile can have multiple registered devices
 - device display names must be unique within a profile
@@ -84,6 +86,7 @@ This is the mixed mode where progress can be shared for reporting, but the activ
 - Shared progress records must still be written to the global database in both modes.
 - The stable backend key must act as the unique key for the device-scoped records so the same device can recover its state after uninstall and reinstall.
 - The user-facing device display name must be unique within a profile and can be renamed without changing the stable backend key.
+- The `active_device_key_user_*` binding is local-device state and must not be synced across physical devices.
 
 ## Device Recovery
 
@@ -113,6 +116,8 @@ That means:
 - each device-scoped study record gets its own timestamp
 - each progress record keeps its own timestamp
 - derived views do not need their own sync timestamp if they are rebuilt from stored data
+- timestamps must change only when a user action changes that specific stored value
+- a sync pull must not rewrite the same value with a newer timestamp just because sync ran
 
 Use this table to validate whether a separate timestamp should be tracked for each page feature.
 
@@ -122,7 +127,7 @@ Use this table to validate whether a separate timestamp should be tracked for ea
 | Profile | Theme / visual settings | Yes | Theme changes should not overwrite unrelated settings |
 | Profile | Voice / audio settings | Yes | Voice changes should sync independently |
 | Profile | Auto-next / delays / autoplay | Yes | Each preference can change at a different time |
-| Profile | Linked device card | Yes | The active device choice must be tracked separately |
+| Profile | Linked device card | Yes | Device registry data is persisted; active-device choice is local-only |
 | Profile | Device display name edit | Yes | Friendly label changes must not affect the backend device key |
 | Profile | Missing device hint | No | This is a UI hint, not stored sync state |
 | Profile | Manual sync action | No | This is an action, not persisted state |
@@ -154,6 +159,7 @@ Use this table to validate whether a separate timestamp should be tracked for ea
 - Human-readable logs should show IST (+05:30) with the raw epoch millisecond value.
 - UI timestamps should render in IST and include the timezone abbreviation.
 - When troubleshooting sync, compare the raw epoch millisecond value first, then verify the rendered IST label.
+- After a successful pull, Learn and Practice screens should rehydrate from persisted state; this refresh must be read-only and must not create a new timestamp by itself.
 
 ## Sync Trigger
 
@@ -252,7 +258,7 @@ Legend:
 | Profile              | Theme / visual settings           | Global         | Global                                 | Global DB                 | Same look and feel across devices when ON                      |
 | Profile              | Voice / audio settings            | Global         | Global                                 | Global DB                 | Settings must still be shared even when OFF                    |
 | Profile              | Auto-next / delays / autoplay     | Global         | Global                                 | Global DB                 | Study behavior should match the selected mode                  |
-| Profile              | Linked device card                | Global         | Global                                 | Global DB                 | Shows the current device name and rename box                   |
+| Profile              | Linked device card                | Global         | Global                                 | Global DB + local binding | Registry/rename are global; active-device selection is local-only |
 | Profile              | Device display name edit          | Global         | Global                                 | Global DB                 | Changing the label should not change the backend device key    |
 | Profile              | Missing device hint               | Global         | Global                                 | Global DB                 | Suggests adding the device through Admin when no device exists |
 | Profile              | Manual sync action                | Global         | Global                                 | Uses both DBs as needed   | Should respect current sync mode                               |

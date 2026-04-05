@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef } from "react"
 import { AppState, type AppStateStatus } from "react-native"
 import { SQLiteDatabase } from "expo-sqlite"
 
-import { subscribeSyncMetaChanges } from "@/database/syncMetaRepository"
+import {
+  getSyncDirtyAt,
+  subscribeSyncMetaChanges
+} from "@/database/syncMetaRepository"
 import { SyncService } from "@/services/syncService"
 import { SyncLifecycle } from "@/services/sync/syncLifecycle"
 
@@ -94,12 +97,21 @@ export function useSyncLifecycle(
       )
 
     const syncMetaSubscription =
-      subscribeSyncMetaChanges(() => {
+      subscribeSyncMetaChanges(async () => {
         if (!db || !activeUser || intervalMs <= 0) {
           return
         }
 
         if (lifecycle.isSyncing()) {
+          return
+        }
+
+        const dirtyAt = await getSyncDirtyAt(
+          db,
+          activeUser
+        )
+
+        if (!dirtyAt || dirtyAt <= 0) {
           return
         }
 

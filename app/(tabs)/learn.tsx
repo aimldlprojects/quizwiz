@@ -34,6 +34,11 @@ import {
   setLearnProgress
 } from "../../database/learnProgressRepository"
 import {
+  getSyncDirtyAt,
+  getSyncMeta,
+  subscribeSyncMetaChanges
+} from "../../database/syncMetaRepository"
+import {
   getTableDeck,
   isTableTopicKey
 } from "../../engine/questions/tableDeck"
@@ -136,6 +141,8 @@ export default function LearnScreen() {
     useRef(new Animated.Value(0)).current
   const learnRandomOrderEnabledRef =
     useRef(learnRandomOrderEnabled)
+  const lastAppliedSyncTimestampRef =
+    useRef(0)
   const colors = getThemeColors(themeMode)
   const iconButtonStyle = (active: boolean) => ({
     backgroundColor: active
@@ -338,7 +345,6 @@ export default function LearnScreen() {
         setCard(controller.getCurrentCard())
         setRevealed(false)
         setProgress(controller.getProgress())
-        void persistLearnProgress()
         return
       }
 
@@ -417,7 +423,6 @@ export default function LearnScreen() {
       setCard(controller.getCurrentCard())
       setRevealed(false)
       setProgress(controller.getProgress())
-      void persistLearnProgress()
   }, [
     activeUser,
     scopedDeviceKey,
@@ -473,6 +478,63 @@ export default function LearnScreen() {
     void loadCardsForSelectedTopic()
   }, [
     loadCardsForSelectedTopic
+  ])
+
+  useEffect(() => {
+    if (
+      !db ||
+      !activeUser ||
+      !selectedTopicId
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const reloadFromSyncedProgress = async () => {
+      const [meta, dirtyAt] = await Promise.all([
+        getSyncMeta(db, activeUser),
+        getSyncDirtyAt(db, activeUser)
+      ])
+
+      if (cancelled) {
+        return
+      }
+
+      if (dirtyAt > 0) {
+        return
+      }
+
+      if (meta.lastStatus !== "success") {
+        return
+      }
+
+      if (
+        meta.lastTimestamp <= 0 ||
+        meta.lastTimestamp ===
+          lastAppliedSyncTimestampRef.current
+      ) {
+        return
+      }
+
+      lastAppliedSyncTimestampRef.current =
+        meta.lastTimestamp
+      await loadCardsForSelectedTopic()
+    }
+
+    const unsubscribe = subscribeSyncMetaChanges(() => {
+      void reloadFromSyncedProgress()
+    })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [
+    activeUser,
+    db,
+    loadCardsForSelectedTopic,
+    selectedTopicId
   ])
 
   useEffect(() => {

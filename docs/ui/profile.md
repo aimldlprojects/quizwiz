@@ -41,6 +41,7 @@ Change profile settings and sync data.
 - Push sends local changes.
 - Sync does Push then Pull.
 - Pull updates the local database from the global database.
+- Active device selection is local to each physical device and is not synced to other devices.
 - Screen updates follow [Refresh Policy](../business-logic/refresh-policy.md), not sync completion alone.
 - Log out syncs the active profile first, then clears the current profile on this device.
 - The status area also shows server, connection, and last sync time.

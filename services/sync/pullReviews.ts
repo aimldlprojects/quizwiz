@@ -33,6 +33,8 @@ function buildTimeoutError() {
   )
 }
 
+const ACTIVE_DEVICE_KEY_PREFIX = "active_device_key_user_"
+
 function formatPythonDatetime(
   timestamp: number | null | undefined
 ) {
@@ -197,6 +199,10 @@ async function upsertSettings(
   }
 
   for (const entry of entries) {
+    if (entry.key.startsWith(ACTIVE_DEVICE_KEY_PREFIX)) {
+      continue
+    }
+
     const updatedAt =
       typeof entry.updated_at === "number"
         ? entry.updated_at

@@ -26,7 +26,7 @@ export default function RootLayout() {
   useSyncLifecycle(
     db,
     activeUser,
-    users.map((user) => user.id),
+    activeUser ? [activeUser] : [],
     autoSyncIntervalMs,
     syncMinGapMs
   )
