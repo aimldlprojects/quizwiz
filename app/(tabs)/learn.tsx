@@ -734,15 +734,26 @@ export default function LearnScreen() {
           </Text>
         </View>
 
-            <View
+        <View
+          style={[
+            styles.cardShell,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border
+            }
+          ]}
+        >
+          {card ? (
+            <Text
               style={[
-                styles.cardShell,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.border
-                }
+                styles.cardProgress,
+                { color: colors.muted }
               ]}
             >
+              Card {progress.current} of {progress.total}
+            </Text>
+          ) : null}
+
               {card ? (
                 <FlashCard
                   question={card.question}
@@ -909,15 +920,6 @@ export default function LearnScreen() {
               </Pressable>
             </View>
 
-            <Text
-              style={[
-                styles.progress,
-                { color: colors.text }
-              ]}
-            >
-              Card {progress.current} of{" "}
-              {progress.total}
-            </Text>
           </>
         ) : null}
       </ScrollView>
@@ -1021,6 +1023,13 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
 
+  cardProgress: {
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 10
+  },
+
   feedbackRow: {
     flexDirection: "row",
     gap: 10,
@@ -1087,13 +1096,5 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontWeight: "700"
   },
-
-  progress: {
-    marginTop: 14,
-    textAlign: "center",
-    color: "#475569",
-    fontSize: 16,
-    fontWeight: "700"
-  }
 
 })

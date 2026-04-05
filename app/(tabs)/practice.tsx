@@ -817,8 +817,8 @@ export default function PracticeScreen() {
             }
           ]}
         >
-          {renderQuestion()}
           {renderQuestionProgress()}
+          {renderQuestion()}
 
           {practiceQuestion ? (
             <>
