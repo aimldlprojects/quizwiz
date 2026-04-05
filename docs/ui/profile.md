@@ -44,8 +44,8 @@ Change profile settings and sync data.
 - Screen updates follow [Refresh Policy](../business-logic/refresh-policy.md), not sync completion alone.
 - Log out syncs the active profile first, then clears the current profile on this device.
 - The status area also shows server, connection, and last sync time.
-- Last sync timestamps are shown with an explicit timezone label so cross-device comparisons stay clear.
-- If you compare two devices, treat the displayed timezone label as part of the timestamp, not as decoration.
+- Last sync timestamps are shown in IST (+05:30) with an explicit timezone label.
+- If you compare two devices, treat the displayed IST label as part of the timestamp, not as decoration.
 
 ## Reference Docs
 

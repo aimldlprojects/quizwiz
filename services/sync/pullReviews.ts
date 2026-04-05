@@ -65,13 +65,14 @@ function formatPythonDatetime(
   const ist = partsToMap(toParts("Asia/Kolkata"))
 
   const build = (
-    parts: Record<string, string>
+    parts: Record<string, string>,
+    zoneLabel: string
   ) =>
-    `ms=${timestamp} | ist=datetime.datetime(${Number(parts.year)}, ${Number(parts.month)}, ${Number(parts.day)}, ${Number(parts.hour)}, ${Number(parts.minute)}, ${Number(parts.second)}, ${date.getMilliseconds() * 1000})`
+    `ms=${timestamp} | ${zoneLabel}=datetime.datetime(${Number(parts.year)}, ${Number(parts.month)}, ${Number(parts.day)}, ${Number(parts.hour)}, ${Number(parts.minute)}, ${Number(parts.second)}, ${date.getMilliseconds() * 1000})`
 
   return {
     ms: timestamp,
-    ist: build(ist)
+    ist: build(ist, "ist")
   }
 }
 
