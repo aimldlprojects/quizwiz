@@ -1009,7 +1009,7 @@ const styles = StyleSheet.create({
   },
 
   noticeCard: {
-    backgroundColor: "#fff7ed",
+    backgroundColor: "#eff6ff",
     borderRadius: 22,
     padding: 18
   },
@@ -1020,19 +1020,19 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fb923c",
+    backgroundColor: "#2563eb",
     marginBottom: 10
   },
 
   noticeTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#9a3412",
+    color: "#1d4ed8",
     marginBottom: 6
   },
 
   noticeText: {
-    color: "#9a3412",
+    color: "#1e40af",
     lineHeight: 21
   },
 
