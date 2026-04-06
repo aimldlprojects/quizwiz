@@ -72,6 +72,20 @@ export function usePractice(controller: PracticeController | null) {
       return
     }
 
+    if (answer.trim().length === 0) {
+      const skipped =
+        await safeController.skipCurrentQuestion()
+
+      setQuestion(skipped)
+      setAnswer("")
+      setResult(null)
+      isSubmittingRef.current = false
+      setRemainingCards(
+        safeController.getRemainingCards()
+      )
+      return
+    }
+
     isSubmittingRef.current = true
 
     let res: Awaited<

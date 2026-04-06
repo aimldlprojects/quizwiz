@@ -120,7 +120,8 @@ export async function getQuestionsForTopicTree(
   db: SQLiteDatabase,
   topicIds: number[],
   limit?: number,
-  orderBy: "random" | "sequence" = "random"
+  orderBy: "random" | "sequence" = "random",
+  offset?: number
 ) {
 
   if (topicIds.length === 0) {
@@ -132,10 +133,22 @@ export async function getQuestionsForTopicTree(
 
   const limitClause =
     limit == null ? "" : "LIMIT ?"
+  const offsetClause =
+    offset == null ? "" : "OFFSET ?"
   const orderClause =
     orderBy === "sequence"
       ? "ORDER BY topic_id ASC, id ASC"
       : "ORDER BY RANDOM()"
+
+  const args = [...topicIds]
+
+  if (limit != null) {
+    args.push(limit)
+  }
+
+  if (offset != null) {
+    args.push(offset)
+  }
 
   return db.getAllAsync<QuestionRecord>(
     `
@@ -149,10 +162,34 @@ export async function getQuestionsForTopicTree(
     WHERE topic_id IN (${placeholders})
     ${orderClause}
     ${limitClause}
+    ${offsetClause}
     `,
-    limit == null
-      ? topicIds
-      : [...topicIds, limit]
+    args
   )
 
+}
+
+export async function getQuestionCountForTopicTree(
+  db: SQLiteDatabase,
+  topicIds: number[]
+) {
+  if (topicIds.length === 0) {
+    return 0
+  }
+
+  const placeholders =
+    topicIds.map(() => "?").join(", ")
+
+  const row = await db.getFirstAsync<{
+    count: number
+  }>(
+    `
+    SELECT COUNT(*) as count
+    FROM questions
+    WHERE topic_id IN (${placeholders})
+    `,
+    topicIds
+  )
+
+  return row?.count ?? 0
 }

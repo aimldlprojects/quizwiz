@@ -69,6 +69,29 @@ export class LearningSessionManager {
     return question
   }
 
+  async deferQuestionToEnd(
+    question: Question | null
+  ) {
+    if (!question) {
+      return
+    }
+
+    const remaining: Question[] = []
+    let next = this.cache.next()
+
+    while (next) {
+      remaining.push(next)
+      next = this.cache.next()
+    }
+
+    this.cache.load([
+      ...remaining,
+      question
+    ])
+
+    await this.prefetch()
+  }
+
   /*
   --------------------------------------------------
   Prefetch Questions

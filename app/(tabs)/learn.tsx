@@ -26,6 +26,7 @@ import {
 import {
   getAllTopics,
   getDescendantTopicIds,
+  getQuestionCountForTopicTree,
   getQuestionsForTopicTree,
   getTopicById,
   TopicRecord
@@ -57,6 +58,15 @@ type Card = {
   question: string
   answer: string | number
 }
+
+type ReviewSnapshot = {
+  question_id: number
+  repetition: number | null
+  next_review: number | null
+  last_result: string | null
+}
+
+const LEARN_DB_CHUNK_SIZE = 120
 
 function getTopicDescription(
   topic: TopicRecord | null
@@ -146,6 +156,18 @@ export default function LearnScreen() {
     useRef(learnRandomOrderEnabled)
   const lastAppliedSyncTimestampRef =
     useRef(0)
+  const nonTableTopicIdsRef =
+    useRef<number[]>([])
+  const nonTableLoadedCardsRef =
+    useRef<Card[]>([])
+  const nonTableTotalCardsRef =
+    useRef(0)
+  const nonTableOffsetRef =
+    useRef(0)
+  const nonTableHasMoreRef =
+    useRef(false)
+  const nonTableLoadingMoreRef =
+    useRef(false)
   const colors = getThemeColors(themeMode)
   const iconButtonStyle = (active: boolean) => ({
     backgroundColor: active
@@ -212,19 +234,258 @@ export default function LearnScreen() {
 
   }
 
-  const nextCard = useCallback(() => {
+  function mapRowsToCards(
+    rows: Array<{
+      id: number
+      question: string
+      answer: string
+    }>
+  ) {
+    return rows.map((row) => ({
+      id: row.id,
+      question: row.question,
+      answer: Number.isNaN(Number(row.answer))
+        ? row.answer
+        : Number(row.answer)
+    }))
+  }
+
+  const applySmartLearnOrder = useCallback(async (
+    cards: Card[]
+  ) => {
+    if (
+      !db ||
+      !activeUser ||
+      cards.length === 0 ||
+      isTableTopic ||
+      learnRandomOrderEnabledRef.current
+    ) {
+      return cards
+    }
+
+    const placeholders = cards
+      .map(() => "?")
+      .join(", ")
+
+    const rows = await db.getAllAsync<ReviewSnapshot>(
+      `
+      SELECT
+        question_id,
+        repetition,
+        next_review,
+        last_result
+      FROM reviews
+      WHERE user_id = ?
+        AND question_id IN (${placeholders})
+      `,
+      [activeUser, ...cards.map((card) => card.id)]
+    )
+
+    const reviewByQuestionId = new Map(
+      rows.map((row) => [row.question_id, row])
+    )
+    const now = Date.now()
+
+    const rankedCards = cards.map((card, index) => {
+      const review = reviewByQuestionId.get(card.id)
+      const repetition = review?.repetition ?? 0
+      const nextReview = review?.next_review ?? null
+      const lastResult = review?.last_result ?? null
+      const hasReview = !!review
+      const isWeakOrDue =
+        lastResult === "again" ||
+        (typeof nextReview === "number" &&
+          nextReview > 0 &&
+          nextReview <= now)
+      const isRecentlyMastered =
+        repetition >= 2 &&
+        typeof nextReview === "number" &&
+        nextReview > now
+
+      let rank = 2
+
+      if (isWeakOrDue) {
+        rank = 0
+      } else if (!hasReview) {
+        rank = 1
+      } else if (isRecentlyMastered) {
+        rank = 3
+      }
+
+      const dueOrder =
+        typeof nextReview === "number"
+          ? nextReview
+          : Number.MAX_SAFE_INTEGER
+
+      return {
+        card,
+        rank,
+        dueOrder,
+        index
+      }
+    })
+
+    rankedCards.sort((a, b) => {
+      if (a.rank !== b.rank) {
+        return a.rank - b.rank
+      }
+
+      if (a.rank === 0 || a.rank === 3) {
+        if (a.dueOrder !== b.dueOrder) {
+          return a.dueOrder - b.dueOrder
+        }
+      }
+
+      return a.index - b.index
+    })
+
+    return rankedCards.map((item) => item.card)
+  }, [activeUser, db, isTableTopic])
+
+  function updateCardAndProgress(
+    nextCard: Card | null
+  ) {
+    setCard(nextCard)
+    setRevealed(false)
+
+    const snapshot = controller.getProgress()
+    const displayTotal =
+      !isTableTopic &&
+      nonTableTotalCardsRef.current > 0
+        ? nonTableTotalCardsRef.current
+        : snapshot.total
+
+    setProgress({
+      current: Math.min(snapshot.current, displayTotal),
+      total: displayTotal
+    })
+  }
+
+  const loadNextNonTableChunk = useCallback(async () => {
+    if (!db) {
+      return false
+    }
+
+    if (nonTableLoadingMoreRef.current) {
+      return false
+    }
+
+    if (!nonTableHasMoreRef.current) {
+      return false
+    }
+
+    const topicIds = nonTableTopicIdsRef.current
+    if (topicIds.length === 0) {
+      return false
+    }
+
+    nonTableLoadingMoreRef.current = true
+
+    try {
+      const rows = await getQuestionsForTopicTree(
+        db,
+        topicIds,
+        LEARN_DB_CHUNK_SIZE,
+        "sequence",
+        nonTableOffsetRef.current
+      )
+
+      if (rows.length === 0) {
+        nonTableHasMoreRef.current = false
+        return false
+      }
+
+      const currentCardId =
+        controller.getCurrentCardId()
+      const currentIndex =
+        controller.getCurrentIndex()
+      const appendedCards =
+        mapRowsToCards(rows)
+      const mergedCardsUnsorted = [
+        ...nonTableLoadedCardsRef.current,
+        ...appendedCards
+      ]
+      const mergedCards =
+        await applySmartLearnOrder(
+          mergedCardsUnsorted
+        )
+
+      nonTableLoadedCardsRef.current =
+        mergedCards
+      nonTableOffsetRef.current += rows.length
+      nonTableHasMoreRef.current =
+        nonTableOffsetRef.current <
+        nonTableTotalCardsRef.current
+
+      controller.loadCards(mergedCards)
+
+      const restoredIndex =
+        currentCardId != null
+          ? mergedCards.findIndex(
+              (card) => card.id === currentCardId
+            )
+          : -1
+
+      controller.setCurrentIndex(
+        restoredIndex >= 0
+          ? restoredIndex
+          : Math.max(
+              0,
+              Math.min(
+                currentIndex,
+                mergedCards.length - 1
+              )
+            )
+      )
+
+      if (learnRandomOrderEnabledRef.current) {
+        controller.shuffleRemaining()
+      }
+
+      updateCardAndProgress(
+        controller.getCurrentCard() as Card | null
+      )
+
+      return true
+    } finally {
+      nonTableLoadingMoreRef.current = false
+    }
+  }, [controller, db, isTableTopic])
+
+  const nextCard = useCallback(async () => {
 
     clearLearnTimers()
+
+    const currentIndexBefore =
+      controller.getCurrentIndex()
 
     const next =
       controller.next() as Card | null
 
-    setCard(next)
-    setRevealed(false)
-    setProgress(controller.getProgress())
+    let resolvedNext = next
+
+    if (
+      !resolvedNext &&
+      nonTableHasMoreRef.current
+    ) {
+      controller.setCurrentIndex(currentIndexBefore)
+      const loaded =
+        await loadNextNonTableChunk()
+
+      if (loaded) {
+        resolvedNext =
+          controller.next() as Card | null
+      }
+    }
+
+    updateCardAndProgress(resolvedNext)
     void persistLearnProgress()
 
-  }, [controller, persistLearnProgress])
+  }, [
+    controller,
+    loadNextNonTableChunk,
+    persistLearnProgress
+  ])
 
   const prevCard = useCallback(() => {
 
@@ -233,9 +494,7 @@ export default function LearnScreen() {
     const previous =
       controller.previous() as Card | null
 
-    setCard(previous)
-    setRevealed(false)
-    setProgress(controller.getProgress())
+    updateCardAndProgress(previous)
     void persistLearnProgress()
 
   }, [controller, persistLearnProgress])
@@ -247,7 +506,7 @@ export default function LearnScreen() {
     clearLearnTimers()
 
     if (isTableTopic || learnRandomOrderEnabled) {
-      nextCard()
+      void nextCard()
       return
     }
 
@@ -256,9 +515,7 @@ export default function LearnScreen() {
         feedback
       ) as Card | null
 
-    setCard(next)
-    setRevealed(false)
-    setProgress(controller.getProgress())
+    updateCardAndProgress(next)
     void persistLearnProgress()
 
   }, [
@@ -284,6 +541,11 @@ export default function LearnScreen() {
   const loadCardsForSelectedTopic =
     useCallback(async (restart = false) => {
       if (!db || !activeUser || !selectedTopicId) {
+        nonTableTopicIdsRef.current = []
+        nonTableLoadedCardsRef.current = []
+        nonTableTotalCardsRef.current = 0
+        nonTableOffsetRef.current = 0
+        nonTableHasMoreRef.current = false
         controller.reset()
         setCard(null)
         setRevealed(false)
@@ -313,6 +575,12 @@ export default function LearnScreen() {
         getTableDeck(topicKey)
 
       if (generatedCards.length > 0) {
+        nonTableTopicIdsRef.current = []
+        nonTableLoadedCardsRef.current = []
+        nonTableTotalCardsRef.current =
+          generatedCards.length
+        nonTableOffsetRef.current = 0
+        nonTableHasMoreRef.current = false
         controller.loadCards(generatedCards)
         if (restart) {
           controller.setCurrentIndex(0)
@@ -357,15 +625,22 @@ export default function LearnScreen() {
           selectedTopicId
         )
 
-      const rows =
-        await getQuestionsForTopicTree(
+      nonTableTopicIdsRef.current =
+        topicIds
+      nonTableLoadedCardsRef.current = []
+      nonTableOffsetRef.current = 0
+      nonTableHasMoreRef.current = false
+
+      const totalQuestionCount =
+        await getQuestionCountForTopicTree(
           db,
-          topicIds,
-          undefined,
-          "sequence"
+          topicIds
         )
 
-      if (rows.length === 0) {
+      nonTableTotalCardsRef.current =
+        totalQuestionCount
+
+      if (totalQuestionCount === 0) {
         controller.reset()
         setCard(null)
         setRevealed(false)
@@ -376,58 +651,113 @@ export default function LearnScreen() {
         return
       }
 
-      const loadedCards = rows.map((row) => ({
-        id: row.id,
-        question: row.question,
-        answer: Number.isNaN(
-          Number(row.answer)
+      const savedProgress =
+        restart
+          ? null
+          : await getLearnProgress(
+              db,
+              activeUser,
+              selectedTopicId,
+              scopedDeviceKey
+            )
+      const targetIndex =
+        savedProgress?.cardIndex ?? 0
+      const targetCardId =
+        savedProgress?.cardId ?? null
+
+      const rows =
+        await getQuestionsForTopicTree(
+          db,
+          topicIds,
+          LEARN_DB_CHUNK_SIZE,
+          "sequence",
+          0
         )
-          ? row.answer
-          : Number(row.answer)
-      }))
+
+      let loadedCards = mapRowsToCards(rows)
+      let offset = rows.length
+      let hasMore = offset < totalQuestionCount
+
+      const needsMoreForRestore = () => {
+        if (!hasMore) {
+          return false
+        }
+
+        if (
+          targetCardId != null &&
+          loadedCards.findIndex(
+            (card) => card.id === targetCardId
+          ) < 0
+        ) {
+          return true
+        }
+
+        return targetIndex >= loadedCards.length
+      }
+
+      while (needsMoreForRestore()) {
+        const nextRows =
+          await getQuestionsForTopicTree(
+            db,
+            topicIds,
+            LEARN_DB_CHUNK_SIZE,
+            "sequence",
+            offset
+          )
+
+        if (nextRows.length === 0) {
+          hasMore = false
+          break
+        }
+
+        loadedCards = [
+          ...loadedCards,
+          ...mapRowsToCards(nextRows)
+        ]
+        offset += nextRows.length
+        hasMore = offset < totalQuestionCount
+      }
+
+      loadedCards =
+        await applySmartLearnOrder(loadedCards)
+
+      nonTableLoadedCardsRef.current =
+        loadedCards
+      nonTableOffsetRef.current = offset
+      nonTableHasMoreRef.current = hasMore
 
       controller.loadCards(loadedCards)
 
       if (restart) {
         controller.setCurrentIndex(0)
+      } else if (savedProgress) {
+        const restoredIndex =
+          targetCardId != null
+            ? loadedCards.findIndex(
+                (loadedCard) =>
+                  loadedCard.id === targetCardId
+              )
+            : -1
+
+        controller.setCurrentIndex(
+          restoredIndex >= 0
+            ? restoredIndex
+            : targetIndex
+        )
       } else {
-          const savedProgress =
-          await getLearnProgress(
-            db,
-            activeUser,
-            selectedTopicId,
-            scopedDeviceKey
-          )
-
-        if (savedProgress) {
-          const restoredIndex =
-            savedProgress.cardId != null
-              ? loadedCards.findIndex(
-                  (loadedCard) =>
-                    loadedCard.id ===
-                    savedProgress.cardId
-                )
-              : -1
-
-          controller.setCurrentIndex(
-            restoredIndex >= 0
-              ? restoredIndex
-              : savedProgress.cardIndex
-          )
-        } else {
-          controller.setCurrentIndex(0)
-        }
+        controller.setCurrentIndex(0)
       }
 
       if (learnRandomOrderEnabledRef.current) {
         controller.shuffleRemaining()
       }
 
-      setCard(controller.getCurrentCard())
-      setRevealed(false)
-      setProgress(controller.getProgress())
+      updateCardAndProgress(
+        controller.getCurrentCard() as Card | null
+      )
   }, [
     activeUser,
+    applySmartLearnOrder,
     scopedDeviceKey,
     controller,
     db,
@@ -454,9 +784,9 @@ export default function LearnScreen() {
     }
 
     controller.shuffleRemaining()
-    setCard(controller.getCurrentCard())
-    setProgress(controller.getProgress())
-    setRevealed(false)
+    updateCardAndProgress(
+      controller.getCurrentCard() as Card | null
+    )
     void persistLearnProgress()
   }, [
     controller,
@@ -571,7 +901,7 @@ export default function LearnScreen() {
       setRevealed(true)
 
       autoNextTimeoutRef.current = setTimeout(() => {
-        nextCard()
+        void nextCard()
       }, learnBackDelaySeconds * 1000)
     }, learnFrontDelaySeconds * 1000)
 
@@ -746,6 +1076,27 @@ export default function LearnScreen() {
             >
               {getTopicDescription(topic)}
           </Text>
+
+          {!isTableTopic && !learnRandomOrderEnabled ? (
+            <View
+              style={[
+                styles.smartLearnBadge,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border
+                }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.smartLearnBadgeText,
+                  { color: colors.text }
+                ]}
+              >
+                Smart Learn: weak and due cards are shown first
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View
@@ -1018,6 +1369,20 @@ const styles = StyleSheet.create({
     color: "#475569",
     marginTop: 8,
     lineHeight: 22
+  },
+
+  smartLearnBadge: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6
+  },
+
+  smartLearnBadgeText: {
+    fontSize: 12,
+    fontWeight: "700"
   },
 
   iconButton: {

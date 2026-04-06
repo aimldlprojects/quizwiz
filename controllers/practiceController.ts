@@ -133,9 +133,33 @@ export class PracticeController {
   */
 
   async nextQuestion() {
+    const currentQuestionId =
+      this.session.getCurrentQuestion()?.id ?? null
 
-    const q =
+    let q =
       await this.sessionManager.nextQuestion()
+
+    if (
+      currentQuestionId != null &&
+      q?.id === currentQuestionId
+    ) {
+      let attempts = 0
+
+      while (
+        attempts < 3 &&
+        q?.id === currentQuestionId
+      ) {
+        const candidate =
+          await this.sessionManager.nextQuestion()
+
+        if (!candidate) {
+          break
+        }
+
+        q = candidate
+        attempts += 1
+      }
+    }
 
     this.session.setCurrentQuestion(q)
 
@@ -148,6 +172,17 @@ export class PracticeController {
 
     return q
 
+  }
+
+  async skipCurrentQuestion() {
+    const current =
+      this.session.getCurrentQuestion()
+
+    await this.sessionManager.deferQuestionToEnd(
+      current
+    )
+
+    return this.nextQuestion()
   }
 
   /*

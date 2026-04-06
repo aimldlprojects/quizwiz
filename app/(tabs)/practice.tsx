@@ -445,6 +445,10 @@ export default function PracticeScreen() {
     let cancelled = false
 
     const reloadFromSyncedSession = async () => {
+      if (practiceQuestion) {
+        return
+      }
+
       const [meta, dirtyAt] = await Promise.all([
         getSyncMeta(db, activeUser),
         getSyncDirtyAt(db, activeUser)
@@ -487,6 +491,7 @@ export default function PracticeScreen() {
     activeUser,
     db,
     practice,
+    practiceQuestion,
     selectedTopicId
   ])
 
