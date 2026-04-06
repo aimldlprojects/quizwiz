@@ -28,10 +28,10 @@ import { getThemeColors, type ThemeColors } from "../styles/theme"
 const ADMIN_PASSWORD = "0000"
 const CHIP_DEFAULT_BG = "#ffffff"
 const CHIP_DEFAULT_BORDER = "#cbd5e1"
-const CHIP_ALLOWED_BG = "#16a34a"
-const CHIP_ALLOWED_BORDER = "#15803d"
-const CHIP_PARTIAL_BG = "#bfdbfe"
-const CHIP_PARTIAL_BORDER = "#3b82f6"
+const CHIP_ALLOWED_BG = "#22c55e"
+const CHIP_ALLOWED_BORDER = "#16a34a"
+const CHIP_PARTIAL_BG = "#93c5fd"
+const CHIP_PARTIAL_BORDER = "#2563eb"
 const CHIP_ACTIVE_BORDER = "#0284c7"
 const CHIP_PENDING_BG = "#e0f2fe"
 
@@ -1500,7 +1500,7 @@ export default function AdminScreen() {
                       const subjectTextColor =
                         subjectStatus === "all"
                           ? "#ffffff"
-                          : "#0f172a"
+                          : "#1e3a5f"
 
                       return (
                         <View
@@ -1566,7 +1566,8 @@ export default function AdminScreen() {
                                 styles.subjectSeparator,
                                 {
                                   backgroundColor:
-                                    colors.border
+                                    colors.iconActive,
+                                  opacity: 0.35
                                 }
                               ]}
                             />
@@ -2013,8 +2014,11 @@ const styles = StyleSheet.create({
   },
 
   subjectSeparator: {
-    height: 1,
-    marginTop: 4
+    height: 2,
+    borderRadius: 999,
+    marginTop: 8,
+    marginBottom: 2,
+    width: "100%"
   },
 
   subjectChip: {
@@ -2089,7 +2093,7 @@ const styles = StyleSheet.create({
   },
 
   topicChipText: {
-    color: "#0f172a",
+    color: "#1e3a5f",
     fontWeight: "700",
     fontSize: 13
   },
@@ -2313,7 +2317,7 @@ function renderTopicLevels(
           const topicTextColor =
             subtreeStatus === "all"
               ? "#ffffff"
-              : "#0f172a"
+              : "#1e3a5f"
 
           return (
             <Pressable

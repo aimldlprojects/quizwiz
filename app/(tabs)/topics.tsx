@@ -751,7 +751,7 @@ export default function TopicsScreen() {
         <Text
           style={[styles.helperText, { color: colors.muted }]}
         >
-          Green means selected, white means deselected, yellow means only part of the branch is selected, and the blue border shows the path you are navigating.
+          Green means selected, white means deselected, blue means only part of the branch is selected, and the strong blue border shows the path you are navigating.
         </Text>
 
         {activeUser && visibleSubjects.length === 0 ? (
@@ -1081,8 +1081,8 @@ const styles = StyleSheet.create({
   },
 
   partialChip: {
-    backgroundColor: "#bfdbfe",
-    borderColor: "#3b82f6",
+    backgroundColor: "#93c5fd",
+    borderColor: "#2563eb",
     borderWidth: 2
   },
 
@@ -1092,8 +1092,8 @@ const styles = StyleSheet.create({
   },
 
   learningChip: {
-    backgroundColor: "#16a34a",
-    borderColor: "#15803d",
+    backgroundColor: "#22c55e",
+    borderColor: "#16a34a",
     borderWidth: 2
   },
 
