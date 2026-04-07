@@ -44,6 +44,7 @@ import {
   getTableDeck,
   isTableTopicKey
 } from "../../engine/questions/tableDeck"
+import { buildReviewPriorityStages } from "../../engine/questions/reviewPriority"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
 import { useSettings } from "../../hooks/useSettings"
@@ -281,65 +282,9 @@ export default function LearnScreen() {
       [activeUser, ...cards.map((card) => card.id)]
     )
 
-    const reviewByQuestionId = new Map(
-      rows.map((row) => [row.question_id, row])
-    )
-    const now = Date.now()
-
-    const rankedCards = cards.map((card, index) => {
-      const review = reviewByQuestionId.get(card.id)
-      const repetition = review?.repetition ?? 0
-      const nextReview = review?.next_review ?? null
-      const lastResult = review?.last_result ?? null
-      const hasReview = !!review
-      const isWeakOrDue =
-        lastResult === "again" ||
-        (typeof nextReview === "number" &&
-          nextReview > 0 &&
-          nextReview <= now)
-      const isRecentlyMastered =
-        repetition >= 2 &&
-        typeof nextReview === "number" &&
-        nextReview > now
-
-      let rank = 2
-
-      if (isWeakOrDue) {
-        rank = 0
-      } else if (!hasReview) {
-        rank = 1
-      } else if (isRecentlyMastered) {
-        rank = 3
-      }
-
-      const dueOrder =
-        typeof nextReview === "number"
-          ? nextReview
-          : Number.MAX_SAFE_INTEGER
-
-      return {
-        card,
-        rank,
-        dueOrder,
-        index
-      }
-    })
-
-    rankedCards.sort((a, b) => {
-      if (a.rank !== b.rank) {
-        return a.rank - b.rank
-      }
-
-      if (a.rank === 0 || a.rank === 3) {
-        if (a.dueOrder !== b.dueOrder) {
-          return a.dueOrder - b.dueOrder
-        }
-      }
-
-      return a.index - b.index
-    })
-
-    return rankedCards.map((item) => item.card)
+    const staged =
+      buildReviewPriorityStages(cards, rows)
+    return staged.flatMap((stage) => stage.cards)
   }, [activeUser, db, isTableTopic])
 
   function updateCardAndProgress(

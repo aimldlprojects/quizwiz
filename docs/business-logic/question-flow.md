@@ -21,7 +21,7 @@ This is written for non-coders and product/QA teams.
 2. **Non-table topics** are read from the local `questions` table in the app DB.
 3. **Global sync does not copy the full question bank** from server to local.
 4. Sync mainly moves **user state** (reviews, stats, settings, badges), not content catalog.
-5. Practice uses queue + spaced repetition; Learn uses windowed chunk loading plus lightweight in-session reordering.
+5. Practice now follows an always-on review-priority stage flow with stage completion prompts.
 
 ---
 
@@ -128,24 +128,32 @@ Why this matters:
 
 ## 4) Practice queue: how it works
 
-Practice queue behavior (high level):
+Practice now uses an always-on **priority stage pipeline**.
 
-1. Queue initializes with a small batch.
-2. It first tries **due reviews** for the current topic tree.
-3. If due reviews are not enough, it loads fresh questions from selected topic scope.
-4. As learner progresses and queue gets low, app prefetches more.
-5. If random mode is enabled, queue order is shuffled for session flow.
+Stage order (strict):
+
+1. Wrong answered cards
+2. Due cards
+3. Unseen cards
+4. In-progress cards
+5. Recently mastered cards
+
+Behavior:
+
+- learner stays in current stage until stage cards are exhausted
+- when stage completes, app shows completion message and a button to continue to next stage
+- after final stage, app shows regular "Practice more"
+- random mode (if enabled) randomizes order **inside** a stage, not across stages
 
 Current values in code:
 
-- Practice queue DB batch size: **10**
-- Practice initial session window target: **20**
+- Practice queue fetch batch size: **10**
 
 Why this design:
 
-- fast first question
-- stable memory usage
-- no need to load huge topic all at once for practice
+- weak cards are surfaced first
+- learner gets explicit stage-by-stage completion
+- flow remains predictable for QA and learners
 
 ---
 
@@ -273,9 +281,11 @@ How interval changes by answer:
 
 Queue priority in Practice:
 
-1. due cards first (`next_review <= now`)
-2. then recent failures (`again`)
-3. then unseen/new cards
+1. wrong answered cards
+2. due cards
+3. unseen cards
+4. in-progress cards
+5. recently mastered cards
 
 This is the core long-term retention engine.
 

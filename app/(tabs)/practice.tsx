@@ -28,13 +28,14 @@ import {
 import { ReviewRepository } from "../../database/reviewRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import {
-  generateQuestionBatch
-} from "../../engine/questions/questionFactory"
-import {
   getTableDeck,
   isTableTopicKey,
   TableDeckSession
 } from "../../engine/questions/tableDeck"
+import {
+  buildReviewPriorityStages,
+  ReviewPriorityReviewSnapshot
+} from "../../engine/questions/reviewPriority"
 import {
   getSyncDirtyAt,
   getSyncMeta,
@@ -50,7 +51,6 @@ import { useUsers } from "../../hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
 import { restartButtonPadding } from "../../styles/restartButtonStyles"
-import { shuffleArray } from "../../engine/questions/shuffle"
 
 function getKeyboardType(answer: unknown) {
 
@@ -107,6 +107,23 @@ export default function PracticeScreen() {
     useState<TopicRecord | null>(null)
   const [practiceDeckTotal, setPracticeDeckTotal] =
     useState(0)
+  const priorityStagesRef = useRef<
+    Array<{
+      key: string
+      label: string
+      cards: Array<{
+        id: number
+        question: string
+        answer: string | number
+        type?: string
+      }>
+    }>
+  >([])
+  const priorityStageIndexRef = useRef(0)
+  const priorityStageCursorRef = useRef(0)
+  const prioritySessionKeyRef = useRef("")
+  const [priorityStageLabel, setPriorityStageLabel] =
+    useState<string | null>(null)
   const tableDeckSessionRef =
     useRef(new TableDeckSession())
   const lastAppliedSyncTimestampRef =
@@ -137,6 +154,24 @@ export default function PracticeScreen() {
     },
     [db, selectedTopicId]
   )
+
+  const resetPrioritySession =
+    useCallback(() => {
+      priorityStagesRef.current = []
+      priorityStageIndexRef.current = 0
+      priorityStageCursorRef.current = 0
+      prioritySessionKeyRef.current = ""
+      setPriorityStageLabel(null)
+    }, [])
+
+  useEffect(() => {
+    resetPrioritySession()
+  }, [
+    activeUser,
+    selectedTopicId,
+    practiceRandomOrderEnabled,
+    resetPrioritySession
+  ])
 
   useEffect(() => {
 
@@ -211,74 +246,123 @@ export default function PracticeScreen() {
               selectedTopicId
             )
           const topicKey = topic?.key ?? ""
+          const sessionKey = [
+            activeUser,
+            selectedTopicId,
+            topicKey,
+            practiceRandomOrderEnabled
+              ? "random_on"
+              : "random_off"
+          ].join(":")
 
-          if (isTableTopicKey(topicKey)) {
-            tableDeckSessionRef.current.load(topicKey)
-            const tableCards =
-              tableDeckSessionRef.current.take(limit)
+          if (
+            prioritySessionKeyRef.current !==
+            sessionKey
+          ) {
+            let allCards: Array<{
+              id: number
+              question: string
+              answer: string | number
+              type?: string
+            }> = []
 
-            return practiceRandomOrderEnabled
-              ? shuffleArray(tableCards)
-              : tableCards
-          }
+            if (isTableTopicKey(topicKey)) {
+              allCards = getTableDeck(topicKey)
+            } else {
+              const topics =
+                await getAllTopics(db)
+              const topicIds =
+                getDescendantTopicIds(
+                  topics,
+                  selectedTopicId
+                )
+              const rows =
+                await getQuestionsForTopicTree(
+                  db,
+                  topicIds,
+                  undefined,
+                  "sequence"
+                )
 
-          const topics =
-            await getAllTopics(db)
-          const topicIds =
-            getDescendantTopicIds(
-              topics,
-              selectedTopicId
-            )
-
-          const rows =
-            await getQuestionsForTopicTree(
-              db,
-              topicIds,
-              limit,
-              "sequence"
-            )
-
-          if (rows.length > 0) {
-            const mappedRows = rows.map((row) => ({
-              id: row.id,
-              question: row.question,
-              answer: Number.isNaN(
-                Number(row.answer)
-              )
-                ? row.answer
-                : Number(row.answer),
-              type: row.type ?? undefined
-            }))
-
-            return practiceRandomOrderEnabled
-              ? shuffleArray(mappedRows)
-              : mappedRows
-          }
-
-          if (topicKey) {
-            const generated =
-              generateQuestionBatch(
-                topicKey,
-                limit
-              )
-
-            if (generated.length > 0) {
-              return practiceRandomOrderEnabled
-                ? shuffleArray(generated)
-                : generated
+              allCards = rows.map((row) => ({
+                id: row.id,
+                question: row.question,
+                answer: Number.isNaN(
+                  Number(row.answer)
+                )
+                  ? row.answer
+                  : Number(row.answer),
+                type: row.type ?? undefined
+              }))
             }
+
+            const reviews =
+              allCards.length === 0
+                ? []
+                : await db.getAllAsync<ReviewPriorityReviewSnapshot>(
+                    `
+                    SELECT
+                      question_id,
+                      repetition,
+                      next_review,
+                      last_result
+                    FROM reviews
+                    WHERE user_id = ?
+                      AND question_id IN (${allCards
+                        .map(() => "?")
+                        .join(", ")})
+                    `,
+                    [
+                      activeUser,
+                      ...allCards.map((card) => card.id)
+                    ]
+                  )
+
+            const stages =
+              buildReviewPriorityStages(
+                allCards,
+                reviews,
+                {
+                  shuffleWithinStage:
+                    practiceRandomOrderEnabled
+                }
+              ).filter(
+                (stage) => stage.cards.length > 0
+              )
+
+            priorityStagesRef.current = stages
+            priorityStageIndexRef.current = 0
+            priorityStageCursorRef.current = 0
+            prioritySessionKeyRef.current =
+              sessionKey
+            setPriorityStageLabel(
+              stages[0]?.label ?? null
+            )
           }
 
-          return []
+          const stage =
+            priorityStagesRef.current[
+              priorityStageIndexRef.current
+            ]
+
+          if (!stage) {
+            return []
+          }
+
+          const start =
+            priorityStageCursorRef.current
+          const sliced = stage.cards.slice(
+            start,
+            start + limit
+          )
+          priorityStageCursorRef.current +=
+            sliced.length
+          return sliced
         }
       },
       10,
-      practiceRandomOrderEnabled
-        ? repo
-        : undefined,
-      practiceRandomOrderEnabled
-        ? activeUser
-        : undefined,
+      undefined,
+      undefined,
       true,
       practiceRandomOrderEnabled,
       getPracticeTopicIds
@@ -324,12 +408,39 @@ export default function PracticeScreen() {
   })
 
   const handlePracticeMore = useCallback(async () => {
+    const currentStage =
+      priorityStagesRef.current[
+        priorityStageIndexRef.current
+      ]
+    const nextStage =
+      priorityStagesRef.current[
+        priorityStageIndexRef.current + 1
+      ]
+    const currentStageDone =
+      currentStage != null &&
+      priorityStageCursorRef.current >=
+        currentStage.cards.length
+
+    if (currentStageDone && nextStage) {
+      priorityStageIndexRef.current += 1
+      priorityStageCursorRef.current = 0
+      setPriorityStageLabel(nextStage.label)
+      await practice.startPractice()
+      return
+    }
+
+    resetPrioritySession()
+
     if (isTableTopic) {
       tableDeckSessionRef.current.reset()
     }
 
     await practice.restartPractice()
-  }, [isTableTopic, practice])
+  }, [
+    isTableTopic,
+    practice,
+    resetPrioritySession
+  ])
 
   const togglePracticeRandomOrder =
     useCallback(() => {
@@ -561,8 +672,68 @@ export default function PracticeScreen() {
   }
 
   function renderQuestion() {
+    const currentStage =
+      priorityStagesRef.current[
+        priorityStageIndexRef.current
+      ]
+    const nextStage =
+      priorityStagesRef.current[
+        priorityStageIndexRef.current + 1
+      ]
+    const currentStageDone =
+      currentStage != null &&
+      priorityStageCursorRef.current >=
+        currentStage.cards.length
 
     if (!practiceQuestion) {
+      if (currentStageDone && currentStage) {
+        return (
+          <View style={styles.emptyCard}>
+            <Text
+              style={[
+                styles.emptyTitle,
+                { color: colors.text }
+              ]}
+            >
+              {currentStage.label} completed
+            </Text>
+
+            <Text
+              style={[
+                styles.emptyText,
+                { color: colors.muted }
+              ]}
+            >
+              {nextStage
+                ? `Continue to ${nextStage.label}.`
+                : "All priority stages completed for this topic."}
+            </Text>
+
+            <Pressable
+              style={[
+                styles.restartButton,
+                {
+                  backgroundColor: colors.iconActive,
+                  ...restartButtonPadding
+                }
+              ]}
+              onPress={handlePracticeMore}
+            >
+              <Text
+                style={[
+                  styles.restartButtonText,
+                  { color: "#ffffff" }
+                ]}
+              >
+                {nextStage
+                  ? `Practice next: ${nextStage.label}`
+                  : "Practice more"}
+              </Text>
+            </Pressable>
+          </View>
+        )
+      }
+
       if (isTableTopic && practiceRemainingCards === 0) {
         return (
           <View style={styles.emptyCard}>
@@ -868,6 +1039,17 @@ export default function PracticeScreen() {
               "Selected topic"}
           </Text>
 
+          {priorityStageLabel ? (
+            <Text
+              style={[
+                styles.stageText,
+                { color: colors.muted }
+              ]}
+            >
+              Priority stage: {priorityStageLabel}
+            </Text>
+          ) : null}
+
           <ScoreHeader
             attempts={practice.stats.attempts}
             correct={practice.stats.correct}
@@ -1040,6 +1222,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#1e3a5f"
+  },
+
+  stageText: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600"
   },
 
   questionCard: {
