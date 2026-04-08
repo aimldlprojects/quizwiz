@@ -8,6 +8,7 @@ import {
 } from "react"
 import {
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -33,8 +34,11 @@ import {
   TableDeckSession
 } from "../../engine/questions/tableDeck"
 import {
+  REVIEW_PRIORITY_STAGE_ORDER,
   buildReviewPriorityStages,
-  ReviewPriorityReviewSnapshot
+  ReviewPriorityReviewSnapshot,
+  getReviewPriorityStageLabel,
+  ReviewPriorityStageKey
 } from "../../engine/questions/reviewPriority"
 import {
   getSyncDirtyAt,
@@ -119,11 +123,45 @@ export default function PracticeScreen() {
       }>
     }>
   >([])
+  const priorityStageSummaryRef = useRef<
+    Array<{
+      key: string
+      label: string
+      count: number
+    }>
+  >([])
+  const priorityCardStageRef = useRef<
+    Record<
+      string,
+      {
+        key: string
+        label: string
+        position: number
+        total: number
+      }
+    >
+  >({})
   const priorityStageIndexRef = useRef(0)
   const priorityStageCursorRef = useRef(0)
   const prioritySessionKeyRef = useRef("")
   const [priorityStageLabel, setPriorityStageLabel] =
     useState<string | null>(null)
+  const [preferredStageKey, setPreferredStageKey] =
+    useState<ReviewPriorityStageKey | null>(null)
+  const answeredTransitionIdsRef = useRef<Set<number>>(
+    new Set()
+  )
+  const pendingStageCountsRef = useRef<
+    Record<ReviewPriorityStageKey, number>
+  >({
+    wrong: 0,
+    due: 0,
+    unseen: 0,
+    in_progress: 0,
+    recently_mastered: 0
+  })
+  const [, setPendingStageCountsVersion] =
+    useState(0)
   const tableDeckSessionRef =
     useRef(new TableDeckSession())
   const lastAppliedSyncTimestampRef =
@@ -157,12 +195,23 @@ export default function PracticeScreen() {
 
   const resetPrioritySession =
     useCallback(() => {
-      priorityStagesRef.current = []
-      priorityStageIndexRef.current = 0
-      priorityStageCursorRef.current = 0
-      prioritySessionKeyRef.current = ""
-      setPriorityStageLabel(null)
-    }, [])
+    priorityStagesRef.current = []
+    priorityStageSummaryRef.current = []
+    priorityCardStageRef.current = {}
+    answeredTransitionIdsRef.current.clear()
+    pendingStageCountsRef.current = {
+      wrong: 0,
+      due: 0,
+      unseen: 0,
+      in_progress: 0,
+      recently_mastered: 0
+    }
+    setPendingStageCountsVersion((value) => value + 1)
+    priorityStageIndexRef.current = 0
+    priorityStageCursorRef.current = 0
+    prioritySessionKeyRef.current = ""
+    setPriorityStageLabel(null)
+  }, [])
 
   useEffect(() => {
     resetPrioritySession()
@@ -172,6 +221,10 @@ export default function PracticeScreen() {
     practiceRandomOrderEnabled,
     resetPrioritySession
   ])
+
+  useEffect(() => {
+    setPreferredStageKey(null)
+  }, [activeUser, selectedTopicId])
 
   useEffect(() => {
 
@@ -252,7 +305,8 @@ export default function PracticeScreen() {
             topicKey,
             practiceRandomOrderEnabled
               ? "random_on"
-              : "random_off"
+              : "random_off",
+            preferredStageKey ?? "default_priority"
           ].join(":")
 
           if (
@@ -326,24 +380,108 @@ export default function PracticeScreen() {
                   shuffleWithinStage:
                     practiceRandomOrderEnabled
                 }
-              ).filter(
-                (stage) => stage.cards.length > 0
               )
 
-            priorityStagesRef.current = stages
+            priorityStageSummaryRef.current =
+              stages.map((stage) => ({
+                key: stage.key,
+                label: stage.label,
+                count: stage.cards.length
+              }))
+            pendingStageCountsRef.current = stages.reduce<
+              Record<ReviewPriorityStageKey, number>
+            >(
+              (acc, stage) => {
+                const stageKey =
+                  stage.key as ReviewPriorityStageKey
+                acc[stageKey] = stage.cards.length
+                return acc
+              },
+              {
+                wrong: 0,
+                due: 0,
+                unseen: 0,
+                in_progress: 0,
+                recently_mastered: 0
+              }
+            )
+            answeredTransitionIdsRef.current.clear()
+            setPendingStageCountsVersion((value) => value + 1)
+            priorityCardStageRef.current =
+              stages.reduce<
+                Record<
+                  string,
+                  {
+                    key: string
+                    label: string
+                    position: number
+                    total: number
+                  }
+                >
+              >((acc, stage) => {
+                const total = stage.cards.length
+                stage.cards.forEach((card, index) => {
+                  acc[String(card.id)] = {
+                    key: stage.key,
+                    label: stage.label,
+                    position: index + 1,
+                    total
+                  }
+                })
+                return acc
+              }, {})
+
+            const activeStagesByPriority = stages.filter(
+              (stage) => stage.cards.length > 0
+            )
+            const selectedStage =
+              preferredStageKey == null
+                ? undefined
+                : activeStagesByPriority.find(
+                    (stage) =>
+                      stage.key === preferredStageKey
+                  )
+            const activeStages =
+              selectedStage == null
+                ? activeStagesByPriority
+                : [
+                    selectedStage,
+                    ...activeStagesByPriority.filter(
+                      (stage) =>
+                        stage.key !== preferredStageKey
+                    )
+                  ]
+
+            priorityStagesRef.current = activeStages
             priorityStageIndexRef.current = 0
             priorityStageCursorRef.current = 0
             prioritySessionKeyRef.current =
               sessionKey
             setPriorityStageLabel(
-              stages[0]?.label ?? null
+              activeStages[0]?.label ?? null
             )
           }
 
-          const stage =
+          let stage =
             priorityStagesRef.current[
               priorityStageIndexRef.current
             ]
+
+          while (
+            stage &&
+            priorityStageCursorRef.current >=
+              stage.cards.length
+          ) {
+            priorityStageIndexRef.current += 1
+            priorityStageCursorRef.current = 0
+            stage =
+              priorityStagesRef.current[
+                priorityStageIndexRef.current
+              ]
+            setPriorityStageLabel(
+              stage?.label ?? null
+            )
+          }
 
           if (!stage) {
             return []
@@ -384,6 +522,7 @@ export default function PracticeScreen() {
     selectedTopicId,
     scopedDeviceKey,
     practiceRandomOrderEnabled,
+    preferredStageKey,
     getPracticeTopicIds
   ])
 
@@ -406,6 +545,58 @@ export default function PracticeScreen() {
       ? colors.iconActive
       : colors.iconInactive
   })
+
+  useEffect(() => {
+    if (
+      !practiceAnswered ||
+      !practiceQuestion ||
+      !practiceResult
+    ) {
+      return
+    }
+
+    if (
+      answeredTransitionIdsRef.current.has(
+        practiceQuestion.id
+      )
+    ) {
+      return
+    }
+
+    const stageForQuestion =
+      priorityCardStageRef.current[
+        String(practiceQuestion.id)
+      ]
+    if (!stageForQuestion) {
+      return
+    }
+
+    const sourceStageKey =
+      stageForQuestion.key as ReviewPriorityStageKey
+    const nextCounts = {
+      ...pendingStageCountsRef.current
+    }
+
+    nextCounts[sourceStageKey] = Math.max(
+      0,
+      (nextCounts[sourceStageKey] ?? 0) - 1
+    )
+
+    if (!practiceResult.correct) {
+      nextCounts.wrong =
+        (nextCounts.wrong ?? 0) + 1
+    }
+
+    pendingStageCountsRef.current = nextCounts
+    answeredTransitionIdsRef.current.add(
+      practiceQuestion.id
+    )
+    setPendingStageCountsVersion((value) => value + 1)
+  }, [
+    practiceAnswered,
+    practiceQuestion,
+    practiceResult
+  ])
 
   const handlePracticeMore = useCallback(async () => {
     const currentStage =
@@ -441,6 +632,23 @@ export default function PracticeScreen() {
     practice,
     resetPrioritySession
   ])
+
+  const handleQueueSelection = useCallback(
+    async (queueKey: ReviewPriorityStageKey) => {
+      const nextKey =
+        preferredStageKey === queueKey
+          ? null
+          : queueKey
+      setPreferredStageKey(nextKey)
+      resetPrioritySession()
+      await practice.restartPractice()
+    },
+    [
+      preferredStageKey,
+      practice,
+      resetPrioritySession
+    ]
+  )
 
   const togglePracticeRandomOrder =
     useCallback(() => {
@@ -888,16 +1096,128 @@ export default function PracticeScreen() {
 
     if (totalQuestions <= 0) return null
 
+    const stageCount = REVIEW_PRIORITY_STAGE_ORDER.length
+    const currentCardStage =
+      priorityCardStageRef.current[
+        String(practiceQuestion.id)
+      ]
+    const stageKey =
+      currentCardStage?.key ??
+      priorityStagesRef.current[
+        priorityStageIndexRef.current
+      ]?.key ??
+      ""
+    const stageIndex =
+      Math.max(
+        1,
+        REVIEW_PRIORITY_STAGE_ORDER.indexOf(
+          stageKey as (typeof REVIEW_PRIORITY_STAGE_ORDER)[number]
+        ) + 1
+      )
+    const fallbackStageKey =
+      REVIEW_PRIORITY_STAGE_ORDER[
+        Math.max(
+          0,
+          Math.min(
+            stageIndex - 1,
+            REVIEW_PRIORITY_STAGE_ORDER.length - 1
+          )
+        )
+      ]
+    const stageLabel =
+      currentCardStage?.label ??
+      priorityStageLabel ??
+      getReviewPriorityStageLabel(fallbackStageKey)
+    const stageTotal =
+      currentCardStage?.total ?? 0
+    const stageCardNumber =
+      currentCardStage?.position ?? 1
+    const currentStageKey =
+      currentCardStage?.key ??
+      priorityStagesRef.current[
+        priorityStageIndexRef.current
+      ]?.key ??
+      fallbackStageKey
+    const queueSummary = REVIEW_PRIORITY_STAGE_ORDER.map(
+      (key) => {
+        const summary =
+          priorityStageSummaryRef.current.find(
+            (item) => item.key === key
+          )
+        const pendingCount =
+          pendingStageCountsRef.current[key]
+
+        return {
+          key,
+          label: summary?.label ?? getReviewPriorityStageLabel(key),
+          count:
+            typeof pendingCount === "number"
+              ? pendingCount
+              : (summary?.count ?? 0),
+          active: key === currentStageKey
+        }
+      }
+    )
+
     return (
-      <Text
-        style={[
-          styles.questionProgress,
-          { color: colors.muted }
-        ]}
-      >
-        Card {currentQuestionNumber} of{" "}
-        {totalQuestions}
-      </Text>
+      <>
+        <Text
+          style={[
+            styles.questionProgress,
+            { color: colors.muted }
+          ]}
+        >
+          Card {currentQuestionNumber} of{" "}
+          {totalQuestions}
+        </Text>
+        <Text
+          style={[
+            styles.stageStatus,
+            { color: colors.muted }
+          ]}
+        >
+          {stageLabel}
+          {stageCount > 0 ? ` (${stageIndex}/${stageCount})` : ""}
+          {"  "}
+          Progress: {stageCardNumber}/{stageTotal || 1}
+        </Text>
+        <View style={styles.queueSummaryWrap}>
+          {queueSummary.map((queue) => (
+            <Pressable
+              key={queue.key}
+              onPress={() =>
+                handleQueueSelection(
+                  queue.key as ReviewPriorityStageKey
+                )
+              }
+              style={[
+                styles.queueSummaryItem,
+                {
+                  backgroundColor: queue.active
+                    ? colors.iconActive
+                    : colors.surface,
+                  borderColor: queue.active
+                    ? colors.iconActive
+                    : colors.border
+                }
+              ]}
+            >
+              <Text
+                style={[
+                  styles.queueSummaryLabel,
+                  {
+                    color: queue.active
+                      ? "#ffffff"
+                      : colors.text
+                  }
+                ]}
+              >
+                {queue.label}: {queue.count}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </>
     )
 
   }
@@ -940,11 +1260,12 @@ export default function PracticeScreen() {
         { backgroundColor: colors.background }
       ]}
     >
-      <View
-        style={[
+      <ScrollView
+        contentContainerStyle={[
           styles.container,
           { backgroundColor: colors.background }
         ]}
+        keyboardShouldPersistTaps="handled"
       >
         <View
           style={[
@@ -1144,7 +1465,7 @@ export default function PracticeScreen() {
             />
           </View>
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   )
 
@@ -1158,8 +1479,8 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    flex: 1,
-    padding: 12
+    padding: 12,
+    paddingBottom: 24
   },
 
   loadingContainer: {
@@ -1227,6 +1548,31 @@ const styles = StyleSheet.create({
   stageText: {
     marginTop: 4,
     fontSize: 13,
+    fontWeight: "600"
+  },
+
+  stageStatus: {
+    fontSize: 12,
+    fontWeight: "600"
+  },
+
+  queueSummaryWrap: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6
+  },
+
+  queueSummaryItem: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    width: "32%"
+  },
+
+  queueSummaryLabel: {
+    fontSize: 11,
     fontWeight: "600"
   },
 

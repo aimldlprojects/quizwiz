@@ -41,7 +41,7 @@ export function getReviewPriorityStageLabel(
     case "in_progress":
       return "In-progress cards"
     case "recently_mastered":
-      return "Recently mastered cards"
+      return "Mastered cards"
   }
 }
 
