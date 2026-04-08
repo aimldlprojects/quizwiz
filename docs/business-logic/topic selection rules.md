@@ -11,7 +11,7 @@ For any subject/topic node:
 
 If the node has children:
 Click 1 -> expand and show child nodes
-Click 2 -> toggle selection
+Click 2 -> toggle selection for this node and cascade to descendants
 
 If the node has no children:
 Click 1 -> set active path only
@@ -24,6 +24,13 @@ Notes:
 - selected set controls learning selection
 - visibility stays separate from selection
 - leaf nodes must not auto-expand into children because they have none
+- hierarchy-first behavior:
+  - Subject second-click toggles subject and all visible topics under that subject
+  - Parent topic second-click toggles that topic and all visible descendants
+  - Leaf topic second-click toggles only that leaf
+  - One-level subjects/topics are included:
+    - If a subject has only one topic level (no deeper child levels), subject second-click still toggles all visible topics in that subject.
+    - If a topic has no children, it is treated as a leaf and only that topic toggles on second-click.
 
 Leaf topic selection:
 - Leaf topics can be selected independently.
@@ -181,7 +188,7 @@ For any subject/topic node:
 
 If the node has children:
 Click 1 -> expand and show child nodes
-Click 2 -> toggle selection
+Click 2 -> toggle selection for this node and cascade to descendants
 
 If the node has no children:
 Click 1 -> set active path only
@@ -194,6 +201,13 @@ Notes:
 - selected set controls learning selection
 - visibility stays separate from selection
 - leaf nodes must not auto-expand into children because they have none
+- hierarchy-first behavior:
+  - Subject second-click toggles subject and all visible topics under that subject
+  - Parent topic second-click toggles that topic and all visible descendants
+  - Leaf topic second-click toggles only that leaf
+  - One-level subjects/topics are included:
+    - If a subject has only one topic level (no deeper child levels), subject second-click still toggles all visible topics in that subject.
+    - If a topic has no children, it is treated as a leaf and only that topic toggles on second-click.
 
 ### Admin and topics tab permissions and selection schema
 

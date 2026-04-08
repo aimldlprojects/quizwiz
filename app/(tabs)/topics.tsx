@@ -246,15 +246,18 @@ export default function TopicsScreen() {
     [topics, allowedTopicIds]
   )
   const displayTopicsList = useMemo(
-    () =>
-      allowedTopicsList.length > 0
-        ? allowedTopicsList
-        : topics,
-    [allowedTopicsList, topics]
+    () => allowedTopicsList,
+    [allowedTopicsList]
   )
   const selectedTopicsSort = useMemo(() => {
+    const visibleTopicIds = new Set(
+      displayTopicsList.map((topic) => topic.id)
+    )
     const byId = new Map(
-      topics.map((topic) => [topic.id, topic])
+      displayTopicsList.map((topic) => [
+        topic.id,
+        topic
+      ])
     )
     const orderedIds = [
       ...Array.from(selectedTopicLevel1IdsSet),
@@ -262,13 +265,14 @@ export default function TopicsScreen() {
     ]
 
     return Array.from(new Set(orderedIds))
+      .filter((id) => visibleTopicIds.has(id))
       .map((id) => byId.get(id))
       .filter(Boolean)
       .map((topic) => topic!.name)
   }, [
+    displayTopicsList,
     selectedTopicLevel1IdsSet,
-    selectedTopicLevel2IdsSet,
-    topics
+    selectedTopicLevel2IdsSet
   ])
   const visibleSubjects = useMemo(
     () =>
@@ -382,22 +386,6 @@ export default function TopicsScreen() {
       ])),
     [subjects]
   )
-  const subjectRootTopicsMap = useMemo(() => {
-    const map = new Map<number, Topic[]>()
-
-    for (const topic of displayTopicsList) {
-      if (topic.parent_topic_id != null) {
-        continue
-      }
-
-      const topics =
-        map.get(topic.subject_id) ?? []
-      topics.push(topic)
-      map.set(topic.subject_id, topics)
-    }
-
-    return map
-  }, [displayTopicsList])
   const topicChildrenByParent = useMemo(() => {
     const map = new Map<
       number | null,
@@ -491,12 +479,24 @@ export default function TopicsScreen() {
     topicChildrenByParent
   ])
   const selectedSubjectsList = useMemo(
-    () =>
-      Array.from(selectedSubjectIdsSet)
+    () => {
+      const visibleSubjectIds = new Set(
+        visibleSubjects.map((subject) => subject.id)
+      )
+
+      return Array.from(selectedSubjectIdsSet)
+        .filter((subjectId) =>
+          visibleSubjectIds.has(subjectId)
+        )
         .map((subjectId) => subjectMap.get(subjectId))
         .filter(Boolean)
-        .map((subject) => subject!.name),
-    [selectedSubjectIdsSet, subjectMap]
+        .map((subject) => subject!.name)
+    },
+    [
+      selectedSubjectIdsSet,
+      subjectMap,
+      visibleSubjects
+    ]
   )
   const subjectSelectionStatus = useMemo(() => {
     const status: Record<
@@ -546,7 +546,6 @@ export default function TopicsScreen() {
     visibleSubjects,
     selectedSubjectIdsSet
   ])
-
   const collectDescendantTopicIds = useCallback(
     (rootId: number) => {
       const ids: number[] = []
@@ -601,26 +600,45 @@ export default function TopicsScreen() {
     [
       collectDescendantTopicIds,
       selectedTopicIdsSet,
-      topicDepthMap,
-      toggleTopicSelection
+      toggleTopicSelection,
+      topicDepthMap
     ]
   )
 
   const cascadeSubjectTopicSelection = useCallback(
     async (subjectId: number, select: boolean) => {
-      const roots =
-        subjectRootTopicsMap.get(subjectId) ?? []
+      const subjectTopics = displayTopicsList
+        .filter((topic) => topic.subject_id === subjectId)
+        .sort((a, b) => {
+          const depthA =
+            topicDepthMap.get(a.id) ??
+            (a.parent_topic_id == null ? 0 : 1)
+          const depthB =
+            topicDepthMap.get(b.id) ??
+            (b.parent_topic_id == null ? 0 : 1)
+          return depthA - depthB
+        })
 
-      for (const root of roots) {
-        await cascadeTopicSelection(
-          root.id,
-          select
+      for (const topic of subjectTopics) {
+        const currentlySelected =
+          selectedTopicIdsSet.has(topic.id)
+        if (currentlySelected === select) {
+          continue
+        }
+
+        const levelIndex =
+          topic.parent_topic_id == null ? 0 : 1
+        await toggleTopicSelection(
+          levelIndex,
+          topic.id
         )
       }
     },
     [
-      subjectRootTopicsMap,
-      cascadeTopicSelection
+      displayTopicsList,
+      selectedTopicIdsSet,
+      toggleTopicSelection,
+      topicDepthMap
     ]
   )
 
@@ -635,7 +653,6 @@ export default function TopicsScreen() {
 
       const shouldSelect =
         !selectedSubjectIdsSet.has(subjectId)
-
       await toggleSubjectSelection(subjectId)
       await cascadeSubjectTopicSelection(
         subjectId,
@@ -664,8 +681,8 @@ export default function TopicsScreen() {
 
       const shouldSelect =
         !selectedTopicIdsSet.has(topicId)
-
       await toggleTopicSelection(levelIndex, topicId)
+
       const hasChildren =
         (topicChildrenByParent.get(topicId) ?? [])
           .length > 0
@@ -682,8 +699,8 @@ export default function TopicsScreen() {
       activeTopicPath,
       selectedTopicIdsSet,
       toggleTopicSelection,
-      cascadeTopicSelection,
-      topicChildrenByParent
+      topicChildrenByParent,
+      cascadeTopicSelection
     ]
   )
   if (
