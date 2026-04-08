@@ -38,7 +38,9 @@ import {
 import {
   getSyncDirtyAt,
   getSyncMeta,
-  subscribeSyncMetaChanges
+  subscribeSyncMetaChanges,
+  isSyncActivityActive,
+  subscribeSyncActivityChanges
 } from "../../database/syncMetaRepository"
 import {
   getTableDeck,
@@ -148,6 +150,9 @@ export default function LearnScreen() {
     current: 0,
     total: 0
   })
+  const [syncActive, setSyncActive] = useState(
+    isSyncActivityActive()
+  )
   const autoFlipTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(
       null
@@ -225,6 +230,14 @@ export default function LearnScreen() {
     learnRandomOrderEnabledRef.current =
       learnRandomOrderEnabled
   }, [learnRandomOrderEnabled])
+
+  useEffect(() => {
+    const unsubscribe = subscribeSyncActivityChanges(() => {
+      setSyncActive(isSyncActivityActive())
+    })
+
+    return unsubscribe
+  }, [])
 
   function clearLearnTimers() {
 
@@ -781,6 +794,14 @@ export default function LearnScreen() {
     let cancelled = false
 
     const reloadFromSyncedProgress = async () => {
+      if (isFocused) {
+        return
+      }
+
+      if (card) {
+        return
+      }
+
       const [meta, dirtyAt] = await Promise.all([
         getSyncMeta(db, activeUser),
         getSyncDirtyAt(db, activeUser)
@@ -821,7 +842,9 @@ export default function LearnScreen() {
     }
   }, [
     activeUser,
+    card,
     db,
+    isFocused,
     loadCardsForSelectedTopic,
     selectedTopicId
   ])
@@ -845,6 +868,7 @@ export default function LearnScreen() {
 
     if (
       !isFocused ||
+      syncActive ||
       !learnAutoPlayEnabled ||
       !card
     ) {
@@ -868,6 +892,7 @@ export default function LearnScreen() {
   }, [
     card,
     isFocused,
+    syncActive,
     learnAutoPlayEnabled,
     learnFrontDelaySeconds,
     learnBackDelaySeconds,

@@ -47,7 +47,9 @@ import {
 import {
   getSyncDirtyAt,
   getSyncMeta,
-  subscribeSyncMetaChanges
+  subscribeSyncMetaChanges,
+  isSyncActivityActive,
+  subscribeSyncActivityChanges
 } from "../../database/syncMetaRepository"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
 import { useDatabase } from "../../hooks/useDatabase"
@@ -150,6 +152,9 @@ export default function PracticeScreen() {
   const prioritySessionKeyRef = useRef("")
   const [priorityStageLabel, setPriorityStageLabel] =
     useState<string | null>(null)
+  const [syncActive, setSyncActive] = useState(
+    isSyncActivityActive()
+  )
   const [preferredStageKey, setPreferredStageKey] =
     useState<ReviewPriorityStageKey | null>(null)
   const answeredTransitionIdsRef = useRef<Set<number>>(
@@ -551,6 +556,14 @@ export default function PracticeScreen() {
   })
 
   useEffect(() => {
+    const unsubscribe = subscribeSyncActivityChanges(() => {
+      setSyncActive(isSyncActivityActive())
+    })
+
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
     if (
       !practiceAnswered ||
       !practiceQuestion ||
@@ -725,6 +738,7 @@ export default function PracticeScreen() {
 
     if (
       !isFocused ||
+      syncActive ||
       !autoNextEnabled ||
       !practiceResult
     ) {
@@ -744,8 +758,16 @@ export default function PracticeScreen() {
     autoNextWrongDelaySeconds,
     autoNextQuestion,
     isFocused,
-    practiceResult
+    practiceResult,
+    syncActive
   ])
+
+  useEffect(() => {
+    if (!syncActive) {
+      return
+    }
+    practice.cancelAutoNext()
+  }, [syncActive, practice])
 
   useEffect(() => {
     if (isFocused) {
@@ -768,6 +790,10 @@ export default function PracticeScreen() {
     let cancelled = false
 
     const reloadFromSyncedSession = async () => {
+      if (isFocused) {
+        return
+      }
+
       if (practiceQuestion) {
         return
       }
@@ -813,6 +839,7 @@ export default function PracticeScreen() {
   }, [
     activeUser,
     db,
+    isFocused,
     practice,
     practiceQuestion,
     selectedTopicId
