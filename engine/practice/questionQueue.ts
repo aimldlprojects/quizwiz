@@ -5,6 +5,7 @@ export interface Question {
   id: number
   question: string
   answer: string | number
+  type?: string
 }
 
 export interface QuestionLoader {

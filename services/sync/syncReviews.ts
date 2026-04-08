@@ -11,6 +11,7 @@ import { pushReviews } from "./pushReviews"
 import {
   setSyncStatus as setGlobalSyncStatus
 } from "@/database/syncStatusRepository"
+import { syncContentCatalog } from "./syncContent"
 
 /*
 --------------------------------------------------
@@ -102,6 +103,19 @@ export async function syncReviews(
       showOverlay: false,
       deviceKey: options?.deviceKey ?? null
     })
+
+    try {
+      await syncContentCatalog(db, serverUrl)
+    } catch (contentError) {
+      const message =
+        contentError instanceof Error
+          ? contentError.message
+          : String(contentError)
+      console.warn(
+        "Content sync skipped:",
+        message
+      )
+    }
     await setSyncMetaStatus(
       db,
       userId,

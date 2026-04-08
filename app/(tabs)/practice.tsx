@@ -41,6 +41,10 @@ import {
   ReviewPriorityStageKey
 } from "../../engine/questions/reviewPriority"
 import {
+  isSpellingQuestionType,
+  maskSpellingWordInPrompt
+} from "../../engine/questions/spellBee"
+import {
   getSyncDirtyAt,
   getSyncMeta,
   subscribeSyncMetaChanges
@@ -1077,7 +1081,14 @@ export default function PracticeScreen() {
       <Text
         style={[styles.question, { color: colors.text }]}
       >
-        {practiceQuestion.question}
+        {isSpellingQuestionType(
+          practiceQuestion.type
+        )
+          ? maskSpellingWordInPrompt(
+              practiceQuestion.question,
+              String(practiceQuestion.answer ?? "")
+            )
+          : practiceQuestion.question}
       </Text>
     )
 

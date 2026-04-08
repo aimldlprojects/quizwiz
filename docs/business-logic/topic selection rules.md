@@ -64,6 +64,9 @@ What user can SEE (not what they learn)
 
 * User should see **only subjects & topics permitted by admin**
 * Non-permitted items should **not appear at all**
+* Exception for hierarchy rendering:
+  * If a permitted child topic exists, its ancestor chain (parent/grandparent) is also shown so topic levels render correctly.
+  * These ancestor nodes are shown as structural/navigation context for the permitted child branch.
 
 ---
 
@@ -214,6 +217,7 @@ Notes:
 - Admin visibility (the subjects/topics surfaced in the UI) must stay independent from the learning selections.
 - Only the `selected*` sets should drive the color/highlighting states.
 - These selections must be allowed strictly within the currently visible (admin-permitted) subset.
+- For hierarchy display, parent chain topics may be shown when a permitted descendant exists, so level grouping remains correct.
 - Clearing any learning state must never change the underlying permissions.
 - Topic visibility is solely determined by admin configuration, and user selections should never modify the admin-permitted list.
 - When admin changes subject/topic permissions, the Topics tab must refresh its visible list immediately in the same app session.

@@ -131,74 +131,74 @@ const QUESTION_SEEDS: QuestionSeed[] = [
   },
   {
     topicKey: "two_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: I am __ school.",
+    type: "english-spell-bee",
+    question: "I am at school.",
     answer: "at"
   },
   {
     topicKey: "two_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: We go __ home.",
+    type: "english-spell-bee",
+    question: "We go to home.",
     answer: "to"
   },
   {
     topicKey: "three_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: The sun is h_t.",
+    type: "english-spell-bee",
+    question: "The sun is hot.",
     answer: "hot"
   },
   {
     topicKey: "three_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: The cat sat on the m_t.",
+    type: "english-spell-bee",
+    question: "The cat sat on the mat.",
     answer: "mat"
   },
   {
     topicKey: "four_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: The fish can s__m fast.",
+    type: "english-spell-bee",
+    question: "The fish can swim fast.",
     answer: "swim"
   },
   {
     topicKey: "four_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: We read a b__k.",
+    type: "english-spell-bee",
+    question: "We read a book.",
     answer: "book"
   },
   {
     topicKey: "five_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: I like to r__d books.",
+    type: "english-spell-bee",
+    question: "I like to read books.",
     answer: "read"
   },
   {
     topicKey: "five_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: We plant a s__ed in soil.",
+    type: "english-spell-bee",
+    question: "We plant a seed in soil.",
     answer: "seed"
   },
   {
     topicKey: "six_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: The bright p__ple flower smells nice.",
+    type: "english-spell-bee",
+    question: "The bright purple flower smells nice.",
     answer: "purple"
   },
   {
     topicKey: "six_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: We saw a r__bit in the garden.",
+    type: "english-spell-bee",
+    question: "We saw a rabbit in the garden.",
     answer: "rabbit"
   },
   {
     topicKey: "seven_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: The r__nbow has many colors.",
+    type: "english-spell-bee",
+    question: "The rainbow has many colors.",
     answer: "rainbow"
   },
   {
     topicKey: "seven_letter_words",
-    type: "spelling-fill-blank",
-    question: "Fill in the blank: A g__affe has a long neck.",
+    type: "english-spell-bee",
+    question: "A giraffe has a long neck.",
     answer: "giraffe"
   },
   {
@@ -228,25 +228,25 @@ const QUESTION_SEEDS: QuestionSeed[] = [
   {
     topicKey: "science_short_words",
     type: "science-spelling",
-    question: "Fill in the blank: The sun gives us h__.",
+    question: "The sun gives us heat.",
     answer: "heat"
   },
   {
     topicKey: "science_short_words",
     type: "science-spelling",
-    question: "Fill in the blank: Plants need a_r.",
+    question: "Plants need air.",
     answer: "air"
   },
   {
     topicKey: "science_long_words",
     type: "science-spelling",
-    question: "Fill in the blank: A p__net moves around the sun.",
+    question: "A planet moves around the sun.",
     answer: "planet"
   },
   {
     topicKey: "science_long_words",
     type: "science-spelling",
-    question: "Fill in the blank: A r__ket flies into space.",
+    question: "A rocket flies into space.",
     answer: "rocket"
   }
 ]
@@ -361,6 +361,20 @@ export async function seedData(
       ]
     )
   }
+
+  // Remove legacy fill-in-the-blank prompt rows so old question text
+  // does not continue to appear in wrong/due review joins.
+  await db.runAsync(
+    `
+    DELETE FROM questions
+    WHERE question LIKE 'Fill in the blank:%'
+      AND (
+        type = 'spelling-fill-blank'
+        OR type = 'english-spell-bee'
+        OR type = 'science-spelling'
+      )
+    `
+  )
 
   await seedDefaultDevices(db)
 

@@ -395,6 +395,7 @@ Recommended release-note line:
 ## Reference docs
 
 - [Question Requirements](./question-requirements.md)
+- [Questions Spell Bee Requirement](./questions-spell-bee-requirement.md)
 - [Table Topic Flow](./table-topic-flow.md)
 - [Practice](../ui/practice.md)
 - [Topic Selection Rules](../topic%20selection%20rules.md)

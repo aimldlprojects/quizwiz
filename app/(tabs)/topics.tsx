@@ -239,10 +239,36 @@ export default function TopicsScreen() {
   const displayedActiveTopicPath =
     activeTopicPath
   const allowedTopicsList = useMemo(
-    () =>
-      topics.filter(
-        (topic) => allowedTopicIds.has(topic.id)
-      ),
+    () => {
+      const byId = new Map(
+        topics.map((topic) => [topic.id, topic])
+      )
+      const visibleTopicIds = new Set<number>()
+
+      for (const topic of topics) {
+        if (!allowedTopicIds.has(topic.id)) {
+          continue
+        }
+
+        let current: typeof topic | undefined = topic
+        while (current) {
+          if (visibleTopicIds.has(current.id)) {
+            break
+          }
+
+          visibleTopicIds.add(current.id)
+          if (current.parent_topic_id == null) {
+            break
+          }
+
+          current = byId.get(current.parent_topic_id)
+        }
+      }
+
+      return topics.filter((topic) =>
+        visibleTopicIds.has(topic.id)
+      )
+    },
     [topics, allowedTopicIds]
   )
   const displayTopicsList = useMemo(

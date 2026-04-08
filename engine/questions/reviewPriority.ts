@@ -18,6 +18,7 @@ export type ReviewPriorityCard = {
   id: number
   question: string
   answer: string | number
+  type?: string
 }
 
 export const REVIEW_PRIORITY_STAGE_ORDER: ReviewPriorityStageKey[] = [

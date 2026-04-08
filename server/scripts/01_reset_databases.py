@@ -295,6 +295,80 @@ def reset_master():
     # bootstrap_env["SEED_INITIAL_REVIEWS"] = "false"
     # run_subprocess(["python", "server/bootstrap.py"], env=bootstrap_env)
     run_subprocess(["python", "server/bootstrap.py"])
+    normalize_spell_bee_questions()
+
+
+def normalize_spell_bee_questions():
+    """
+    Convert legacy fill-in-the-blank spelling prompts into full-sentence
+    Spell Bee prompts where the hidden word is no longer stored masked.
+
+    Example:
+      "Fill in the blank: The sun is h_t." + answer "hot"
+      -> "The sun is hot."
+    """
+    conn = server_db.get_db()
+    cur = conn.cursor()
+
+    try:
+        # 1) English spelling rows: make type align with spell-bee runtime type.
+        cur.execute(
+            """
+            UPDATE questions q
+            SET type = 'english-spell-bee'
+            FROM topics t
+            WHERE q.topic_id = t.id
+              AND t.key IN (
+                'two_letter_words',
+                'three_letter_words',
+                'four_letter_words',
+                'five_letter_words',
+                'six_letter_words',
+                'seven_letter_words'
+              )
+              AND q.type = 'spelling-fill-blank'
+            """
+        )
+
+        # 2) Remove "Fill in the blank:" prefix when present.
+        cur.execute(
+            """
+            UPDATE questions
+            SET question = trim(
+              regexp_replace(
+                question,
+                '^\\s*Fill in the blank:\\s*',
+                '',
+                'i'
+              )
+            )
+            WHERE type IN ('english-spell-bee', 'science-spelling', 'spelling-fill-blank')
+            """
+        )
+
+        # 3) Replace masked tokens (__, m_t, p__net, etc.) with the answer.
+        #    Pattern matches one non-space token that contains at least one underscore.
+        cur.execute(
+            """
+            UPDATE questions
+            SET question = trim(
+              regexp_replace(
+                question,
+                '\\m[^[:space:]]*_[^[:space:]]*\\M',
+                answer,
+                'g'
+              )
+            )
+            WHERE type IN ('english-spell-bee', 'science-spelling', 'spelling-fill-blank')
+              AND question ~ '_'
+            """
+        )
+
+        conn.commit()
+        print("Normalized legacy spelling questions for Spell Bee runtime.")
+    finally:
+        cur.close()
+        conn.close()
 
 
 def reset_local(path, android_package, android_db_name):

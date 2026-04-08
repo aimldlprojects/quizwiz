@@ -45,6 +45,10 @@ import {
   isTableTopicKey
 } from "../../engine/questions/tableDeck"
 import { buildReviewPriorityStages } from "../../engine/questions/reviewPriority"
+import {
+  isSpellingQuestionType,
+  maskSpellingWordInPrompt
+} from "../../engine/questions/spellBee"
 import { useDatabase } from "../../hooks/useDatabase"
 import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
 import { useSettings } from "../../hooks/useSettings"
@@ -58,6 +62,7 @@ type Card = {
   id: number
   question: string
   answer: string | number
+  type?: string
 }
 
 type ReviewSnapshot = {
@@ -240,14 +245,18 @@ export default function LearnScreen() {
       id: number
       question: string
       answer: string
+      type?: string | null
     }>
-  ) {
+  ): Card[] {
     return rows.map((row) => ({
       id: row.id,
       question: row.question,
       answer: Number.isNaN(Number(row.answer))
         ? row.answer
-        : Number(row.answer)
+        : Number(row.answer),
+      ...(row.type
+        ? { type: row.type }
+        : {})
     }))
   }
 
@@ -476,9 +485,11 @@ export default function LearnScreen() {
       return
     }
 
-    const spokenText = revealed
-      ? String(card.answer)
-      : card.question
+    const spokenText = isSpellingQuestionType(card.type)
+      ? card.question
+      : revealed
+        ? String(card.answer)
+        : card.question
 
     controller.speak(spokenText)
   }, [isFocused, ttsEnabled, card, revealed, controller])
@@ -1066,7 +1077,14 @@ export default function LearnScreen() {
 
               {card ? (
                 <FlashCard
-                  question={card.question}
+                  question={
+                    isSpellingQuestionType(card.type)
+                      ? maskSpellingWordInPrompt(
+                          card.question,
+                          String(card.answer ?? "")
+                        )
+                      : card.question
+                  }
                   answer={String(card.answer)}
                   revealed={revealed}
                   onToggle={setRevealed}

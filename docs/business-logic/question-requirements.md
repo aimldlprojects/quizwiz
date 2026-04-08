@@ -7,6 +7,7 @@ This is the hub for question behavior docs.
 ## Use These Docs
 
 - See [Question Flow](./question-flow.md) for the general question rules.
+- See [Questions Spell Bee Requirement](./questions-spell-bee-requirement.md) for sentence-audio spelling behavior.
 - See [Table Topic Flow](./table-topic-flow.md) for multiplication table behavior.
 - See [Practice](../ui/practice.md) for the `Practice more` button.
 - See [Learn](../ui/learn.md) for the `Learn more` button.
