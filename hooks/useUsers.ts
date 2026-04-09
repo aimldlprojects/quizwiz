@@ -38,13 +38,23 @@ export function useUsers(
 
   const [loading, setLoading] =
     useState(true)
+  const [hydrated, setHydrated] =
+    useState(false)
   const loadTokenRef = useRef(0)
+  const debugPrefix = "[NAV_DEBUG useUsers]"
 
   const load = useCallback(async () => {
 
     if (!db) return
 
     const loadToken = ++loadTokenRef.current
+    console.log(
+      `${debugPrefix} load:start`,
+      JSON.stringify({
+        includeDisabled,
+        loadToken
+      })
+    )
 
     try {
       const controller =
@@ -69,6 +79,16 @@ export function useUsers(
       setUsers(list)
 
       setActiveUser(active)
+      setHydrated(true)
+      console.log(
+        `${debugPrefix} load:success`,
+        JSON.stringify({
+          includeDisabled,
+          loadToken,
+          usersCount: list.length,
+          activeUser: active
+        })
+      )
     } catch (error) {
       console.warn(
         "Failed to load users:",
@@ -77,10 +97,18 @@ export function useUsers(
       if (loadToken === loadTokenRef.current) {
         setUsers([])
         setActiveUser(null)
+        setHydrated(true)
       }
     } finally {
       if (loadToken === loadTokenRef.current) {
         setLoading(false)
+        console.log(
+          `${debugPrefix} load:end`,
+          JSON.stringify({
+            includeDisabled,
+            loadToken
+          })
+        )
       }
     }
 
@@ -88,7 +116,15 @@ export function useUsers(
 
   useEffect(() => {
 
-    if (!db) return
+    if (!db) {
+      setUsers([])
+      setActiveUser(null)
+      setLoading(false)
+      setHydrated(false)
+      return
+    }
+
+    setLoading(true)
 
     load()
 
@@ -216,12 +252,20 @@ export function useUsers(
 
     if (!db) return
 
+    console.log(
+      `${debugPrefix} selectUser:start`,
+      JSON.stringify({ id })
+    )
     const controller =
       new UserController(db)
 
     await controller.setActiveUser(id)
 
     setActiveUser(id)
+    console.log(
+      `${debugPrefix} selectUser:done`,
+      JSON.stringify({ id })
+    )
 
   }
 
@@ -346,6 +390,7 @@ export function useUsers(
     users,
     activeUser,
     loading,
+    hydrated,
     createUser,
     deleteUser,
     setUserDisabled,

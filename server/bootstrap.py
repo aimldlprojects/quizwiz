@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 import json
-from datetime import timezone
+from datetime import datetime, timezone
 
 import psycopg2
 from psycopg2 import sql
@@ -385,6 +385,70 @@ QUESTIONS = [
         "rocket",
     ),
 ]
+
+TABLE_TOPIC_RANGES = [
+    {
+        "topic_key": "tables_1_5",
+        "min_table": 1,
+        "max_table": 5,
+        "id_base": 100000,
+    },
+    {
+        "topic_key": "tables_6_10",
+        "min_table": 6,
+        "max_table": 10,
+        "id_base": 100100,
+    },
+    {
+        "topic_key": "tables_11_15",
+        "min_table": 11,
+        "max_table": 15,
+        "id_base": 100200,
+    },
+    {
+        "topic_key": "tables_16_20",
+        "min_table": 16,
+        "max_table": 20,
+        "id_base": 100300,
+    },
+]
+
+
+def build_table_question_seeds():
+
+    seeds = []
+
+    for range_info in TABLE_TOPIC_RANGES:
+        for table in range(
+            range_info["min_table"],
+            range_info["max_table"] + 1,
+        ):
+            for multiplier in range(1, 11):
+                legacy_id = int(f"{table}{multiplier}")
+                new_id = (
+                    range_info["id_base"]
+                    + (table - range_info["min_table"]) * 10
+                    + multiplier
+                )
+                seeds.append(
+                    {
+                        "id": new_id,
+                        "legacy_id": legacy_id,
+                        "topic_key": range_info["topic_key"],
+                        "type": "math-tables",
+                        "question": f"{table} x {multiplier}",
+                        "answer": str(table * multiplier),
+                    }
+                )
+
+    return seeds
+
+
+TABLE_QUESTION_SEEDS = build_table_question_seeds()
+TABLE_QUESTION_ID_MAP = {
+    seed["legacy_id"]: seed["id"]
+    for seed in TABLE_QUESTION_SEEDS
+}
 
 
 def ensure_database_exists(config):
@@ -852,6 +916,40 @@ def seed_demo_content(cur):
             ),
         )
 
+    for seed in TABLE_QUESTION_SEEDS:
+        topic_id = topic_ids.get(seed["topic_key"])
+        if not topic_id:
+            continue
+
+        cur.execute(
+            """
+            INSERT INTO questions (
+                id,
+                topic_id,
+                type,
+                question,
+                answer
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT(topic_id, question)
+            DO UPDATE SET
+                id = EXCLUDED.id,
+                topic_id = EXCLUDED.topic_id,
+                type = EXCLUDED.type,
+                answer = EXCLUDED.answer
+            """,
+            (
+                seed["id"],
+                topic_id,
+                seed["type"],
+                seed["question"],
+                seed["answer"],
+            ),
+        )
+
+    remap_table_question_references(cur, topic_ids)
+    ensure_question_sequence(cur)
+
     for user_id in user_ids.values():
         for subject_name in DEFAULT_CURRICULUM_SUBJECTS:
             subject_id = subject_ids.get(subject_name)
@@ -870,10 +968,174 @@ def seed_demo_content(cur):
             )
 
 
+def remap_table_question_references(cur, topic_ids):
+
+    migration_at = int(datetime.now(timezone.utc).timestamp() * 1000)
+    revision_offset = 0
+
+    for seed in TABLE_QUESTION_SEEDS:
+        new_id = TABLE_QUESTION_ID_MAP.get(seed["legacy_id"])
+        if new_id is None or new_id == seed["legacy_id"]:
+            continue
+
+        topic_id = topic_ids.get(seed["topic_key"])
+
+        review_rev = migration_at + revision_offset
+        cur.execute(
+            """
+            UPDATE reviews
+            SET
+                question_id = %s,
+                rev_id = %s,
+                last_modified_rev = %s,
+                sync_version = COALESCE(sync_version, 0) + 1,
+                updated_at = NOW()
+            WHERE question_id = %s
+            """,
+            (
+                str(new_id),
+                review_rev,
+                review_rev,
+                str(seed["legacy_id"]),
+            ),
+        )
+
+        cur.execute(
+            """
+            UPDATE stats
+            SET
+                question_id = %s,
+                topic_id = %s,
+                updated_at = NOW()
+            WHERE question_id = %s
+            """,
+            (
+                str(new_id),
+                topic_id,
+                str(seed["legacy_id"]),
+            ),
+        )
+
+        revision_offset += 1
+
+    remap_settings_question_ids(cur)
+
+
+def remap_settings_question_ids(cur):
+
+    cur.execute(
+        """
+        SELECT user_id, key, value
+        FROM settings
+        WHERE key LIKE 'learn_progress_topic_%%'
+           OR key LIKE 'practice_session_topic_%%'
+        """
+    )
+
+    rows = cur.fetchall() or []
+    updated_at = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    for user_id, key, value in rows:
+        if not value:
+            continue
+
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            continue
+
+        remapped = remap_table_question_ids(
+            parsed,
+            TABLE_QUESTION_ID_MAP,
+        )
+        serialized = json.dumps(remapped)
+
+        if serialized == value:
+            continue
+
+        cur.execute(
+            """
+            UPDATE settings
+            SET value = %s,
+                updated_at = %s
+            WHERE user_id = %s
+              AND key = %s
+            """,
+            (
+                serialized,
+                updated_at,
+                user_id,
+                key,
+            ),
+        )
+
+
+def remap_table_question_ids(value, legacy_to_new):
+
+    if isinstance(value, list):
+        return [
+            remap_table_question_ids(item, legacy_to_new)
+            for item in value
+        ]
+
+    if not isinstance(value, dict):
+        return value
+
+    remapped = {}
+
+    for key, current_value in value.items():
+        if (
+            isinstance(current_value, int)
+            and key in {
+                "id",
+                "cardId",
+                "questionId",
+                "question_id",
+            }
+        ):
+            remapped[key] = legacy_to_new.get(
+                current_value,
+                current_value,
+            )
+            continue
+
+        if key == "seenIds" and isinstance(current_value, list):
+            remapped[key] = [
+                legacy_to_new.get(item, item)
+                if isinstance(item, int)
+                else item
+                for item in current_value
+            ]
+            continue
+
+        remapped[key] = remap_table_question_ids(
+            current_value,
+            legacy_to_new,
+        )
+
+    return remapped
+
+
+def ensure_question_sequence(cur):
+
+    cur.execute(
+        """
+        SELECT setval(
+            pg_get_serial_sequence('questions', 'id'),
+            COALESCE((SELECT MAX(id) FROM questions), 0),
+            true
+        )
+        """
+    )
+
+
 def seed_default_devices(cur, user_ids):
 
     timestamp_ms = int(
         datetime.now(timezone.utc).timestamp() * 1000
+    )
+    timestamp_dt = datetime.now(timezone.utc).replace(
+        tzinfo=None
     )
 
     for user_name, active_backend_key in DEFAULT_ACTIVE_DEVICE_BY_USER.items():
@@ -909,7 +1171,7 @@ def seed_default_devices(cur, user_ids):
                 user_id,
                 f"device_registry_user_{user_id}",
                 json.dumps(payload),
-                timestamp_ms,
+                timestamp_dt,
             ),
         )
 
@@ -931,7 +1193,7 @@ def seed_default_devices(cur, user_ids):
                 user_id,
                 f"active_device_key_user_{user_id}",
                 active_backend_key,
-                timestamp_ms,
+                timestamp_dt,
             ),
         )
 

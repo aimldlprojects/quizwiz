@@ -42,20 +42,16 @@ import {
   isSyncActivityActive,
   subscribeSyncActivityChanges
 } from "../../database/syncMetaRepository"
-import {
-  getTableDeck,
-  isTableTopicKey
-} from "../../engine/questions/tableDeck"
 import { buildReviewPriorityStages } from "../../engine/questions/reviewPriority"
 import {
   isSpellingQuestionType,
   maskSpellingWordInPrompt
 } from "../../engine/questions/spellBee"
-import { useDatabase } from "../../hooks/useDatabase"
-import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
-import { useSettings } from "../../hooks/useSettings"
-import { useStudyPreferences } from "../../hooks/useStudyPreferences"
-import { useUsers } from "../../hooks/useUsers"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
+import { useSettings } from "@/hooks/useSettings"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useUsers } from "@/hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
 import { restartButtonPadding } from "../../styles/restartButtonStyles"
@@ -84,16 +80,7 @@ function getTopicDescription(
     return "Open the Topics tab and choose what to study."
   }
 
-  switch (topic.key) {
-    case "multiplication_tables":
-    case "tables_1_5":
-    case "tables_6_10":
-    case "tables_11_15":
-    case "tables_16_20":
-      return "Swipe through generated table cards and replay them with audio."
-    default:
-      return "Flip through the cards in the selected topic."
-  }
+  return "Flip through the cards in the selected topic."
 
 }
 
@@ -185,10 +172,6 @@ export default function LearnScreen() {
       ? colors.iconActive
       : colors.iconInactive
   })
-  const isTableTopic = Boolean(
-    isTableTopicKey(topic?.key)
-  )
-
   const persistLearnProgress =
     useCallback(async () => {
       if (!db || !activeUser || !selectedTopicId) {
@@ -280,7 +263,6 @@ export default function LearnScreen() {
       !db ||
       !activeUser ||
       cards.length === 0 ||
-      isTableTopic ||
       learnRandomOrderEnabledRef.current
     ) {
       return cards
@@ -307,7 +289,7 @@ export default function LearnScreen() {
     const staged =
       buildReviewPriorityStages(cards, rows)
     return staged.flatMap((stage) => stage.cards)
-  }, [activeUser, db, isTableTopic])
+  }, [activeUser, db])
 
   function updateCardAndProgress(
     nextCard: Card | null
@@ -317,7 +299,6 @@ export default function LearnScreen() {
 
     const snapshot = controller.getProgress()
     const displayTotal =
-      !isTableTopic &&
       nonTableTotalCardsRef.current > 0
         ? nonTableTotalCardsRef.current
         : snapshot.total
@@ -417,7 +398,7 @@ export default function LearnScreen() {
     } finally {
       nonTableLoadingMoreRef.current = false
     }
-  }, [controller, db, isTableTopic])
+  }, [controller, db])
 
   const nextCard = useCallback(async () => {
 
@@ -472,7 +453,7 @@ export default function LearnScreen() {
 
     clearLearnTimers()
 
-    if (isTableTopic || learnRandomOrderEnabled) {
+    if (learnRandomOrderEnabled) {
       void nextCard()
       return
     }
@@ -487,7 +468,6 @@ export default function LearnScreen() {
 
   }, [
     controller,
-    isTableTopic,
     learnRandomOrderEnabled,
     nextCard,
     persistLearnProgress
@@ -536,57 +516,6 @@ export default function LearnScreen() {
         await getAllTopics(db)
 
       setTopic(selectedTopic ?? null)
-
-      const topicKey =
-        selectedTopic?.key ?? ""
-
-      const generatedCards =
-        getTableDeck(topicKey)
-
-      if (generatedCards.length > 0) {
-        nonTableTopicIdsRef.current = []
-        nonTableLoadedCardsRef.current = []
-        nonTableTotalCardsRef.current =
-          generatedCards.length
-        nonTableOffsetRef.current = 0
-        nonTableHasMoreRef.current = false
-        controller.loadCards(generatedCards)
-        if (restart) {
-          controller.setCurrentIndex(0)
-        } else {
-            const savedProgress =
-            await getLearnProgress(
-              db,
-              activeUser,
-              selectedTopicId,
-              scopedDeviceKey
-            )
-
-          if (savedProgress) {
-            const restoredIndex =
-              savedProgress.cardId != null
-                ? generatedCards.findIndex(
-                    (generatedCard) =>
-                      generatedCard.id ===
-                      savedProgress.cardId
-                  )
-                : -1
-
-            controller.setCurrentIndex(
-              restoredIndex >= 0
-                ? restoredIndex
-                : savedProgress.cardIndex
-            )
-          } else {
-            controller.setCurrentIndex(0)
-          }
-        }
-
-        setCard(controller.getCurrentCard())
-        setRevealed(false)
-        setProgress(controller.getProgress())
-        return
-      }
 
       const topicIds =
         getDescendantTopicIds(
@@ -1058,7 +987,7 @@ export default function LearnScreen() {
               {getTopicDescription(topic)}
           </Text>
 
-          {!isTableTopic && !learnRandomOrderEnabled ? (
+          {!learnRandomOrderEnabled ? (
             <View
               style={[
                 styles.smartLearnBadge,

@@ -34,7 +34,12 @@ export function useSettings(
 
   const load = useCallback(async () => {
 
-    if (!db) return
+    if (!db) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
 
     const [
       mode,

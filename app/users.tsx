@@ -1,4 +1,4 @@
-import { router } from "expo-router"
+import { useRouter } from "expo-router"
 import {
   FlatList,
   Pressable,
@@ -10,11 +10,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { useDatabase } from "../hooks/useDatabase"
-import { useDeviceRegistry } from "../hooks/useDeviceRegistry"
-import { useStudyPreferences } from "../hooks/useStudyPreferences"
-import { useUsers } from "../hooks/useUsers"
-import { getThemeColors } from "../styles/theme"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useUsers } from "@/hooks/useUsers"
+import { getThemeColors } from "@/styles/theme"
 
 function getAvatarColor(index: number) {
 
@@ -32,6 +32,7 @@ function getAvatarColor(index: number) {
 }
 
 export default function UsersScreen() {
+  const router = useRouter()
 
   const { db, loading: dbLoading } =
     useDatabase()
@@ -39,9 +40,10 @@ export default function UsersScreen() {
   const {
     users,
     activeUser,
+    hydrated: usersHydrated,
     selectUser,
     loading
-  } = useUsers(db)
+  } = useUsers(db, true)
   const {
     visibleDevices,
     activeDevice,
@@ -64,12 +66,41 @@ export default function UsersScreen() {
     backgroundColor: colors.card,
     borderColor: colors.border
   }
+  const enabledUsers = useMemo(() => {
+    return users.filter((user) => user.disabled !== 1)
+  }, [users])
+  const displayUsers =
+    enabledUsers.length > 0 ? enabledUsers : users
   const hasUsers = users.length > 0
   const orderedUsers = useMemo(() => {
-    return users.filter((user) => user.id != null)
-  }, [users])
+    return displayUsers.filter((user) => user.id != null)
+  }, [displayUsers])
+  const debugPrefix = "[NAV_DEBUG users]"
 
-  if (dbLoading || loading || deviceLoading) {
+  useEffect(() => {
+    console.log(
+      `${debugPrefix} state`,
+      JSON.stringify({
+        dbLoading,
+        loading,
+        deviceLoading,
+        usersCount: users.length,
+        activeUser,
+        visibleDevicesCount: visibleDevices.length,
+        activeDeviceKey
+      })
+    )
+  }, [
+    dbLoading,
+    loading,
+    deviceLoading,
+    users.length,
+    activeUser,
+    visibleDevices.length,
+    activeDeviceKey
+  ])
+
+  if (dbLoading || loading || deviceLoading || !usersHydrated) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
         <Text style={styles.loadingText}>
@@ -116,6 +147,16 @@ export default function UsersScreen() {
           >
             Tap a profile card. Scroll to see more users.
           </Text>
+          {enabledUsers.length === 0 && users.length > 0 ? (
+            <Text
+              style={[
+                styles.usersSubtitle,
+                { color: colors.muted, marginTop: 6 }
+              ]}
+            >
+              All profiles are currently disabled, so they are shown here in muted form.
+            </Text>
+          ) : null}
 
           <FlatList
             ref={listRef}
@@ -141,6 +182,12 @@ export default function UsersScreen() {
                   ]}
                 onPress={async () => {
                   try {
+                    console.log(
+                      `${debugPrefix} select-card:tap`,
+                      JSON.stringify({
+                        tappedUserId: item.id
+                      })
+                    )
                     await selectUser(item.id)
                   } catch (error) {
                     console.error(
@@ -167,9 +214,18 @@ export default function UsersScreen() {
                     </Text>
                   </View>
 
+                  {item.disabled === 1 ? (
+                    <View style={styles.disabledPill}>
+                      <Text style={styles.disabledPillText}>
+                        Disabled
+                      </Text>
+                    </View>
+                  ) : null}
+
                   <Text
                     style={[
                       styles.cardName,
+                      item.disabled === 1 && styles.disabledCardName,
                       { color: colors.text }
                     ]}
                   >
@@ -301,7 +357,56 @@ export default function UsersScreen() {
                   continueButtonYRef.current =
                     event.nativeEvent.layout.y
                 }}
-                onPress={() => router.replace("/topics")}
+                onPress={async () => {
+                  if (activeUser == null) {
+                    console.log(
+                      `${debugPrefix} continue:blocked-no-active-user`
+                    )
+                    return
+                  }
+
+                  const selectedUserId = activeUser
+                  console.log(
+                    `${debugPrefix} continue:start`,
+                    JSON.stringify({
+                      activeUser: selectedUserId,
+                      activeDeviceKey,
+                      visibleDevicesCount: visibleDevices.length
+                    })
+                  )
+
+                  console.log(
+                    `${debugPrefix} continue:navigate`,
+                    JSON.stringify({
+                      route: "/(tabs)/topics"
+                    })
+                  )
+                  router.replace("/(tabs)/topics")
+
+                  // Persist selection/device in background so navigation is never blocked.
+                  void (async () => {
+                    try {
+                      await selectUser(selectedUserId)
+
+                      if (!activeDevice && visibleDevices[0]) {
+                        await setActiveDevice(
+                          visibleDevices[0].backendKey
+                        )
+                        console.log(
+                          `${debugPrefix} continue:auto-device`,
+                          JSON.stringify({
+                            backendKey: visibleDevices[0].backendKey
+                          })
+                        )
+                      }
+                    } catch (error) {
+                      console.error(
+                        "Failed to persist active user/device after continue:",
+                        error
+                      )
+                    }
+                  })()
+                }}
               >
                 <Text style={styles.continueButtonText}>
                   Continue
@@ -509,6 +614,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1e3a5f",
     textAlign: "center"
+  },
+
+  disabledCardName: {
+    opacity: 0.6
+  },
+
+  disabledPill: {
+    alignSelf: "center",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+    backgroundColor: "#e2e8f0"
+  },
+
+  disabledPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "#475569"
   },
 
   emptyState: {

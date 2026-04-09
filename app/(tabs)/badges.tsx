@@ -14,9 +14,9 @@ import { useFocusEffect } from "@react-navigation/native"
 
 import { StatsRepository } from "../../database/statsRepository"
 import { StreakController } from "../../controllers/streakController"
-import { useDatabase } from "../../hooks/useDatabase"
-import { useUsers } from "../../hooks/useUsers"
-import { useStudyPreferences } from "../../hooks/useStudyPreferences"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useUsers } from "@/hooks/useUsers"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { getThemeColors } from "../../styles/theme"
 
 type BadgeLevel = "locked" | "bronze" | "silver" | "gold"

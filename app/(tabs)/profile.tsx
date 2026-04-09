@@ -23,6 +23,7 @@ import {
   clearSyncDirty,
   getSyncDirtyAt
 } from "@/database/syncMetaRepository"
+import { resetSyncStateForUser } from "@/database/syncMetaRepository"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useSettings } from "@/hooks/useSettings"
@@ -31,6 +32,7 @@ import { useUsers } from "@/hooks/useUsers"
 import { getSyncServerUrl } from "@/services/sync/config"
 import { pullReviews } from "@/services/sync/pullReviews"
 import { pushReviews } from "@/services/sync/pushReviews"
+import { syncContentCatalog } from "@/services/sync/syncContent"
 import { syncReviews } from "@/services/sync/syncReviews"
 import { getThemeColors } from "@/styles/theme"
 import {
@@ -382,6 +384,7 @@ export default function ProfileScreen() {
           deviceKey: currentDevice?.backendKey ?? null
         }
       )
+      await syncContentCatalog(db, serverUrl)
       Alert.alert(
         "Pull complete",
         "Your device was refreshed from the global database."
@@ -400,6 +403,52 @@ export default function ProfileScreen() {
         refreshSyncIndicators()
       ])
     }
+  }
+
+  async function resetSyncState() {
+
+    if (!db || !activeUser) return
+
+    Alert.alert(
+      "Reset sync state?",
+      "This clears the local sync cursors for the active profile only. It does not delete reviews, stats, or server data.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: async () => {
+            setSyncing(true)
+            try {
+              await resetSyncStateForUser(
+                db,
+                activeUser
+              )
+              Alert.alert(
+                "Sync state reset",
+                "The next pull will start from the beginning."
+              )
+            } catch (error) {
+              Alert.alert(
+                "Reset failed",
+                error instanceof Error
+                  ? error.message
+                  : "We could not reset sync state right now."
+              )
+            } finally {
+              setSyncing(false)
+              await Promise.all([
+                refreshSyncStatus(),
+                refreshSyncIndicators()
+              ])
+            }
+          }
+        }
+      ]
+    )
   }
 
   async function handleLogout() {
@@ -716,7 +765,7 @@ export default function ProfileScreen() {
                 ]}
                 onPress={syncPullOnly}
                 disabled={syncing}
-              >
+                >
                 <MaterialIcons
                   name="south"
                   size={20}
@@ -724,6 +773,27 @@ export default function ProfileScreen() {
                 />
               </Pressable>
             </View>
+
+            <Pressable
+              style={[
+                styles.secondaryButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface
+                }
+              ]}
+              onPress={resetSyncState}
+              disabled={syncing}
+            >
+              <Text
+                style={[
+                  styles.secondaryButtonText,
+                  { color: colors.text }
+                ]}
+              >
+                Reset Sync State
+              </Text>
+            </Pressable>
 
             <View
               style={[

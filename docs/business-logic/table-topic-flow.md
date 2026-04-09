@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Describe how multiplication table topics are built and when they finish.
+Describe how multiplication table topics are seeded and when they finish.
 
 ## Flow
 
-- Learn uses a full generated table deck for table topics.
-- Practice uses the same table deck through a shared session cursor.
+- Learn uses the seeded table deck from the `questions` table.
+- Practice uses the same seeded table deck through the review queue.
 - `Tables 1-5` should show the full `1 x 1` through `5 x 10` deck.
 - Table cards move forward one by one during a session.
 - Table sessions resume from the last saved card when the user returns to the same topic.
@@ -30,9 +30,8 @@ Describe how multiplication table topics are built and when they finish.
 
 ## Notes
 
-- Table topics use generated cards, not the mixed fallback.
+- Table topics use seeded DB cards, not the mixed fallback.
 - The table deck should stay inside the selected table range.
-- If a table topic is reopened later, the session should resume from the saved position and keep the current and remaining table cards shuffled when random order is on.
 - If a table topic is reopened later, the session should resume from the saved position and keep the current and remaining table cards shuffled when random order is on.
 - The synced resume state should not delete the saved review history.
 

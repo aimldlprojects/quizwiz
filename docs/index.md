@@ -40,6 +40,7 @@ The app starts by sending the user to `Users` if no profile is active. If a prof
 ## Project Reset
 
 - [Reset instructions](./maintenance.md#reset-project)
+- [Restore after reset](./restore-after-reset.md)
 
 ## What To Check
 

@@ -29,11 +29,6 @@ import {
 import { ReviewRepository } from "../../database/reviewRepository"
 import { QuestionQueue } from "../../engine/practice/questionQueue"
 import {
-  getTableDeck,
-  isTableTopicKey,
-  TableDeckSession
-} from "../../engine/questions/tableDeck"
-import {
   REVIEW_PRIORITY_STAGE_ORDER,
   buildReviewPriorityStages,
   ReviewPriorityReviewSnapshot,
@@ -52,12 +47,12 @@ import {
   subscribeSyncActivityChanges
 } from "../../database/syncMetaRepository"
 import { ReviewScheduler } from "../../engine/scheduler/reviewScheduler"
-import { useDatabase } from "../../hooks/useDatabase"
-import { useDeviceRegistry } from "../../hooks/useDeviceRegistry"
-import { usePractice } from "../../hooks/usePractice"
-import { useSettings } from "../../hooks/useSettings"
-import { useStudyPreferences } from "../../hooks/useStudyPreferences"
-import { useUsers } from "../../hooks/useUsers"
+import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
+import { usePractice } from "@/hooks/usePractice"
+import { useSettings } from "@/hooks/useSettings"
+import { useStudyPreferences } from "@/hooks/useStudyPreferences"
+import { useUsers } from "@/hooks/useUsers"
 import { ttsService } from "../../services/ttsService"
 import { getThemeColors } from "../../styles/theme"
 import { restartButtonPadding } from "../../styles/restartButtonStyles"
@@ -129,13 +124,6 @@ export default function PracticeScreen() {
       }>
     }>
   >([])
-  const priorityStageSummaryRef = useRef<
-    Array<{
-      key: string
-      label: string
-      count: number
-    }>
-  >([])
   const priorityCardStageRef = useRef<
     Record<
       string,
@@ -152,6 +140,22 @@ export default function PracticeScreen() {
   const prioritySessionKeyRef = useRef("")
   const [priorityStageLabel, setPriorityStageLabel] =
     useState<string | null>(null)
+  const [priorityStageSummary, setPriorityStageSummary] =
+    useState<
+      Array<{
+        key: string
+        label: string
+        count: number
+      }>
+    >([])
+  const [pendingStageCounts, setPendingStageCounts] =
+    useState<Record<ReviewPriorityStageKey, number>>({
+      wrong: 0,
+      due: 0,
+      unseen: 0,
+      in_progress: 0,
+      recently_mastered: 0
+    })
   const [syncActive, setSyncActive] = useState(
     isSyncActivityActive()
   )
@@ -169,23 +173,8 @@ export default function PracticeScreen() {
     in_progress: 0,
     recently_mastered: 0
   })
-  const [, setPendingStageCountsVersion] =
-    useState(0)
-  const tableDeckSessionRef =
-    useRef(new TableDeckSession())
   const lastAppliedSyncTimestampRef =
     useRef(0)
-
-  const isTableTopic = Boolean(
-    selectedTopic?.key &&
-      [
-        "multiplication_tables",
-        "tables_1_5",
-        "tables_6_10",
-        "tables_11_15",
-        "tables_16_20"
-      ].includes(selectedTopic.key)
-  )
 
   const getPracticeTopicIds = useCallback(
     async () => {
@@ -205,7 +194,6 @@ export default function PracticeScreen() {
   const resetPrioritySession =
     useCallback(() => {
     priorityStagesRef.current = []
-    priorityStageSummaryRef.current = []
     priorityCardStageRef.current = {}
     answeredTransitionIdsRef.current.clear()
     pendingStageCountsRef.current = {
@@ -215,7 +203,14 @@ export default function PracticeScreen() {
       in_progress: 0,
       recently_mastered: 0
     }
-    setPendingStageCountsVersion((value) => value + 1)
+    setPriorityStageSummary([])
+    setPendingStageCounts({
+      wrong: 0,
+      due: 0,
+      unseen: 0,
+      in_progress: 0,
+      recently_mastered: 0
+    })
     priorityStageIndexRef.current = 0
     priorityStageCursorRef.current = 0
     prioritySessionKeyRef.current = ""
@@ -255,13 +250,6 @@ export default function PracticeScreen() {
 
       if (!topic) {
         setPracticeDeckTotal(0)
-        return
-      }
-
-      if (isTableTopicKey(topic.key ?? "")) {
-        setPracticeDeckTotal(
-          getTableDeck(topic.key ?? "").length
-        )
         return
       }
 
@@ -329,35 +317,31 @@ export default function PracticeScreen() {
               type?: string
             }> = []
 
-            if (isTableTopicKey(topicKey)) {
-              allCards = getTableDeck(topicKey)
-            } else {
-              const topics =
-                await getAllTopics(db)
-              const topicIds =
-                getDescendantTopicIds(
-                  topics,
-                  selectedTopicId
-                )
-              const rows =
-                await getQuestionsForTopicTree(
-                  db,
-                  topicIds,
-                  undefined,
-                  "sequence"
-                )
+            const topics =
+              await getAllTopics(db)
+            const topicIds =
+              getDescendantTopicIds(
+                topics,
+                selectedTopicId
+              )
+            const rows =
+              await getQuestionsForTopicTree(
+                db,
+                topicIds,
+                undefined,
+                "sequence"
+              )
 
-              allCards = rows.map((row) => ({
-                id: row.id,
-                question: row.question,
-                answer: Number.isNaN(
-                  Number(row.answer)
-                )
-                  ? row.answer
-                  : Number(row.answer),
-                type: row.type ?? undefined
-              }))
-            }
+            allCards = rows.map((row) => ({
+              id: row.id,
+              question: row.question,
+              answer: Number.isNaN(
+                Number(row.answer)
+              )
+                ? row.answer
+                : Number(row.answer),
+              type: row.type ?? undefined
+            }))
 
             const reviews =
               allCards.length === 0
@@ -391,12 +375,13 @@ export default function PracticeScreen() {
                 }
               )
 
-            priorityStageSummaryRef.current =
+            setPriorityStageSummary(
               stages.map((stage) => ({
                 key: stage.key,
                 label: stage.label,
                 count: stage.cards.length
               }))
+            )
             pendingStageCountsRef.current = stages.reduce<
               Record<ReviewPriorityStageKey, number>
             >(
@@ -414,8 +399,26 @@ export default function PracticeScreen() {
                 recently_mastered: 0
               }
             )
+            setPendingStageCounts(
+              stages.reduce<
+                Record<ReviewPriorityStageKey, number>
+              >(
+                (acc, stage) => {
+                  const stageKey =
+                    stage.key as ReviewPriorityStageKey
+                  acc[stageKey] = stage.cards.length
+                  return acc
+                },
+                {
+                  wrong: 0,
+                  due: 0,
+                  unseen: 0,
+                  in_progress: 0,
+                  recently_mastered: 0
+                }
+              )
+            )
             answeredTransitionIdsRef.current.clear()
-            setPendingStageCountsVersion((value) => value + 1)
             priorityCardStageRef.current =
               stages.reduce<
                 Record<
@@ -544,8 +547,6 @@ export default function PracticeScreen() {
     practice.answered
   const autoNextQuestion =
     practice.autoNext
-  const practiceRemainingCards =
-    practice.remainingCards
   const practiceAccuracy =
     practice.accuracy
   const colors = getThemeColors(themeMode)
@@ -605,10 +606,10 @@ export default function PracticeScreen() {
     }
 
     pendingStageCountsRef.current = nextCounts
+    setPendingStageCounts(nextCounts)
     answeredTransitionIdsRef.current.add(
       practiceQuestion.id
     )
-    setPendingStageCountsVersion((value) => value + 1)
   }, [
     practiceAnswered,
     practiceQuestion,
@@ -639,13 +640,8 @@ export default function PracticeScreen() {
 
     resetPrioritySession()
 
-    if (isTableTopic) {
-      tableDeckSessionRef.current.reset()
-    }
-
     await practice.restartPractice()
   }, [
-    isTableTopic,
     practice,
     resetPrioritySession
   ])
@@ -973,50 +969,6 @@ export default function PracticeScreen() {
         )
       }
 
-      if (isTableTopic && practiceRemainingCards === 0) {
-        return (
-          <View style={styles.emptyCard}>
-            <Text
-              style={[
-                styles.emptyTitle,
-                { color: colors.text }
-              ]}
-            >
-              Topic complete
-            </Text>
-
-            <Text
-              style={[
-                styles.emptyText,
-                { color: colors.muted }
-              ]}
-            >
-              You have reached the end of this practice session.
-            </Text>
-
-            <Pressable
-              style={[
-                styles.restartButton,
-                {
-                  backgroundColor: colors.iconActive,
-                  ...restartButtonPadding
-                }
-              ]}
-              onPress={handlePracticeMore}
-            >
-              <Text
-                style={[
-                  styles.restartButtonText,
-                  { color: "#ffffff" }
-                ]}
-              >
-                Practice more
-              </Text>
-            </Pressable>
-          </View>
-        )
-      }
-
       if (selectedTopicId && practice.stats.attempts > 0) {
         return (
           <View style={styles.emptyCard}>
@@ -1179,11 +1131,11 @@ export default function PracticeScreen() {
     const queueSummary = REVIEW_PRIORITY_STAGE_ORDER.map(
       (key) => {
         const summary =
-          priorityStageSummaryRef.current.find(
+          priorityStageSummary.find(
             (item) => item.key === key
           )
         const pendingCount =
-          pendingStageCountsRef.current[key]
+          pendingStageCounts[key]
 
         return {
           key,

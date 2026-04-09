@@ -60,6 +60,7 @@ python server/scripts/01_reset_databases.py --both
 - You can override the local SQLite path with `--local-path`.
 - You can override the Android package name with `--android-package`.
 - You can override the Android database filename with `--android-db-name`.
+- After a master reset, restore user-state tables with [Restore After Reset](./restore-after-reset.md).
 
 ## Reference Docs
 

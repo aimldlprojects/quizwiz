@@ -269,6 +269,54 @@ export async function clearSyncDirty(
   notifySyncMetaListeners()
 }
 
+export async function resetSyncStateForUser(
+  db: SQLiteDatabase,
+  userId: number
+): Promise<void> {
+  await ensureTable(db)
+
+  await db.runAsync(
+    `
+    DELETE FROM sync_meta
+    WHERE key IN (
+      ?,
+      ?,
+      ?,
+      ?,
+      ?
+    )
+    `,
+    [
+      KEY_LAST_PUSH_REV(userId),
+      KEY_LAST_PULL_REV(userId),
+      KEY_LAST_STATUS(userId),
+      KEY_LAST_TIMESTAMP(userId),
+      KEY_LAST_ERROR(userId),
+    ]
+  )
+
+  await db.runAsync(
+    `
+    DELETE FROM settings
+    WHERE user_id = 0
+      AND (
+        key LIKE 'sync_last_status%'
+        OR key LIKE 'sync_last_message%'
+        OR key LIKE 'sync_last_at%'
+      )
+    `
+  )
+
+  await db.runAsync(
+    `
+    DELETE FROM settings
+    WHERE user_id = ?
+      AND key = ?
+    `,
+    [userId, KEY_SYNC_DIRTY_AT(userId)]
+  )
+}
+
 export async function getSyncMeta(
   db: SQLiteDatabase,
   userId: number

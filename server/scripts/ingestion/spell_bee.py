@@ -139,7 +139,7 @@ def ingest_spellbee_data():
     cursor = conn.cursor()
     processed = 0
     inserted = 0
-    updated = 0
+    existing = 0
     skipped = 0
     skipped_unknown_word_type = 0
     skipped_missing_topic = 0
@@ -182,19 +182,15 @@ def ingest_spellbee_data():
                     INSERT INTO questions (topic_id, type, question, answer)
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (topic_id, question)
-                    DO UPDATE SET
-                      type = EXCLUDED.type,
-                      answer = EXCLUDED.answer
-                    RETURNING (xmax = 0) AS inserted
+                    DO NOTHING
                     """,
                     (topic_id, question_type, sentence, word),
                 )
 
-                was_inserted = cursor.fetchone()[0]
-                if was_inserted:
+                if cursor.rowcount > 0:
                     inserted += 1
                 else:
-                    updated += 1
+                    existing += 1
 
                 if processed % PROGRESS_LOG_EVERY == 0:
                     print(
@@ -202,7 +198,7 @@ def ingest_spellbee_data():
                         {
                             "processed": processed,
                             "inserted": inserted,
-                            "updated": updated,
+                            "existing": existing,
                             "skipped": skipped,
                             "last_word": word,
                             "last_word_type": word_type,
@@ -215,7 +211,7 @@ def ingest_spellbee_data():
             {
                 "processed": processed,
                 "inserted": inserted,
-                "updated": updated,
+                "existing": existing,
                 "skipped": skipped,
                 "skipped_bad_row": skipped_bad_row,
                 "skipped_unknown_word_type": skipped_unknown_word_type,

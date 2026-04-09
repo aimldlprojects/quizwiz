@@ -9,9 +9,29 @@ export interface User {
 export class UserRepository {
 
   private db: SQLiteDatabase
+  private hasDisabledColumnPromise: Promise<boolean> | null = null
 
   constructor(db: SQLiteDatabase) {
     this.db = db
+  }
+
+  private async hasDisabledColumn(): Promise<boolean> {
+    if (!this.hasDisabledColumnPromise) {
+      this.hasDisabledColumnPromise = this.db
+        .getAllAsync<{ name: string }>(
+          `
+          PRAGMA table_info(users)
+          `
+        )
+        .then((columns) =>
+          columns.some(
+            (column) => column.name === "disabled"
+          )
+        )
+        .catch(() => false)
+    }
+
+    return this.hasDisabledColumnPromise
   }
 
   /*
@@ -28,24 +48,71 @@ export class UserRepository {
     includeDisabled: boolean
   ): Promise<User[]> {
 
-    const rows =
-      await this.db.getAllAsync<User>(
-        `
-        SELECT
-          u.id,
-          u.name,
-          CASE
-            WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
-            WHEN ds.value IN ('1', 'true') THEN 1
-            ELSE 0
-          END as disabled
-        FROM users u
-        LEFT JOIN settings ds
-          ON ds.user_id = 0
-          AND ds.key = 'user_disabled_user_' || u.id
-        ORDER BY u.id DESC
-        `
+    const hasDisabled =
+      await this.hasDisabledColumn()
+
+    const fetchRows = async () =>
+      this.db.getAllAsync<User>(
+        hasDisabled
+          ? `
+            SELECT
+              u.id,
+              u.name,
+              CASE
+                WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
+                WHEN ds.value IN ('1', 'true') THEN 1
+                ELSE 0
+              END as disabled
+            FROM users u
+            LEFT JOIN settings ds
+              ON ds.user_id = 0
+              AND ds.key = 'user_disabled_user_' || u.id
+            ORDER BY u.id DESC
+            `
+          : `
+            SELECT
+              u.id,
+              u.name,
+              CASE
+                WHEN ds.value IN ('1', 'true') THEN 1
+                ELSE 0
+              END as disabled
+            FROM users u
+            LEFT JOIN settings ds
+              ON ds.user_id = 0
+              AND ds.key = 'user_disabled_user_' || u.id
+            ORDER BY u.id DESC
+            `
       )
+
+    let rows: User[]
+    try {
+      rows = await fetchRows()
+    } catch (error) {
+      console.warn(
+        "Falling back to plain users query:",
+        error
+      )
+      rows = await this.db.getAllAsync<User>(
+        hasDisabled
+          ? `
+            SELECT
+              id,
+              name,
+              COALESCE(disabled, 0) as disabled
+            FROM users
+            ORDER BY id DESC
+            `
+          : `
+            SELECT
+              id,
+              name,
+              0 as disabled
+            FROM users
+            ORDER BY id DESC
+            `
+      )
+    }
 
     const validRows = rows.filter(
       (row) =>
@@ -74,25 +141,73 @@ export class UserRepository {
     id: number
   ): Promise<User | null> {
 
-    const row =
-      await this.db.getFirstAsync<User>(
-        `
-        SELECT
-          u.id,
-          u.name,
-          CASE
-            WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
-            WHEN ds.value IN ('1', 'true') THEN 1
-            ELSE 0
-          END as disabled
-        FROM users u
-        LEFT JOIN settings ds
-          ON ds.user_id = 0
-          AND ds.key = 'user_disabled_user_' || u.id
-        WHERE u.id = ?
-        `,
+    const hasDisabled =
+      await this.hasDisabledColumn()
+
+    const fetchRow = () =>
+      this.db.getFirstAsync<User>(
+        hasDisabled
+          ? `
+            SELECT
+              u.id,
+              u.name,
+              CASE
+                WHEN ds.value IS NULL THEN COALESCE(u.disabled, 0)
+                WHEN ds.value IN ('1', 'true') THEN 1
+                ELSE 0
+              END as disabled
+            FROM users u
+            LEFT JOIN settings ds
+              ON ds.user_id = 0
+              AND ds.key = 'user_disabled_user_' || u.id
+            WHERE u.id = ?
+            `
+          : `
+            SELECT
+              u.id,
+              u.name,
+              CASE
+                WHEN ds.value IN ('1', 'true') THEN 1
+                ELSE 0
+              END as disabled
+            FROM users u
+            LEFT JOIN settings ds
+              ON ds.user_id = 0
+              AND ds.key = 'user_disabled_user_' || u.id
+            WHERE u.id = ?
+            `,
         [id]
       )
+
+    let row: User | null
+    try {
+      row = await fetchRow()
+    } catch (error) {
+      console.warn(
+        "Falling back to plain user lookup:",
+        error
+      )
+      row = await this.db.getFirstAsync<User>(
+        hasDisabled
+          ? `
+            SELECT
+              id,
+              name,
+              COALESCE(disabled, 0) as disabled
+            FROM users
+            WHERE id = ?
+            `
+          : `
+            SELECT
+              id,
+              name,
+              0 as disabled
+            FROM users
+            WHERE id = ?
+            `,
+        [id]
+      )
+    }
 
     return row ?? null
 
@@ -108,34 +223,54 @@ export class UserRepository {
     name: string
   ) {
 
+    const hasDisabled =
+      await this.hasDisabledColumn()
+
     const existing =
       await this.db.getFirstAsync<{
         id: number
         disabled: number
       }>(
-        `
-        SELECT
-          id,
-          COALESCE(disabled, 0) as disabled
-        FROM users
-        WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
-        LIMIT 1
-        `,
+        hasDisabled
+          ? `
+            SELECT
+              id,
+              COALESCE(disabled, 0) as disabled
+            FROM users
+            WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+            LIMIT 1
+            `
+          : `
+            SELECT
+              u.id,
+              CASE
+                WHEN ds.value IN ('1', 'true') THEN 1
+                ELSE 0
+              END as disabled
+            FROM users u
+            LEFT JOIN settings ds
+              ON ds.user_id = 0
+              AND ds.key = 'user_disabled_user_' || u.id
+            WHERE LOWER(TRIM(u.name)) = LOWER(TRIM(?))
+            LIMIT 1
+            `,
         [name]
       )
 
     if (existing) {
       if (existing.disabled === 1) {
-        await this.db.runAsync(
-          `
-          UPDATE users
-          SET
-            name = ?,
-            disabled = 0
-          WHERE id = ?
-          `,
-          [name, existing.id]
-        )
+        if (hasDisabled) {
+          await this.db.runAsync(
+            `
+            UPDATE users
+            SET
+              name = ?,
+              disabled = 0
+            WHERE id = ?
+            `,
+            [name, existing.id]
+          )
+        }
 
         await this.db.runAsync(
           `
@@ -166,14 +301,21 @@ export class UserRepository {
       )
     }
 
-    const result =
-      await this.db.runAsync(
-      `
-      INSERT INTO users(name, disabled)
-      VALUES(?, 0)
-      `,
-      [name]
-    )
+    const result = hasDisabled
+      ? await this.db.runAsync(
+          `
+          INSERT INTO users(name, disabled)
+          VALUES(?, 0)
+          `,
+          [name]
+        )
+      : await this.db.runAsync(
+          `
+          INSERT INTO users(name)
+          VALUES(?)
+          `,
+          [name]
+        )
 
     return result.lastInsertRowId
 
@@ -455,6 +597,9 @@ export class UserRepository {
     name?: string
   ) {
 
+    const hasDisabled =
+      await this.hasDisabledColumn()
+
     const userId = Number(id)
     const normalizedName =
       name?.trim().toLowerCase() ?? ""
@@ -502,14 +647,16 @@ export class UserRepository {
         : [userId]
 
     for (const currentUserId of idsToUpdate) {
-      await this.db.runAsync(
-        `
-        UPDATE users
-        SET disabled = ?
-        WHERE id = ?
-        `,
-        [disabled ? 1 : 0, currentUserId]
-      )
+      if (hasDisabled) {
+        await this.db.runAsync(
+          `
+          UPDATE users
+          SET disabled = ?
+          WHERE id = ?
+          `,
+          [disabled ? 1 : 0, currentUserId]
+        )
+      }
 
       await this.db.runAsync(
         `

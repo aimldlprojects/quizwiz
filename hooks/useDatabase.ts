@@ -51,9 +51,16 @@ function reportConnectivity(message: string | null) {
 }
 
 async function getSharedDatabase() {
+  console.log("[NAV_DEBUG useDatabase] getSharedDatabase:start", JSON.stringify({
+    hasSharedDb: !!sharedDb,
+    hasSharedDbPromise: !!sharedDbPromise
+  }))
 
   if (sharedDb) {
     const usable = await isDatabaseUsable(sharedDb)
+    console.log("[NAV_DEBUG useDatabase] getSharedDatabase:existing", JSON.stringify({
+      usable
+    }))
 
     if (usable) {
       return sharedDb
@@ -64,8 +71,10 @@ async function getSharedDatabase() {
   }
 
   if (!sharedDbPromise) {
+    console.log("[NAV_DEBUG useDatabase] getSharedDatabase:opening")
     sharedDbPromise = initializeDatabase().catch(
       (err) => {
+        console.warn("[NAV_DEBUG useDatabase] getSharedDatabase:open-failed", err)
         sharedDbPromise = null
         throw err
       }
@@ -73,9 +82,16 @@ async function getSharedDatabase() {
   }
 
   sharedDb = await sharedDbPromise
+  console.log("[NAV_DEBUG useDatabase] getSharedDatabase:resolved", JSON.stringify({
+    hasSharedDb: !!sharedDb
+  }))
   const usable = await isDatabaseUsable(sharedDb)
+  console.log("[NAV_DEBUG useDatabase] getSharedDatabase:post-usability", JSON.stringify({
+    usable
+  }))
 
   if (!usable) {
+    console.log("[NAV_DEBUG useDatabase] getSharedDatabase:reopen")
     sharedDb = null
     sharedDbPromise = null
     sharedDb = await initializeDatabase()
@@ -101,17 +117,26 @@ async function isDatabaseUsable(
 async function initializeDatabase() {
 
   reportStage(StageIndex.OPEN)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:open", JSON.stringify({
+    platform: String(SQLite)
+  }))
   const database =
     await SQLite.openDatabaseAsync("quizwiz.db")
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:opened")
 
   reportStage(StageIndex.APPLY_SCHEMA)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:initDB:start")
   await initDB(database)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:initDB:done")
 
   reportStage(StageIndex.SYNC_MODE)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:getSyncMode:start")
   await getSyncMode(database)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:getSyncMode:done")
 
   reportConnectivity(null)
   reportStage(StageIndex.FINALIZE)
+  console.log("[NAV_DEBUG useDatabase] initializeDatabase:done")
   return database
 
 }
@@ -157,21 +182,27 @@ export function useDatabase() {
     stageReporter = setStageIndex
     connectivityReporter =
       setConnectivityStatus
+    console.log("[NAV_DEBUG useDatabase] init:start")
 
     try {
       const database =
         await getSharedDatabase()
 
+      console.log("[NAV_DEBUG useDatabase] init:setDb", JSON.stringify({
+        hasDatabase: !!database
+      }))
       setDb(database)
     } catch (err) {
       const message =
         err instanceof Error
           ? err.message
           : String(err)
+      console.warn("[NAV_DEBUG useDatabase] init:error", message)
 
       setError(message)
     } finally {
       setLoading(false)
+      console.log("[NAV_DEBUG useDatabase] init:end")
       stageReporter = null
       connectivityReporter = null
     }

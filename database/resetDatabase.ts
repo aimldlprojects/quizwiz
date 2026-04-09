@@ -1,5 +1,6 @@
 import { SQLiteDatabase } from "expo-sqlite"
 import { UserSubjectRepository } from "./userSubjectRepository"
+import { resetSyncStateForUser } from "./syncMetaRepository"
 
 export async function resetUserData(
   db: SQLiteDatabase,
@@ -79,13 +80,7 @@ export async function resetUserData(
       [`user_disabled_user_${userId}`]
     )
 
-    await db.runAsync(
-      `
-      DELETE FROM sync_meta
-      WHERE key = ?
-      `,
-      [`reviews_last_rev_${userId}`]
-    )
+    await resetSyncStateForUser(db, userId)
 
     await db.runAsync(
       `

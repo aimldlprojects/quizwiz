@@ -35,6 +35,17 @@ function buildTimeoutError() {
 
 const ACTIVE_DEVICE_KEY_PREFIX = "active_device_key_user_"
 
+function normalizeQuestionId(
+  questionId: unknown
+) {
+  if (typeof questionId === "number") {
+    return questionId
+  }
+
+  const parsed = Number(questionId)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
 function formatPythonDatetime(
   timestamp: number | null | undefined
 ) {
@@ -124,7 +135,9 @@ async function upsertStats(
       `,
       [
         row.user_id,
-        row.question_id ?? null,
+        row.question_id == null
+          ? null
+          : normalizeQuestionId(row.question_id),
         row.topic_id ?? null,
         row.correct,
         row.wrong,
@@ -355,7 +368,9 @@ export async function pullReviews(
 
     const review = new Review({
       userId: r.user_id,
-      questionId: r.question_id,
+      questionId: normalizeQuestionId(
+        r.question_id
+      ),
       repetition: r.repetition,
       interval: r.interval,
       easeFactor: r.ease_factor,

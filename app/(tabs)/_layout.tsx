@@ -18,9 +18,13 @@ import { getThemeColors } from "@/styles/theme"
 export default function TabLayout() {
 
   const router = useRouter()
-  const { db } = useDatabase()
+  const {
+    db,
+    loading: dbLoading
+  } = useDatabase()
   const {
     activeUser,
+    hydrated: usersHydrated,
     loading: usersLoading
   } = useUsers(db)
   const {
@@ -32,18 +36,48 @@ export default function TabLayout() {
     activeUser
   )
   const colors = getThemeColors(themeMode)
+  const debugPrefix = "[NAV_DEBUG tabs-layout]"
 
   useEffect(() => {
-    if (usersLoading) {
+    console.log(
+      `${debugPrefix} state`,
+      JSON.stringify({
+        dbLoading,
+        hasDb: !!db,
+        usersLoading,
+        activeUser
+      })
+    )
+  }, [activeUser, db, dbLoading, usersLoading])
+
+  useEffect(() => {
+    if (dbLoading || usersLoading || !db || !usersHydrated) {
       return
     }
 
     if (!activeUser) {
+      console.log(
+        `${debugPrefix} redirect-to-users`,
+        JSON.stringify({
+          dbLoading,
+          hasDb: !!db,
+          usersLoading,
+          activeUser
+        })
+      )
       router.replace("/users")
     }
-  }, [activeUser, router, usersLoading])
+  }, [
+    activeUser,
+    db,
+    dbLoading,
+    router,
+    usersLoading
+    ,
+    usersHydrated
+  ])
 
-  if (usersLoading || !activeUser) {
+  if (dbLoading || usersLoading || !db || !usersHydrated || !activeUser) {
     return (
       <View
         style={[
