@@ -8,7 +8,7 @@ import {
   View
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 
 import { useDatabase } from "@/hooks/useDatabase"
 import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
@@ -75,30 +75,6 @@ export default function UsersScreen() {
   const orderedUsers = useMemo(() => {
     return displayUsers.filter((user) => user.id != null)
   }, [displayUsers])
-  const debugPrefix = "[NAV_DEBUG users]"
-
-  useEffect(() => {
-    console.log(
-      `${debugPrefix} state`,
-      JSON.stringify({
-        dbLoading,
-        loading,
-        deviceLoading,
-        usersCount: users.length,
-        activeUser,
-        visibleDevicesCount: visibleDevices.length,
-        activeDeviceKey
-      })
-    )
-  }, [
-    dbLoading,
-    loading,
-    deviceLoading,
-    users.length,
-    activeUser,
-    visibleDevices.length,
-    activeDeviceKey
-  ])
 
   if (dbLoading || loading || deviceLoading || !usersHydrated) {
     return (
@@ -182,12 +158,6 @@ export default function UsersScreen() {
                   ]}
                 onPress={async () => {
                   try {
-                    console.log(
-                      `${debugPrefix} select-card:tap`,
-                      JSON.stringify({
-                        tappedUserId: item.id
-                      })
-                    )
                     await selectUser(item.id)
                   } catch (error) {
                     console.error(
@@ -359,31 +329,12 @@ export default function UsersScreen() {
                 }}
                 onPress={async () => {
                   if (activeUser == null) {
-                    console.log(
-                      `${debugPrefix} continue:blocked-no-active-user`
-                    )
                     return
                   }
 
                   const selectedUserId = activeUser
-                  console.log(
-                    `${debugPrefix} continue:start`,
-                    JSON.stringify({
-                      activeUser: selectedUserId,
-                      activeDeviceKey,
-                      visibleDevicesCount: visibleDevices.length
-                    })
-                  )
-
-                  console.log(
-                    `${debugPrefix} continue:navigate`,
-                    JSON.stringify({
-                      route: "/(tabs)/topics"
-                    })
-                  )
                   router.replace("/(tabs)/topics")
 
-                  // Persist selection/device in background so navigation is never blocked.
                   void (async () => {
                     try {
                       await selectUser(selectedUserId)
@@ -391,12 +342,6 @@ export default function UsersScreen() {
                       if (!activeDevice && visibleDevices[0]) {
                         await setActiveDevice(
                           visibleDevices[0].backendKey
-                        )
-                        console.log(
-                          `${debugPrefix} continue:auto-device`,
-                          JSON.stringify({
-                            backendKey: visibleDevices[0].backendKey
-                          })
                         )
                       }
                     } catch (error) {

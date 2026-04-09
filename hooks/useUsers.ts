@@ -41,20 +41,12 @@ export function useUsers(
   const [hydrated, setHydrated] =
     useState(false)
   const loadTokenRef = useRef(0)
-  const debugPrefix = "[NAV_DEBUG useUsers]"
 
   const load = useCallback(async () => {
 
     if (!db) return
 
     const loadToken = ++loadTokenRef.current
-    console.log(
-      `${debugPrefix} load:start`,
-      JSON.stringify({
-        includeDisabled,
-        loadToken
-      })
-    )
 
     try {
       const controller =
@@ -80,15 +72,6 @@ export function useUsers(
 
       setActiveUser(active)
       setHydrated(true)
-      console.log(
-        `${debugPrefix} load:success`,
-        JSON.stringify({
-          includeDisabled,
-          loadToken,
-          usersCount: list.length,
-          activeUser: active
-        })
-      )
     } catch (error) {
       console.warn(
         "Failed to load users:",
@@ -102,13 +85,6 @@ export function useUsers(
     } finally {
       if (loadToken === loadTokenRef.current) {
         setLoading(false)
-        console.log(
-          `${debugPrefix} load:end`,
-          JSON.stringify({
-            includeDisabled,
-            loadToken
-          })
-        )
       }
     }
 
@@ -252,20 +228,12 @@ export function useUsers(
 
     if (!db) return
 
-    console.log(
-      `${debugPrefix} selectUser:start`,
-      JSON.stringify({ id })
-    )
     const controller =
       new UserController(db)
 
     await controller.setActiveUser(id)
 
     setActiveUser(id)
-    console.log(
-      `${debugPrefix} selectUser:done`,
-      JSON.stringify({ id })
-    )
 
   }
 

@@ -36,19 +36,6 @@ export default function TabLayout() {
     activeUser
   )
   const colors = getThemeColors(themeMode)
-  const debugPrefix = "[NAV_DEBUG tabs-layout]"
-
-  useEffect(() => {
-    console.log(
-      `${debugPrefix} state`,
-      JSON.stringify({
-        dbLoading,
-        hasDb: !!db,
-        usersLoading,
-        activeUser
-      })
-    )
-  }, [activeUser, db, dbLoading, usersLoading])
 
   useEffect(() => {
     if (dbLoading || usersLoading || !db || !usersHydrated) {
@@ -56,15 +43,6 @@ export default function TabLayout() {
     }
 
     if (!activeUser) {
-      console.log(
-        `${debugPrefix} redirect-to-users`,
-        JSON.stringify({
-          dbLoading,
-          hasDb: !!db,
-          usersLoading,
-          activeUser
-        })
-      )
       router.replace("/users")
     }
   }, [
@@ -72,8 +50,7 @@ export default function TabLayout() {
     db,
     dbLoading,
     router,
-    usersLoading
-    ,
+    usersLoading,
     usersHydrated
   ])
 
