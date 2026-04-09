@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 
 import GlobalSyncButton from "@/components/GlobalSyncButton"
 import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useSyncLifecycle } from "@/hooks/useSyncLifecycle"
@@ -15,6 +16,7 @@ export default function RootLayout() {
 
   const { db } = useDatabase()
   const { activeUser, users } = useUsers(db)
+  const { activeDeviceKey } = useDeviceRegistry(db, activeUser)
   const {
     syncMode,
     syncIntervalMs,
@@ -50,6 +52,7 @@ export default function RootLayout() {
                 <GlobalSyncButton
                   db={db}
                   activeUser={activeUser}
+                  deviceKey={activeDeviceKey}
                   syncMode={syncMode}
                   syncIntervalMs={syncIntervalMs}
                   colors={colors}

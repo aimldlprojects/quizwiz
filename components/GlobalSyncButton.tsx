@@ -43,6 +43,7 @@ const AnimatedMaterialIcons =
 interface Props {
   db: SQLiteDatabase | null
   activeUser: number | null
+  deviceKey?: string | null
   syncMode: string
   syncIntervalMs: number
   colors: ThemeColors
@@ -52,6 +53,7 @@ interface Props {
 export default function GlobalSyncButton({
   db,
   activeUser,
+  deviceKey = null,
   syncMode,
   syncIntervalMs,
   colors,
@@ -347,7 +349,8 @@ export default function GlobalSyncButton({
         activeUser,
         {
           overlayLabel: "Syncing current profile...",
-          traceSource: "manual"
+          traceSource: "manual",
+          deviceKey
         }
       )
       await clearSyncDirty(db, activeUser)

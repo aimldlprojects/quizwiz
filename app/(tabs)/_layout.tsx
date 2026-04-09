@@ -1,6 +1,10 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons"
-import { Tabs, useRouter } from "expo-router"
-import { useEffect } from "react"
+import {
+  Tabs,
+  useLocalSearchParams,
+  useRouter
+} from "expo-router"
+import { useEffect, useMemo } from "react"
 import {
   ActivityIndicator,
   StyleSheet,
@@ -10,6 +14,7 @@ import {
 
 import GlobalSyncButton from "@/components/GlobalSyncButton"
 import { useDatabase } from "@/hooks/useDatabase"
+import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useSettings } from "@/hooks/useSettings"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
 import { useUsers } from "@/hooks/useUsers"
@@ -18,43 +23,69 @@ import { getThemeColors } from "@/styles/theme"
 export default function TabLayout() {
 
   const router = useRouter()
+  const params = useLocalSearchParams<{
+    activeUser?: string | string[]
+  }>()
   const {
     db,
-    loading: dbLoading
+    loading: dbLoading,
+    stageLabel,
+    progress
   } = useDatabase()
   const {
     activeUser,
     hydrated: usersHydrated,
     loading: usersLoading
   } = useUsers(db)
+  const { activeDeviceKey } =
+    useDeviceRegistry(db, activeUser)
+  const activeUserFromRoute = useMemo(() => {
+    const raw = params.activeUser
+    const value = Array.isArray(raw) ? raw[0] : raw
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0
+      ? parsed
+      : null
+  }, [params.activeUser])
+  const resolvedActiveUser =
+    activeUser ?? activeUserFromRoute
   const {
     syncMode,
     syncIntervalMs
   } = useSettings(db)
   const { themeMode } = useStudyPreferences(
     db,
-    activeUser
+    resolvedActiveUser
   )
   const colors = getThemeColors(themeMode)
 
   useEffect(() => {
-    if (dbLoading || usersLoading || !db || !usersHydrated) {
+    if (dbLoading || !db) {
       return
     }
 
-    if (!activeUser) {
+    if (
+      !resolvedActiveUser &&
+      usersHydrated &&
+      !usersLoading
+    ) {
       router.replace("/users")
     }
   }, [
-    activeUser,
     db,
     dbLoading,
     router,
     usersLoading,
-    usersHydrated
+    usersHydrated,
+    resolvedActiveUser
   ])
 
-  if (dbLoading || usersLoading || !db || !usersHydrated || !activeUser) {
+  if (dbLoading || !db) {
+    const progressPercent = Math.min(
+      Math.max(Math.round(progress * 100), 0),
+      100
+    )
+
     return (
       <View
         style={[
@@ -65,11 +96,37 @@ export default function TabLayout() {
         <ActivityIndicator color={colors.text} />
         <Text
           style={[
-            styles.loadingText,
+            styles.loadingTitle,
             { color: colors.text }
           ]}
         >
-          Loading profile...
+          Preparing quizwiz.db
+        </Text>
+        <Text
+          style={[
+            styles.loadingStage,
+            { color: colors.muted }
+          ]}
+        >
+          {stageLabel}
+        </Text>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${progressPercent}%`
+              }
+            ]}
+          />
+        </View>
+        <Text
+          style={[
+            styles.loadingDetail,
+            { color: colors.muted }
+          ]}
+        >
+          {progressPercent}% complete
         </Text>
       </View>
     )
@@ -93,7 +150,8 @@ export default function TabLayout() {
           <View style={{ marginRight: 8 }}>
             <GlobalSyncButton
               db={db}
-              activeUser={activeUser}
+              activeUser={resolvedActiveUser}
+              deviceKey={activeDeviceKey}
               syncMode={syncMode}
               syncIntervalMs={syncIntervalMs}
               colors={colors}
@@ -159,9 +217,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12
   },
-  loadingText: {
-    fontSize: 16,
+  loadingTitle: {
+    fontSize: 24,
     fontWeight: "700"
+  },
+  loadingStage: {
+    fontSize: 16
+  },
+  progressTrack: {
+    width: "72%",
+    height: 6,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 3,
+    overflow: "hidden"
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#4caf50"
+  },
+  loadingDetail: {
+    fontSize: 14
   }
 })
 

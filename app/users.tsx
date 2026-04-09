@@ -34,7 +34,12 @@ function getAvatarColor(index: number) {
 export default function UsersScreen() {
   const router = useRouter()
 
-  const { db, loading: dbLoading } =
+  const {
+    db,
+    loading: dbLoading,
+    stageLabel,
+    progress
+  } =
     useDatabase()
 
   const {
@@ -77,10 +82,31 @@ export default function UsersScreen() {
   }, [displayUsers])
 
   if (dbLoading || loading || deviceLoading || !usersHydrated) {
+    const progressPercent = Math.min(
+      Math.max(Math.round(progress * 100), 0),
+      100
+    )
+
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>
-          Loading profiles...
+        <Text style={styles.loadingTitle}>
+          Preparing quizwiz.db
+        </Text>
+        <Text style={styles.loadingStage}>
+          {stageLabel}
+        </Text>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${progressPercent}%`
+              }
+            ]}
+          />
+        </View>
+        <Text style={styles.loadingDetail}>
+          {progressPercent}% complete
         </Text>
       </SafeAreaView>
     )
@@ -333,24 +359,36 @@ export default function UsersScreen() {
                   }
 
                   const selectedUserId = activeUser
-                  router.replace("/(tabs)/topics")
+                  try {
+                    await selectUser(selectedUserId)
+                  } catch (error) {
+                    console.error(
+                      "Failed to persist active user before continue:",
+                      error
+                    )
+                  }
 
                   void (async () => {
-                    try {
-                      await selectUser(selectedUserId)
-
-                      if (!activeDevice && visibleDevices[0]) {
+                    if (!activeDevice && visibleDevices[0]) {
+                      try {
                         await setActiveDevice(
                           visibleDevices[0].backendKey
                         )
+                      } catch (error) {
+                        console.error(
+                          "Failed to set active device after continue:",
+                          error
+                        )
                       }
-                    } catch (error) {
-                      console.error(
-                        "Failed to persist active user/device after continue:",
-                        error
-                      )
                     }
                   })()
+
+                  router.replace({
+                    pathname: "/(tabs)/topics",
+                    params: {
+                      activeUser: String(selectedUserId)
+                    }
+                  })
                 }}
               >
                 <Text style={styles.continueButtonText}>
@@ -405,9 +443,39 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fbff"
   },
 
-  loadingText: {
-    fontSize: 18,
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
     color: "#1e3a5f"
+  },
+
+  loadingStage: {
+    fontSize: 16,
+    textAlign: "center",
+    color: "#475569",
+    marginBottom: 16
+  },
+
+  progressTrack: {
+    width: "72%",
+    height: 6,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 8
+  },
+
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#4caf50"
+  },
+
+  loadingDetail: {
+    fontSize: 14,
+    textAlign: "center",
+    color: "#888"
   },
 
   hero: {
