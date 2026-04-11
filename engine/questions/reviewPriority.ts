@@ -14,6 +14,41 @@ export type ReviewPriorityReviewSnapshot = {
   last_result: string | null
 }
 
+export function getReviewPriorityStageFromReview(
+  review: {
+    repetition?: number | null
+    next_review?: number | null
+    last_result?: string | null
+    nextReview?: number | null
+    lastResult?: string | null
+  },
+  now: number = Date.now()
+): ReviewPriorityStageKey {
+  const repetition = review.repetition ?? 0
+  const nextReview =
+    review.next_review ?? review.nextReview ?? null
+  const lastResult =
+    review.last_result ?? review.lastResult ?? null
+
+  if (lastResult === "again") {
+    return "wrong"
+  }
+
+  if (
+    typeof nextReview === "number" &&
+    nextReview > 0 &&
+    nextReview <= now
+  ) {
+    return "due"
+  }
+
+  if (repetition < 2) {
+    return "in_progress"
+  }
+
+  return "recently_mastered"
+}
+
 export type ReviewPriorityCard = {
   id: number
   question: string
@@ -57,27 +92,7 @@ function getCardStage(
     return "unseen"
   }
 
-  const repetition = review.repetition ?? 0
-  const nextReview = review.next_review ?? null
-  const lastResult = review.last_result ?? null
-
-  if (lastResult === "again") {
-    return "wrong"
-  }
-
-  if (
-    typeof nextReview === "number" &&
-    nextReview > 0 &&
-    nextReview <= now
-  ) {
-    return "due"
-  }
-
-  if (repetition < 2) {
-    return "in_progress"
-  }
-
-  return "recently_mastered"
+  return getReviewPriorityStageFromReview(review, now)
 }
 
 export function buildReviewPriorityStages(

@@ -24,6 +24,11 @@ const first = applyAnsweredQuestionTransition({
   stageForQuestion: {
     key: "due"
   },
+  nextReview: {
+    repetition: 0,
+    nextReview: Date.now() - 1000,
+    lastResult: "again"
+  },
   pendingCounts: originalCounts,
   answeredTransitionIds
 })
@@ -31,6 +36,7 @@ const first = applyAnsweredQuestionTransition({
 assert.equal(first.applied, true)
 assert.equal(first.pendingCounts.due, 1)
 assert.equal(first.pendingCounts.wrong, 2)
+assert.equal(first.pendingCounts.in_progress, 4)
 assert.equal(
   originalCounts.due,
   2,
@@ -53,6 +59,11 @@ const duplicate = applyAnsweredQuestionTransition({
   stageForQuestion: {
     key: "wrong"
   },
+  nextReview: {
+    repetition: 1,
+    nextReview: Date.now() + 86_400_000,
+    lastResult: "good"
+  },
   pendingCounts: first.pendingCounts,
   answeredTransitionIds
 })
@@ -63,5 +74,25 @@ assert.equal(
   1,
   "duplicate application should leave counts unchanged"
 )
+
+const secondAnsweredIds = new Set<number>()
+const second = applyAnsweredQuestionTransition({
+  questionId: 99,
+  correct: true,
+  stageForQuestion: {
+    key: "unseen"
+  },
+  nextReview: {
+    repetition: 1,
+    nextReview: Date.now() + 86_400_000,
+    lastResult: "good"
+  },
+  pendingCounts: buildPendingCounts(),
+  answeredTransitionIds: secondAnsweredIds
+})
+
+assert.equal(second.applied, true)
+assert.equal(second.pendingCounts.unseen, 2)
+assert.equal(second.pendingCounts.in_progress, 5)
 
 console.log("answeredQuestionTransition regression passed")

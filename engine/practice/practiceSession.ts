@@ -93,17 +93,13 @@ export class PracticeSession {
   ): Review {
 
     return new Review({
-
       userId: this.userId,
       questionId,
-
       repetition: r.repetition,
       interval: r.interval,
       easeFactor: r.easeFactor,
-
       nextReview: r.nextReview,
       lastResult: rating
-
     })
 
   }

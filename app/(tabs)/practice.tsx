@@ -593,6 +593,7 @@ export default function PracticeScreen() {
         questionId: practiceResult.questionId,
         correct: practiceResult.correct,
         stageForQuestion,
+        nextReview: practiceResult.review,
         pendingCounts: pendingStageCountsRef.current,
         answeredTransitionIds:
           answeredTransitionIdsRef.current
