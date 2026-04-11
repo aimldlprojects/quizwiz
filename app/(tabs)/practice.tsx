@@ -36,6 +36,9 @@ import {
   ReviewPriorityStageKey
 } from "../../engine/questions/reviewPriority"
 import {
+  applyAnsweredQuestionTransition
+} from "../../engine/questions/answeredQuestionTransition"
+import {
   isSpellingQuestionType,
   maskSpellingWordInPrompt
 } from "../../engine/questions/spellBee"
@@ -567,7 +570,6 @@ export default function PracticeScreen() {
   useEffect(() => {
     if (
       !practiceAnswered ||
-      !practiceQuestion ||
       !practiceResult
     ) {
       return
@@ -575,7 +577,7 @@ export default function PracticeScreen() {
 
     if (
       answeredTransitionIdsRef.current.has(
-        practiceQuestion.id
+        practiceResult.questionId
       )
     ) {
       return
@@ -583,36 +585,30 @@ export default function PracticeScreen() {
 
     const stageForQuestion =
       priorityCardStageRef.current[
-        String(practiceQuestion.id)
+        String(practiceResult.questionId)
       ]
-    if (!stageForQuestion) {
+
+    const transition =
+      applyAnsweredQuestionTransition({
+        questionId: practiceResult.questionId,
+        correct: practiceResult.correct,
+        stageForQuestion,
+        pendingCounts: pendingStageCountsRef.current,
+        answeredTransitionIds:
+          answeredTransitionIdsRef.current
+      })
+
+    if (!transition.applied) {
       return
     }
 
-    const sourceStageKey =
-      stageForQuestion.key as ReviewPriorityStageKey
-    const nextCounts = {
-      ...pendingStageCountsRef.current
-    }
-
-    nextCounts[sourceStageKey] = Math.max(
-      0,
-      (nextCounts[sourceStageKey] ?? 0) - 1
-    )
-
-    if (!practiceResult.correct) {
-      nextCounts.wrong =
-        (nextCounts.wrong ?? 0) + 1
-    }
-
-    pendingStageCountsRef.current = nextCounts
-    setPendingStageCounts(nextCounts)
-    answeredTransitionIdsRef.current.add(
-      practiceQuestion.id
+    pendingStageCountsRef.current =
+      transition.pendingCounts
+    setPendingStageCounts(
+      transition.pendingCounts
     )
   }, [
     practiceAnswered,
-    practiceQuestion,
     practiceResult
   ])
 

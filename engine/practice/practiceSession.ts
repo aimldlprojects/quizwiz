@@ -153,6 +153,7 @@ export class PracticeSession {
     )
 
     return {
+      questionId: this.currentQuestion.id,
       correct: isCorrect,
       correctAnswer,
       rating: effectiveRating,
