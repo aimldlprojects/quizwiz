@@ -374,6 +374,74 @@ Why this design:
 
 ---
 
+## 10B) FAQ: question sequence
+
+### 1. On the first practice run, what comes first?
+
+- If random order is off, all `unseen` cards come first.
+- They follow the topic sequence order, which is effectively the stable DB order for that topic tree.
+- After `unseen`, the queue continues with `in_progress`, `recently_mastered`, and due cards based on the current stage rules.
+
+### 2. If I answer a card correctly for the first time, where does it go?
+
+- It moves out of `unseen`.
+- If it has not reached its next scheduled review yet, it is usually `in_progress`.
+- Once its `next_review` time arrives, it becomes `due`.
+
+### 3. If a card was answered wrong several times and then later answered correctly, how is it ordered?
+
+- Current practice order does not sort by total attempts.
+- The queue uses the live stage first:
+  - `wrong`
+  - `due`
+  - `unseen`
+  - `in_progress`
+  - `recently_mastered`
+- So a card with fewer attempts can still appear later if its stage has lower priority.
+
+### 4. If two cards are in the same stage and random order is off, which one comes first?
+
+- The lower sequence / lower `id` card comes first.
+- Same-day or same-hour practice history does not change this order by itself.
+
+### 5. What happens when I press "Practice more"?
+
+- It starts another practice session.
+- If there are `due` cards, they come first.
+- If there are no `due` cards, the remaining cards follow the normal sequence order for that stage.
+
+### 6. When will a mastered card come back?
+
+- A mastered card returns when its `next_review` time is reached.
+- If it is not due yet, it stays out of the `due` bucket.
+
+### 7. What if all cards in the topic are finished and nothing is due yet?
+
+- The practice queue becomes empty for now.
+- The UI shows `Topic complete`.
+- The user can press `Practice more` to start another session, but nothing will move into `due` until its scheduled time arrives.
+
+### 8. Why might a card with more correct answers not appear first?
+
+- Because ordering is driven by stage and schedule, not raw attempt count.
+- A card with many correct answers may be `recently_mastered` and appear after `due` or `in_progress` cards.
+
+### 9. How do `wrong`, `due`, `in_progress`, and `recently_mastered` differ?
+
+- `wrong`: last result was wrong.
+- `due`: the review timestamp has passed.
+- `in_progress`: the card has not yet built enough repetition history.
+- `recently_mastered`: the card is completed for now and will return on its next review cycle.
+
+### 10. What should I check when sequence looks unexpected?
+
+- Confirm whether random order is off.
+- Confirm the card stage using `next_review`, `repetition`, and `last_result`.
+- Check whether the card is actually `due` or still `recently_mastered`.
+- Check whether you are looking at the current session or a restarted session.
+
+---
+
 ## 11) Maintenance notes for future app versions
 
 When changing question flow, always update this doc if any of these change:
