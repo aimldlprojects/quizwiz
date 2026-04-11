@@ -5,14 +5,10 @@ import {
   useRouter
 } from "expo-router"
 import { useEffect, useMemo } from "react"
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  View
-} from "react-native"
+import { StyleSheet, View } from "react-native"
 
 import GlobalSyncButton from "@/components/GlobalSyncButton"
+import BootstrapLoadingCard from "@/components/BootstrapLoadingCard"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useSettings } from "@/hooks/useSettings"
@@ -30,7 +26,8 @@ export default function TabLayout() {
     db,
     loading: dbLoading,
     stageLabel,
-    progress
+    progress,
+    error
   } = useDatabase()
   const {
     activeUser,
@@ -81,11 +78,6 @@ export default function TabLayout() {
   ])
 
   if (dbLoading || !db) {
-    const progressPercent = Math.min(
-      Math.max(Math.round(progress * 100), 0),
-      100
-    )
-
     return (
       <View
         style={[
@@ -93,41 +85,18 @@ export default function TabLayout() {
           { backgroundColor: colors.background }
         ]}
       >
-        <ActivityIndicator color={colors.text} />
-        <Text
-          style={[
-            styles.loadingTitle,
-            { color: colors.text }
-          ]}
-        >
-          Preparing quizwiz.db
-        </Text>
-        <Text
-          style={[
-            styles.loadingStage,
-            { color: colors.muted }
-          ]}
-        >
-          {stageLabel}
-        </Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${progressPercent}%`
-              }
-            ]}
-          />
-        </View>
-        <Text
-          style={[
-            styles.loadingDetail,
-            { color: colors.muted }
-          ]}
-        >
-          {progressPercent}% complete
-        </Text>
+        <BootstrapLoadingCard
+          colors={colors}
+          title="Preparing quizwiz.db"
+          stageLabel={stageLabel}
+          progressPercent={Math.min(
+            Math.max(Math.round(progress * 100), 0),
+            100
+          )}
+          message={error}
+          messageColor="#b45309"
+          compact
+        />
       </View>
     )
   }
@@ -216,27 +185,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 12
-  },
-  loadingTitle: {
-    fontSize: 24,
-    fontWeight: "700"
-  },
-  loadingStage: {
-    fontSize: 16
-  },
-  progressTrack: {
-    width: "72%",
-    height: 6,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 3,
-    overflow: "hidden"
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#4caf50"
-  },
-  loadingDetail: {
-    fontSize: 14
   }
 })
 

@@ -18,6 +18,7 @@ import {
   setActiveDeviceBackendKey,
   setAllowedDeviceBackendKeys
 } from "./deviceRegistryRepository"
+import type { InitDBReporter } from "./initDB"
 
 const USERS = [
   [1, "Bhavi"],
@@ -320,11 +321,14 @@ const TABLE_QUESTION_ID_MAP = new Map(
 )
 
 export async function seedData(
-  db: SQLiteDatabase
+  db: SQLiteDatabase,
+  reporter?: InitDBReporter | null
 ) {
 
+  reportSeedStep(reporter, "Cleaning legacy curriculum")
   await cleanupLegacyCurriculum(db)
 
+  reportSeedStep(reporter, "Seeding users")
   for (const [id, name] of USERS) {
     await db.runAsync(
       `
@@ -337,6 +341,7 @@ export async function seedData(
     )
   }
 
+  reportSeedStep(reporter, "Seeding subjects and topics")
   const subjectIds =
     await seedSubjects(db)
   const topicIds =
@@ -344,8 +349,10 @@ export async function seedData(
   const userSubjectRepo =
     new UserSubjectRepository(db)
 
+  reportSeedStep(reporter, "Seeding badges")
   await seedBadges(db)
 
+  reportSeedStep(reporter, "Seeding curriculum assignments")
   for (const [id] of USERS) {
     const existingAssignments =
       await db.getFirstAsync<{
@@ -386,6 +393,7 @@ export async function seedData(
     }
   }
 
+  reportSeedStep(reporter, "Seeding question bank")
   for (const seed of QUESTION_SEEDS) {
     const topicId =
       topicIds[seed.topicKey]
@@ -430,6 +438,7 @@ export async function seedData(
     )
   }
 
+  reportSeedStep(reporter, "Seeding table questions")
   for (const seed of TABLE_QUESTION_SEEDS) {
     const topicId =
       topicIds[seed.topicKey]
@@ -465,6 +474,7 @@ export async function seedData(
     )
   }
 
+  reportSeedStep(reporter, "Remapping legacy references")
   await remapTableQuestionReferences(db, topicIds)
 
   // Remove legacy fill-in-the-blank prompt rows so old question text
@@ -481,8 +491,18 @@ export async function seedData(
     `
   )
 
+  reportSeedStep(reporter, "Seeding devices")
   await seedDefaultDevices(db)
 
+}
+
+function reportSeedStep(
+  reporter: InitDBReporter | null | undefined,
+  message: string
+) {
+  if (reporter) {
+    reporter(message)
+  }
 }
 
 async function remapTableQuestionReferences(

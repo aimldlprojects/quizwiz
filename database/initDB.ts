@@ -2,50 +2,89 @@ import { SQLiteDatabase } from "expo-sqlite"
 import { seedData } from "./seedData"
 import { DEFAULT_SYNC_MODE } from "@/config/curriculum"
 
+const DB_SCHEMA_VERSION = 1
+
+export type InitDBReporter = (message: string) => void
+
+function reportInitStep(
+  reporter: InitDBReporter | null | undefined,
+  message: string
+) {
+  if (reporter) {
+    reporter(message)
+  }
+}
+
 /*
 --------------------------------------------------
 Initialize All Database Tables
 --------------------------------------------------
 */
 
-export async function initDB(db: SQLiteDatabase) {
+export async function initDB(
+  db: SQLiteDatabase,
+  reporter?: InitDBReporter | null
+) {
+  const currentSchemaVersion =
+    await getSchemaVersion(db)
 
+  if (currentSchemaVersion >= DB_SCHEMA_VERSION) {
+    reportInitStep(reporter, "Schema already up to date")
+    return
+  }
+
+  reportInitStep(reporter, "Creating user tables")
   await createUsersTable(db)
   await migrateUsersTable(db)
 
+  reportInitStep(reporter, "Creating subject tables")
   await createSubjectsTable(db)
   await createUserSubjectsTable(db)
   await createUserTopicsTable(db)
 
+  reportInitStep(reporter, "Creating topic tables")
   await createTopicsTable(db)
   await migrateTopicsTable(db)
   await createTopicsIndexes(db)
 
+  reportInitStep(reporter, "Creating question tables")
   await createQuestionsTable(db)
   await migrateQuestionsTable(db)
   await createQuestionsIndexes(db)
 
+  reportInitStep(reporter, "Creating review tables")
   await createReviewsTable(db)
   await migrateReviewsTable(db)
 
+  reportInitStep(reporter, "Creating practice tables")
   await createPracticeSessionsTable(db)
 
+  reportInitStep(reporter, "Creating sync tables")
   await createSyncMetaTable(db)
 
+  reportInitStep(reporter, "Creating settings tables")
   await createSettingsTable(db)
   await migrateSettingsTable(db)
 
+  reportInitStep(reporter, "Creating badge tables")
   await createBadgesTable(db)
 
+  reportInitStep(reporter, "Creating streak tables")
   await createUserStreakTable(db)
 
+  reportInitStep(reporter, "Creating stats tables")
   await createStatsTable(db)
   await migrateStatsTable(db)
 
+  reportInitStep(reporter, "Creating user badge tables")
   await createUserBadgesTable(db)
   await migrateUserBadgesTable(db)
 
-  await seedData(db)
+  reportInitStep(reporter, "Saving schema version")
+  await setSchemaVersion(db, DB_SCHEMA_VERSION)
+
+  reportInitStep(reporter, "Seeding curriculum data")
+  await seedData(db, reporter)
 
 }
 
@@ -64,6 +103,26 @@ async function createUsersTable(db: SQLiteDatabase) {
       disabled INTEGER NOT NULL DEFAULT 0
     )
   `)
+
+}
+
+async function getSchemaVersion(db: SQLiteDatabase) {
+  const row =
+    await db.getFirstAsync<{ user_version: number }>(
+      `PRAGMA user_version`
+    )
+
+  return Number(row?.user_version ?? 0)
+}
+
+async function setSchemaVersion(
+  db: SQLiteDatabase,
+  version: number
+) {
+
+  await db.execAsync(
+    `PRAGMA user_version = ${Math.max(0, version)}`
+  )
 
 }
 

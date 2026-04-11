@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useEffect, useState } from "react"
 
 import HomeStats from "../components/HomeStats"
+import BootstrapLoadingCard from "../components/BootstrapLoadingCard"
 
 import { StreakController } from "../controllers/streakController"
 import { StatsRepository } from "../database/statsRepository"
@@ -72,14 +73,17 @@ export default function HomeScreen() {
   if (error) {
     return (
       <SafeAreaView
-        style={styles.loadingContainer}
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
       >
-        <Text style={styles.errorTitle}>
-          Unable to open database
-        </Text>
-        <Text style={styles.errorMessage}>
-          {error}
-        </Text>
+        <BootstrapLoadingCard
+          colors={colors}
+          title="Unable to open database"
+          message={error}
+          messageColor="#b45309"
+        />
       </SafeAreaView>
     )
   }
@@ -92,32 +96,19 @@ export default function HomeScreen() {
 
     return (
       <SafeAreaView
-        style={styles.loadingContainer}
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
       >
-        <Text style={styles.loadingTitle}>
-          Preparing quizwiz.db
-        </Text>
-        <Text style={styles.loadingStage}>
-          {stageLabel}
-        </Text>
-        {connectivityStatus ? (
-          <Text style={styles.connectivityMessage}>
-            {connectivityStatus}
-          </Text>
-        ) : null}
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${progressPercent}%`
-              }
-            ]}
-          />
-        </View>
-        <Text style={styles.loadingDetail}>
-          {progressPercent}% complete
-        </Text>
+        <BootstrapLoadingCard
+          colors={colors}
+          title="Preparing quizwiz.db"
+          stageLabel={stageLabel}
+          progressPercent={progressPercent}
+          message={connectivityStatus}
+          messageColor="#ef4444"
+        />
       </SafeAreaView>
     )
   }
@@ -292,61 +283,8 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
+    alignItems: "center",
     padding: 20
   },
-
-  loadingTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8
-  },
-
-  loadingStage: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#666",
-    marginBottom: 16
-  },
-
-  progressTrack: {
-    height: 6,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 8
-  },
-
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#4caf50"
-  },
-
-  loadingDetail: {
-    fontSize: 14,
-    textAlign: "center",
-    color: "#888"
-  },
-
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-    color: "#b00020",
-    marginBottom: 8
-  },
-
-  errorMessage: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#b00020"
-  },
-
-  connectivityMessage: {
-    fontSize: 14,
-    textAlign: "center",
-    color: "#ef4444",
-    marginBottom: 12
-  }
 
 })

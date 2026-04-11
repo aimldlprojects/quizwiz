@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useMemo, useRef, useState } from "react"
 
+import BootstrapLoadingCard from "@/components/BootstrapLoadingCard"
 import { useDatabase } from "@/hooks/useDatabase"
 import { useDeviceRegistry } from "@/hooks/useDeviceRegistry"
 import { useStudyPreferences } from "@/hooks/useStudyPreferences"
@@ -88,26 +89,18 @@ export default function UsersScreen() {
     )
 
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <Text style={styles.loadingTitle}>
-          Preparing quizwiz.db
-        </Text>
-        <Text style={styles.loadingStage}>
-          {stageLabel}
-        </Text>
-        <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                width: `${progressPercent}%`
-              }
-            ]}
-          />
-        </View>
-        <Text style={styles.loadingDetail}>
-          {progressPercent}% complete
-        </Text>
+      <SafeAreaView
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background }
+        ]}
+      >
+        <BootstrapLoadingCard
+          colors={colors}
+          title="Preparing quizwiz.db"
+          stageLabel={stageLabel}
+          progressPercent={progressPercent}
+        />
       </SafeAreaView>
     )
   }
@@ -440,42 +433,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f8fbff"
-  },
-
-  loadingTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-    color: "#1e3a5f"
-  },
-
-  loadingStage: {
-    fontSize: 16,
-    textAlign: "center",
-    color: "#475569",
-    marginBottom: 16
-  },
-
-  progressTrack: {
-    width: "72%",
-    height: 6,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 3,
-    overflow: "hidden",
-    marginBottom: 8
-  },
-
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#4caf50"
-  },
-
-  loadingDetail: {
-    fontSize: 14,
-    textAlign: "center",
-    color: "#888"
+    backgroundColor: "#f8fbff",
+    padding: 20
   },
 
   hero: {

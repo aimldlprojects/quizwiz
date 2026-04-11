@@ -1,22 +1,37 @@
 import * as SQLite from "expo-sqlite"
 import { useEffect, useState } from "react"
 
+import { BOOTSTRAP_STAGE_LABELS } from "@/config/bootstrap"
 import { initDB } from "@/database/initDB"
 import { getSyncMode } from "@/database/settingsRepository"
 
-let sharedDb: SQLite.SQLiteDatabase | null =
-  null
+type BootstrapState = {
+  db: SQLite.SQLiteDatabase | null
+  loading: boolean
+  stageIndex: number
+  error: string | null
+  connectivityStatus: string | null
+}
+
+const initialBootstrapState: BootstrapState = {
+  db: null,
+  loading: true,
+  stageIndex: 0,
+  error: null,
+  connectivityStatus: null
+}
+
+let bootstrapState: BootstrapState = {
+  ...initialBootstrapState
+}
+
+const bootstrapSubscribers = new Set<
+  (state: BootstrapState) => void
+>()
+
+let sharedDb: SQLite.SQLiteDatabase | null = null
 let sharedDbPromise: Promise<SQLite.SQLiteDatabase> | null =
   null
-
-const STAGE_LABELS = [
-  "Opening database",
-  "Applying schema & seeding data",
-  "Checking sync mode",
-  "Checking remote server",
-  "Syncing remote reviews",
-  "Finalizing setup"
-]
 
 const StageIndex = {
   OPEN: 0,
@@ -27,71 +42,39 @@ const StageIndex = {
   FINALIZE: 5
 } as const
 
-let stageReporter: ((index: number) => void) | null = null
-let connectivityReporter: ((message: string | null) => void) | null = null
-
-function reportStage(index: number) {
-  if (!stageReporter) {
-    return
+function emitBootstrapState(
+  patch: Partial<BootstrapState>
+) {
+  bootstrapState = {
+    ...bootstrapState,
+    ...patch
   }
 
-  const clamped = Math.min(
-    Math.max(index, 0),
-    STAGE_LABELS.length - 1
-  )
-  stageReporter(clamped)
+  for (const subscriber of bootstrapSubscribers) {
+    subscriber(bootstrapState)
+  }
+}
+
+function reportStage(index: number) {
+  emitBootstrapState({
+    stageIndex: Math.min(
+      Math.max(index, 0),
+      BOOTSTRAP_STAGE_LABELS.length - 1
+    )
+  })
 }
 
 function reportConnectivity(message: string | null) {
-  if (!connectivityReporter) {
-    return
-  }
-
-  connectivityReporter(message)
-}
-
-async function getSharedDatabase() {
-
-  if (sharedDb) {
-    const usable = await isDatabaseUsable(sharedDb)
-
-    if (usable) {
-      return sharedDb
-    }
-
-    sharedDb = null
-    sharedDbPromise = null
-  }
-
-  if (!sharedDbPromise) {
-    sharedDbPromise = initializeDatabase().catch(
-      (err) => {
-        sharedDbPromise = null
-        throw err
-      }
-    )
-  }
-
-  sharedDb = await sharedDbPromise
-  const usable = await isDatabaseUsable(sharedDb)
-
-  if (!usable) {
-    sharedDb = null
-    sharedDbPromise = null
-    sharedDb = await initializeDatabase()
-  }
-
-  return sharedDb
-
+  emitBootstrapState({
+    connectivityStatus: message
+  })
 }
 
 async function isDatabaseUsable(
   database: SQLite.SQLiteDatabase
 ) {
   try {
-    await database.getFirstAsync(
-      "SELECT 1 AS ok"
-    )
+    await database.getFirstAsync("SELECT 1 AS ok")
     return true
   } catch {
     return false
@@ -99,10 +82,8 @@ async function isDatabaseUsable(
 }
 
 async function initializeDatabase() {
-
   reportStage(StageIndex.OPEN)
-  const database =
-    await SQLite.openDatabaseAsync("quizwiz.db")
+  const database = SQLite.openDatabaseSync("quizwiz.db")
 
   reportStage(StageIndex.APPLY_SCHEMA)
   await initDB(database)
@@ -113,78 +94,94 @@ async function initializeDatabase() {
   reportConnectivity(null)
   reportStage(StageIndex.FINALIZE)
   return database
+}
 
+async function ensureSharedDatabase() {
+  if (sharedDb) {
+    const usable = await isDatabaseUsable(sharedDb)
+    if (usable) {
+      return sharedDb
+    }
+
+    sharedDb = null
+    sharedDbPromise = null
+  }
+
+  if (!sharedDbPromise) {
+    emitBootstrapState({
+      loading: true,
+      error: null,
+      stageIndex: 0,
+      connectivityStatus: null
+    })
+
+    sharedDbPromise = initializeDatabase()
+      .then((database) => {
+        sharedDb = database
+        emitBootstrapState({
+          db: database,
+          loading: false,
+          error: null
+        })
+        return database
+      })
+      .catch((err) => {
+        sharedDb = null
+        const message =
+          err instanceof Error
+            ? err.message
+            : String(err)
+
+        emitBootstrapState({
+          loading: false,
+          error: message
+        })
+
+        throw err
+      })
+      .finally(() => {
+        sharedDbPromise = null
+      })
+  }
+
+  return sharedDbPromise
 }
 
 export function useDatabase() {
-
-  const [db, setDb] =
-    useState<SQLite.SQLiteDatabase | null>(null)
-
-  const [loading, setLoading] =
-    useState(true)
-
-  const [stageIndex, setStageIndex] =
-    useState(0)
-  const [error, setError] =
-    useState<string | null>(null)
-  const [connectivityStatus, setConnectivityStatus] =
-    useState<string | null>(null)
-
-  const clampedStageIndex = Math.min(
-    Math.max(stageIndex, 0),
-    STAGE_LABELS.length - 1
-  )
-
-  const stageLabel = STAGE_LABELS[clampedStageIndex]
-
-  const progress =
-    STAGE_LABELS.length <= 1
-      ? 1
-      : clampedStageIndex /
-        (STAGE_LABELS.length - 1)
+  const [state, setState] =
+    useState<BootstrapState>(() => bootstrapState)
 
   useEffect(() => {
+    bootstrapSubscribers.add(setState)
+    setState(bootstrapState)
 
-    void init()
+    void ensureSharedDatabase()
 
+    return () => {
+      bootstrapSubscribers.delete(setState)
+    }
   }, [])
 
-  async function init() {
+  const clampedStageIndex = Math.min(
+    Math.max(state.stageIndex, 0),
+    BOOTSTRAP_STAGE_LABELS.length - 1
+  )
 
-    setError(null)
-    setStageIndex(0)
-    stageReporter = setStageIndex
-    connectivityReporter =
-      setConnectivityStatus
+  const stageLabel =
+    BOOTSTRAP_STAGE_LABELS[clampedStageIndex]
 
-    try {
-      const database =
-        await getSharedDatabase()
-
-      setDb(database)
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : String(err)
-
-      setError(message)
-    } finally {
-      setLoading(false)
-      stageReporter = null
-      connectivityReporter = null
-    }
-
-  }
+  const progress =
+    BOOTSTRAP_STAGE_LABELS.length <= 1
+      ? 1
+      : clampedStageIndex /
+        (BOOTSTRAP_STAGE_LABELS.length - 1)
 
   return {
-    db,
-    loading,
+    db: state.db,
+    loading: state.loading,
     stageLabel,
     progress,
-    error,
-    connectivityStatus
+    error: state.error,
+    connectivityStatus: state.connectivityStatus
   }
-
 }
