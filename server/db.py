@@ -31,34 +31,12 @@ def get_db():
     return conn
 
 
-def fetch_rows(query, params=None):
-
-    conn = get_db()
-    cur = conn.cursor()
-
-    try:
-        cur.execute(query, params or ())
-
-        columns = [
-            desc[0]
-            for desc in cur.description or []
-        ]
-
-        rows = cur.fetchall()
-
-        return [
-            dict(zip(columns, row))
-            for row in rows
-        ]
-    finally:
-        cur.close()
-        conn.close()
-
-
-def execute_query(
+def _run_query(
     query,
     params=None,
-    fetch=False
+    *,
+    fetch=False,
+    commit=False
 ):
 
     conn = get_db()
@@ -66,65 +44,78 @@ def execute_query(
 
     try:
         cur.execute(query, params or ())
-        conn.commit()
 
-        if not fetch:
-            return cur.rowcount
+        if fetch:
+            columns = [
+                desc[0]
+                for desc in cur.description or []
+            ]
 
-        columns = [
-            desc[0]
-            for desc in cur.description or []
-        ]
+            rows = cur.fetchall()
 
-        rows = cur.fetchall()
+            result = [
+                dict(zip(columns, row))
+                for row in rows
+            ]
+        else:
+            result = cur.rowcount
 
-        return [
-            dict(zip(columns, row))
-            for row in rows
-        ]
+        if commit:
+            conn.commit()
+
+        return result
     except Exception:
-        conn.rollback()
+        if commit:
+            conn.rollback()
         raise
     finally:
         cur.close()
         conn.close()
 
 
+def fetch_rows(query, params=None):
+
+    return _run_query(
+        query,
+        params,
+        fetch=True
+    )
+
+def fetch_df(query, params=None):
+    return pd.DataFrame(fetch_rows(query, params))
+
+def execute_write(
+    query,
+    params=None
+):
+
+    return _run_query(
+        query,
+        params,
+        commit=True
+    )
+
+
 def fetch_table_rows(
     table_name,
     limit=None
 ):
+    query = sql.SQL(
+        "SELECT * FROM {}"
+    ).format(sql.Identifier(table_name))
 
-    conn = get_db()
-    cur = conn.cursor()
-
-    try:
+    params = None
+    if limit is not None:
         query = sql.SQL(
-            "SELECT * FROM {}"
-        ).format(sql.Identifier(table_name))
+            "{} LIMIT %s"
+        ).format(query)
+        params = (limit,)
 
-        if limit is not None:
-            query = sql.SQL(
-                "{} LIMIT %s"
-            ).format(query)
-            cur.execute(query, (limit,))
-        else:
-            cur.execute(query)
-
-        columns = [
-            desc[0]
-            for desc in cur.description or []
-        ]
-
-        rows = cur.fetchall()
-
-        return [
-            dict(zip(columns, row))
-            for row in rows
-        ]
-    finally:
-        cur.close()
-        conn.close()
+    return _run_query(
+        query,
+        params,
+        fetch=True
+    )
 
 
 def fetch_table_df(
@@ -145,16 +136,3 @@ def fetch_table_df(
     return pd.DataFrame(rows)
 
 
-def print_table_df(
-    table_name,
-    limit=None
-):
-
-    df = fetch_table_df(
-        table_name,
-        limit
-    )
-
-    print(df)
-
-    return df

@@ -4,11 +4,10 @@ from typing import Any, Iterable, Mapping, Optional
 import psycopg2
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from psycopg2.extras import RealDictCursor
 
 import traceback
 
-from db import get_db, get_db_config
+from db import fetch_rows, get_db, get_db_config
 from repositories.review_repository import (
     get_review_changes,
     get_changes_since_rev,
@@ -284,44 +283,38 @@ def pull_reviews(
 
 @router.get("/status")
 def sync_status(user_id: int = Query(...)):
-    conn = get_db()
+    rows = fetch_rows(
+        """
+        SELECT
+            last_push,
+            last_pull,
+            last_error,
+            sync_status,
+            last_sync_time
+        FROM sync_meta
+        WHERE user_id = %s
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+    row = rows[0] if rows else None
 
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT
-                    last_push,
-                    last_pull,
-                    last_error,
-                    sync_status,
-                    last_sync_time
-                FROM sync_meta
-                WHERE user_id = %s
-                LIMIT 1
-                """,
-                (user_id,),
-            )
-            row = cur.fetchone()
-
-        if not row:
-            return {
-                "status": "unknown",
-                "last_push": None,
-                "last_pull": None,
-                "last_error": None,
-                "last_sync_time": None,
-            }
-
+    if not row:
         return {
-            "status": row["sync_status"] or "unknown",
-            "last_push": row["last_push"].isoformat() if row["last_push"] else None,
-            "last_pull": row["last_pull"].isoformat() if row["last_pull"] else None,
-            "last_error": row["last_error"],
-            "last_sync_time": row["last_sync_time"],
+            "status": "unknown",
+            "last_push": None,
+            "last_pull": None,
+            "last_error": None,
+            "last_sync_time": None,
         }
-    finally:
-        conn.close()
+
+    return {
+        "status": row["sync_status"] or "unknown",
+        "last_push": row["last_push"].isoformat() if row["last_push"] else None,
+        "last_pull": row["last_pull"].isoformat() if row["last_pull"] else None,
+        "last_error": row["last_error"],
+        "last_sync_time": row["last_sync_time"],
+    }
 
 
 @router.get("/due")
@@ -329,35 +322,21 @@ def get_due_reviews(
     user_id: int,
     limit: int = 20,
 ):
-
-    config = get_db_config()
-    conn = psycopg2.connect(**config)
-
-    try:
-        with conn.cursor(
-            cursor_factory=RealDictCursor
-        ) as cur:
-            cur.execute(
-                """
-                SELECT *
-                FROM reviews
-                WHERE user_id = %s
-                AND (
-                    next_review IS NULL
-                    OR next_review <=
-                      EXTRACT(EPOCH FROM NOW()) * 1000
-                )
-                ORDER BY rev_id ASC
-                LIMIT %s
-                """,
-                (user_id, limit),
-            )
-
-            rows = cur.fetchall()
-
-            return rows
-    finally:
-        conn.close()
+    return fetch_rows(
+        """
+        SELECT *
+        FROM reviews
+        WHERE user_id = %s
+        AND (
+            next_review IS NULL
+            OR next_review <=
+              EXTRACT(EPOCH FROM NOW()) * 1000
+        )
+        ORDER BY rev_id ASC
+        LIMIT %s
+        """,
+        (user_id, limit),
+    )
 
 
 @router.post("/update")

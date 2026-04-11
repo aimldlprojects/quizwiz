@@ -1,25 +1,13 @@
-import psycopg2
-import os
+from pathlib import Path
+import sys
 
-DB_CONFIG = {
-    "host": os.getenv("QUIZWIZ_DB_HOST", "localhost"),
-    "database": os.getenv("QUIZWIZ_DB_NAME", "quizwiz"),
-    "user": os.getenv("QUIZWIZ_DB_USER", "postgres"),
-    "password": os.getenv("QUIZWIZ_DB_PASSWORD", "password"),
-    "port": int(os.getenv("QUIZWIZ_DB_PORT", "5432")),
-}
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-conn = psycopg2.connect(**DB_CONFIG)
-cursor = conn.cursor()
+from server import db as server_db
 
-cursor.execute("SELECT * FROM reviews LIMIT 10")
-
-rows = cursor.fetchall()
+rows = server_db.fetch_table_rows("reviews", 10)
 
 print("\nREVIEWS TABLE\n")
 
-for r in rows:
-    print(r)
-
-cursor.close()
-conn.close()
+for row in rows:
+    print(row)

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import pytest
 import requests
 
-from db import execute_query, fetch_rows
+from db import execute_write, fetch_rows
 
 BASE_URL = "http://192.168.29.74:8000"
 
@@ -12,26 +12,26 @@ BASE_URL = "http://192.168.29.74:8000"
 @pytest.fixture(autouse=True)
 def clean_sync_test_rows():
 
-    execute_query(
+    execute_write(
         "DELETE FROM settings WHERE key='sync_conflict_setting'"
     )
-    execute_query(
-        "DELETE FROM user_badges WHERE badge_id='conflict_badge'"
+    execute_write(
+        "DELETE FROM user_badges WHERE badge_id='conflict_badge'",
     )
-    execute_query(
-        "DELETE FROM stats WHERE question_id IN ('conflict_test','roundtrip_question')"
+    execute_write(
+        "DELETE FROM stats WHERE question_id IN ('conflict_test','roundtrip_question')",
     )
 
     yield
 
-    execute_query(
+    execute_write(
         "DELETE FROM settings WHERE key='sync_conflict_setting'"
     )
-    execute_query(
-        "DELETE FROM user_badges WHERE badge_id='conflict_badge'"
+    execute_write(
+        "DELETE FROM user_badges WHERE badge_id='conflict_badge'",
     )
-    execute_query(
-        "DELETE FROM stats WHERE question_id IN ('conflict_test','roundtrip_question')"
+    execute_write(
+        "DELETE FROM stats WHERE question_id IN ('conflict_test','roundtrip_question')",
     )
 
 

@@ -92,12 +92,12 @@ def backup_master_db():
     print("Master backup written to", destination)
 
 
-def fetch_spell_bee_topic_ids(cursor):
+def fetch_spell_bee_topic_ids():
     keys = [
         *SPELL_BEE_TOPIC_KEYS_BY_LENGTH.values(),
         *SCIENCE_TOPIC_KEY_BY_LENGTH.values(),
     ]
-    cursor.execute(
+    rows = server_db.fetch_rows(
         """
         SELECT key, id
         FROM topics
@@ -105,7 +105,6 @@ def fetch_spell_bee_topic_ids(cursor):
         """,
         (keys,),
     )
-    rows = cursor.fetchall()
     return {key: topic_id for key, topic_id in rows}
 
 
@@ -146,7 +145,7 @@ def ingest_spellbee_data():
     skipped_bad_row = 0
 
     try:
-        topic_ids_by_key = fetch_spell_bee_topic_ids(cursor)
+        topic_ids_by_key = fetch_spell_bee_topic_ids()
 
         with open(CSV_PATH, newline="", encoding="utf-8") as file:
             reader = csv.DictReader(file)
