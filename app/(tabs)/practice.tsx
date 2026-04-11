@@ -73,6 +73,19 @@ function getKeyboardType(answer: unknown) {
 
 }
 
+type PriorityStageCard = {
+  id: number
+  question: string
+  answer: string | number
+  type?: string
+}
+
+type PriorityStageData = {
+  key: string
+  label: string
+  cards: PriorityStageCard[]
+}
+
 export default function PracticeScreen() {
   const isFocused = useIsFocused()
 
@@ -151,6 +164,8 @@ export default function PracticeScreen() {
         count: number
       }>
     >([])
+  const [priorityStageLoading, setPriorityStageLoading] =
+    useState(false)
   const [pendingStageCounts, setPendingStageCounts] =
     useState<Record<ReviewPriorityStageKey, number>>({
       wrong: 0,
@@ -194,6 +209,201 @@ export default function PracticeScreen() {
     [db, selectedTopicId]
   )
 
+  const loadPriorityStageData = useCallback(
+    async (): Promise<PriorityStageData[] | null> => {
+      if (!db || !activeUser || !selectedTopicId) {
+        setPriorityStageLoading(false)
+        return null
+      }
+
+      setPriorityStageLoading(true)
+      try {
+        const topic = await getTopicById(
+          db,
+          selectedTopicId
+        )
+        const topicKey = topic?.key ?? ""
+        const sessionKey = [
+          activeUser,
+          selectedTopicId,
+          topicKey,
+          practiceRandomOrderEnabled
+            ? "random_on"
+            : "random_off",
+          preferredStageKey ?? "default_priority"
+        ].join(":")
+
+        if (
+          prioritySessionKeyRef.current === sessionKey &&
+          priorityStagesRef.current.length > 0
+        ) {
+          return priorityStagesRef.current
+        }
+
+        const topics = await getAllTopics(db)
+        const topicIds = getDescendantTopicIds(
+          topics,
+          selectedTopicId
+        )
+        const rows = await getQuestionsForTopicTree(
+          db,
+          topicIds,
+          undefined,
+          "sequence"
+        )
+
+        const allCards: PriorityStageCard[] = rows.map(
+          (row) => ({
+            id: row.id,
+            question: row.question,
+            answer: Number.isNaN(Number(row.answer))
+              ? row.answer
+              : Number(row.answer),
+            type: row.type ?? undefined
+          })
+        )
+
+        const reviews =
+          allCards.length === 0
+            ? []
+            : await db.getAllAsync<ReviewPriorityReviewSnapshot>(
+                `
+                SELECT
+                  question_id,
+                  repetition,
+                  next_review,
+                  last_result
+                FROM reviews
+                WHERE user_id = ?
+                  AND question_id IN (${allCards
+                    .map(() => "?")
+                    .join(", ")})
+                `,
+                [
+                  activeUser,
+                  ...allCards.map((card) => card.id)
+                ]
+              )
+
+        const stages = buildReviewPriorityStages(
+          allCards,
+          reviews,
+          {
+            shuffleWithinStage:
+              practiceRandomOrderEnabled
+          }
+        )
+
+        setPriorityStageSummary(
+          stages.map((stage) => ({
+            key: stage.key,
+            label: stage.label,
+            count: stage.cards.length
+          }))
+        )
+        pendingStageCountsRef.current = stages.reduce<
+          Record<ReviewPriorityStageKey, number>
+        >(
+          (acc, stage) => {
+            const stageKey =
+              stage.key as ReviewPriorityStageKey
+            acc[stageKey] = stage.cards.length
+            return acc
+          },
+          {
+            wrong: 0,
+            due: 0,
+            unseen: 0,
+            in_progress: 0,
+            recently_mastered: 0
+          }
+        )
+        setPendingStageCounts(
+          stages.reduce<
+            Record<ReviewPriorityStageKey, number>
+          >(
+            (acc, stage) => {
+              const stageKey =
+                stage.key as ReviewPriorityStageKey
+              acc[stageKey] = stage.cards.length
+              return acc
+            },
+            {
+              wrong: 0,
+              due: 0,
+              unseen: 0,
+              in_progress: 0,
+              recently_mastered: 0
+            }
+          )
+        )
+        answeredTransitionIdsRef.current.clear()
+        priorityCardStageRef.current = stages.reduce<
+          Record<
+            string,
+            {
+              key: string
+              label: string
+              position: number
+              total: number
+            }
+          >
+        >((acc, stage) => {
+          const total = stage.cards.length
+          stage.cards.forEach((card, index) => {
+            acc[String(card.id)] = {
+              key: stage.key,
+              label: stage.label,
+              position: index + 1,
+              total
+            }
+          })
+          return acc
+        }, {})
+
+        const activeStagesByPriority = stages.filter(
+          (stage) => stage.cards.length > 0
+        )
+        const selectedStage =
+          preferredStageKey == null
+            ? undefined
+            : activeStagesByPriority.find(
+                (stage) =>
+                  stage.key === preferredStageKey
+              )
+        const activeStages =
+          selectedStage == null
+            ? activeStagesByPriority
+            : [
+                selectedStage,
+                ...activeStagesByPriority.filter(
+                  (stage) =>
+                    stage.key !== preferredStageKey
+                )
+              ]
+
+        priorityStagesRef.current = activeStages
+        priorityStageIndexRef.current = 0
+        priorityStageCursorRef.current = 0
+        prioritySessionKeyRef.current = sessionKey
+        setPriorityStageLabel(
+          activeStages[0]?.label ?? null
+        )
+
+        return activeStages
+      } finally {
+        setPriorityStageLoading(false)
+      }
+    },
+    [
+      activeUser,
+      db,
+      preferredStageKey,
+      practiceRandomOrderEnabled,
+      selectedTopicId
+    ]
+  )
+
   const resetPrioritySession =
     useCallback(() => {
     priorityStagesRef.current = []
@@ -232,6 +442,16 @@ export default function PracticeScreen() {
   useEffect(() => {
     setPreferredStageKey(null)
   }, [activeUser, selectedTopicId])
+
+  useEffect(() => {
+    void loadPriorityStageData()
+  }, [
+    loadPriorityStageData,
+    activeUser,
+    selectedTopicId,
+    practiceRandomOrderEnabled,
+    preferredStageKey
+  ])
 
   useEffect(() => {
 
@@ -293,188 +513,14 @@ export default function PracticeScreen() {
         loadQuestions: async (
           limit: number
         ) => {
-          const topic =
-            await getTopicById(
-              db,
-              selectedTopicId
-            )
-          const topicKey = topic?.key ?? ""
-          const sessionKey = [
-            activeUser,
-            selectedTopicId,
-            topicKey,
-            practiceRandomOrderEnabled
-              ? "random_on"
-              : "random_off",
-            preferredStageKey ?? "default_priority"
-          ].join(":")
+          const activeStages =
+            await loadPriorityStageData()
 
           if (
-            prioritySessionKeyRef.current !==
-            sessionKey
+            !activeStages ||
+            activeStages.length === 0
           ) {
-            let allCards: Array<{
-              id: number
-              question: string
-              answer: string | number
-              type?: string
-            }> = []
-
-            const topics =
-              await getAllTopics(db)
-            const topicIds =
-              getDescendantTopicIds(
-                topics,
-                selectedTopicId
-              )
-            const rows =
-              await getQuestionsForTopicTree(
-                db,
-                topicIds,
-                undefined,
-                "sequence"
-              )
-
-            allCards = rows.map((row) => ({
-              id: row.id,
-              question: row.question,
-              answer: Number.isNaN(
-                Number(row.answer)
-              )
-                ? row.answer
-                : Number(row.answer),
-              type: row.type ?? undefined
-            }))
-
-            const reviews =
-              allCards.length === 0
-                ? []
-                : await db.getAllAsync<ReviewPriorityReviewSnapshot>(
-                    `
-                    SELECT
-                      question_id,
-                      repetition,
-                      next_review,
-                      last_result
-                    FROM reviews
-                    WHERE user_id = ?
-                      AND question_id IN (${allCards
-                        .map(() => "?")
-                        .join(", ")})
-                    `,
-                    [
-                      activeUser,
-                      ...allCards.map((card) => card.id)
-                    ]
-                  )
-
-            const stages =
-              buildReviewPriorityStages(
-                allCards,
-                reviews,
-                {
-                  shuffleWithinStage:
-                    practiceRandomOrderEnabled
-                }
-              )
-
-            setPriorityStageSummary(
-              stages.map((stage) => ({
-                key: stage.key,
-                label: stage.label,
-                count: stage.cards.length
-              }))
-            )
-            pendingStageCountsRef.current = stages.reduce<
-              Record<ReviewPriorityStageKey, number>
-            >(
-              (acc, stage) => {
-                const stageKey =
-                  stage.key as ReviewPriorityStageKey
-                acc[stageKey] = stage.cards.length
-                return acc
-              },
-              {
-                wrong: 0,
-                due: 0,
-                unseen: 0,
-                in_progress: 0,
-                recently_mastered: 0
-              }
-            )
-            setPendingStageCounts(
-              stages.reduce<
-                Record<ReviewPriorityStageKey, number>
-              >(
-                (acc, stage) => {
-                  const stageKey =
-                    stage.key as ReviewPriorityStageKey
-                  acc[stageKey] = stage.cards.length
-                  return acc
-                },
-                {
-                  wrong: 0,
-                  due: 0,
-                  unseen: 0,
-                  in_progress: 0,
-                  recently_mastered: 0
-                }
-              )
-            )
-            answeredTransitionIdsRef.current.clear()
-            priorityCardStageRef.current =
-              stages.reduce<
-                Record<
-                  string,
-                  {
-                    key: string
-                    label: string
-                    position: number
-                    total: number
-                  }
-                >
-              >((acc, stage) => {
-                const total = stage.cards.length
-                stage.cards.forEach((card, index) => {
-                  acc[String(card.id)] = {
-                    key: stage.key,
-                    label: stage.label,
-                    position: index + 1,
-                    total
-                  }
-                })
-                return acc
-              }, {})
-
-            const activeStagesByPriority = stages.filter(
-              (stage) => stage.cards.length > 0
-            )
-            const selectedStage =
-              preferredStageKey == null
-                ? undefined
-                : activeStagesByPriority.find(
-                    (stage) =>
-                      stage.key === preferredStageKey
-                  )
-            const activeStages =
-              selectedStage == null
-                ? activeStagesByPriority
-                : [
-                    selectedStage,
-                    ...activeStagesByPriority.filter(
-                      (stage) =>
-                        stage.key !== preferredStageKey
-                    )
-                  ]
-
-            priorityStagesRef.current = activeStages
-            priorityStageIndexRef.current = 0
-            priorityStageCursorRef.current = 0
-            prioritySessionKeyRef.current =
-              sessionKey
-            setPriorityStageLabel(
-              activeStages[0]?.label ?? null
-            )
+            return []
           }
 
           let stage =
@@ -538,7 +584,8 @@ export default function PracticeScreen() {
     scopedDeviceKey,
     practiceRandomOrderEnabled,
     preferredStageKey,
-    getPracticeTopicIds
+    getPracticeTopicIds,
+    loadPriorityStageData
   ])
 
   const practice = usePractice(controller)
@@ -1145,6 +1192,9 @@ export default function PracticeScreen() {
         }
       }
     )
+    const summaryLoading =
+      priorityStageLoading &&
+      priorityStageSummary.length === 0
 
     return (
       <>
@@ -1169,40 +1219,61 @@ export default function PracticeScreen() {
           Progress: {stageCardNumber}/{stageTotal || 1}
         </Text>
         <View style={styles.queueSummaryWrap}>
-          {queueSummary.map((queue) => (
-            <Pressable
-              key={queue.key}
-              onPress={() =>
-                handleQueueSelection(
-                  queue.key as ReviewPriorityStageKey
-                )
-              }
+          {summaryLoading ? (
+            <View
               style={[
                 styles.queueSummaryItem,
                 {
-                  backgroundColor: queue.active
-                    ? colors.iconActive
-                    : colors.surface,
-                  borderColor: queue.active
-                    ? colors.iconActive
-                    : colors.border
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border
                 }
               ]}
             >
               <Text
                 style={[
                   styles.queueSummaryLabel,
+                  { color: colors.text }
+                ]}
+              >
+                Loading...
+              </Text>
+            </View>
+          ) : (
+            queueSummary.map((queue) => (
+              <Pressable
+                key={queue.key}
+                onPress={() =>
+                  handleQueueSelection(
+                    queue.key as ReviewPriorityStageKey
+                  )
+                }
+                style={[
+                  styles.queueSummaryItem,
                   {
-                    color: queue.active
-                      ? "#ffffff"
-                      : colors.text
+                    backgroundColor: queue.active
+                      ? colors.iconActive
+                      : colors.surface,
+                    borderColor: queue.active
+                      ? colors.iconActive
+                      : colors.border
                   }
                 ]}
               >
-                {queue.label}: {queue.count}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.queueSummaryLabel,
+                    {
+                      color: queue.active
+                        ? "#ffffff"
+                        : colors.text
+                    }
+                  ]}
+                >
+                  {queue.label}: {queue.count}
+                </Text>
+              </Pressable>
+            ))
+          )}
         </View>
       </>
     )
