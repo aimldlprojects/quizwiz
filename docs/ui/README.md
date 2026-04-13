@@ -36,6 +36,7 @@ Use this as a short cross-check after each UI change.
 - [Badges](./badges.md)
 - [Profile](./profile.md)
 - [Admin](./admin.md)
+- [Streamlit Dashboard](./streamlit/README.md)
 
 ## Reference Docs
 

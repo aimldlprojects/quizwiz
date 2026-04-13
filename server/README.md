@@ -42,3 +42,13 @@ For the full set of reset options, see [docs/maintenance.md#reset-project](../do
 ```powershell
 uvicorn main:app --reload --host 0.0.0.0 --port 8000 --no-access-log --log-level warning
 ```
+
+## User Analytics Dashboard (Streamlit)
+
+From the `server` folder:
+
+```powershell
+streamlit run user_analytics_dashboard.py
+```
+
+The dashboard reads data directly from PostgreSQL using the same DB env vars listed above.
