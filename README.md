@@ -1,54 +1,37 @@
-# Welcome to your Expo app 👋
+# QUIZWIZ
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+QUIZWIZ is a learning app designed to help users learn faster and retain knowledge longer through consistent question practice.
 
-## Get started
+It uses memory-based learning techniques, including spaced repetition, to improve recall, strengthen understanding, and support long-term learning.
 
-1. Install dependencies
+## How It Works
 
-   ```bash
-   npm install
-   ```
+1. Users practice questions by subject and topic.
+2. The app tracks progress and review history.
+3. Spaced repetition schedules important questions for review at the right time.
+4. Users focus on weak areas using filters and targeted practice.
 
-2. Start the app
+## Included Subjects and Topics
 
-   ```bash
-   npx expo start
-   ```
+- Tables
+- Spelling Bee (English and Science)
 
-In the output, you'll find options to open the app in a
+## Key Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Stores questions and review history in the database.
+- Syncs progress across multiple devices.
+- Admins can manage users and assign subjects.
+- Includes text-to-speech for reading questions.
+- Supports shuffle mode, autoplay mode, and auto-sync mode.
+- Users can select and filter subjects to focus on.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## Planned Features
 
-## Get a fresh project
+- Smarter review recommendations based on performance.
+- More subjects and topic packs.
+- Improved analytics for learners and admins.
+- Better offline support with automatic sync recovery.
 
-When you're ready, run:
+## Contributing
 
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Reset Databases
-
-If you need to rebuild the app databases, see the reset instructions in [docs/maintenance.md#reset-project](./docs/maintenance.md#reset-project).
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Contributions are welcome. If you want to improve QUIZWIZ, please open an issue or submit a pull request with clear details about your changes.
